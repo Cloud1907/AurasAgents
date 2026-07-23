@@ -1,0 +1,22 @@
+#!/bin/sh
+# Kernel kapısı — doğrulama geçmeden push edilemez.
+# Kurulum: bash bin/install-hooks.sh
+
+ROOT=$(git rev-parse --show-toplevel)
+
+if ! python3 "$ROOT/bin/validate.py"; then
+  echo ""
+  echo "PUSH ENGELLENDI: kernel dogrulamasi basarisiz."
+  echo "Duzeltip tekrar dene; bilincli atlamak icin: git push --no-verify"
+  exit 1
+fi
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "NOT: dogrudan main'e push ediyorsun (butunluklu is icin PR tercih edilir)."
+      ;;
+  esac
+done
+
+exit 0

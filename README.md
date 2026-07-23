@@ -25,6 +25,14 @@ bin/make_evidence.py             kanıt üretici
 python3 bin/validate.py
 ```
 
+```bash
+bash bin/install-hooks.sh
+```
+
+```bash
+bin/codex-review.sh --dry-run
+```
+
 ## Kurulum sonrası (GitHub tarafı — bir kez)
 
 1. Repo'yu GitHub'a push'la.

@@ -187,6 +187,24 @@ def test_agents_md():
           ".claude/skills → .agents/skills symlink'i yok/yanlış")
 
 
+def test_mechanisms():
+    """Deterministik kapılar ve risk sinyali araçları yerinde mi."""
+    for rel in ("bin/hooks/pre-push", "bin/install-hooks.sh",
+                "bin/codex-review.sh"):
+        path = os.path.join(ROOT, rel)
+        check(os.path.isfile(path), f"mekanizma eksik: {rel}")
+        if os.path.isfile(path):
+            check(os.access(path, os.X_OK), f"{rel}: çalıştırma izni yok")
+    hook = os.path.join(ROOT, "bin", "hooks", "pre-push")
+    if os.path.isfile(hook):
+        check("validate.py" in open(hook, encoding="utf-8").read(),
+              "pre-push kancası kernel doğrulamasını koşmuyor")
+    installed = os.path.join(ROOT, ".git", "hooks", "pre-push")
+    if os.path.isdir(os.path.join(ROOT, ".git")):
+        check(os.path.isfile(installed) and os.access(installed, os.X_OK),
+              "pre-push kancası kurulu değil (bash bin/install-hooks.sh)")
+
+
 def main():
     skill_names = test_skills()
     test_profiles(skill_names)
@@ -194,6 +212,7 @@ def main():
     test_workflow()
     test_evidence_roundtrip()
     test_agents_md()
+    test_mechanisms()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")
         for e in ERRORS:

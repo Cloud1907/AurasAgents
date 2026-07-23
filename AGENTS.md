@@ -63,6 +63,17 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 - Yeni skill kuralı: aynı iş tipi üçüncü kez elle tarif ediliyorsa skill'dir;
   eval'siz skill yayınlanmaz.
 
+## Deterministik kapılar
+
+- `bin/hooks/pre-push`: kernel doğrulaması geçmeden push edilemez
+  (kurulum: `bash bin/install-hooks.sh`; bilinçli atlama: `git push --no-verify`).
+- CI `evidence` job'ı: aynı doğrulamayı bağımsız makinede tekrarlar.
+- `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
+  sinyalidir, makine kanıtı değildir.
+- Not: private repo + Free plan'da GitHub dal koruması kapalıdır; koruma
+  yerel kanca + CI ile sağlanır. Repo public olur veya Pro alınırsa
+  `kernel` check'i required status check yapılmalıdır.
+
 ## Kimlik ve erişim
 
 - GitHub işleri `gh` CLI ile; kimlik kısa ömürlü GitHub App installation
