@@ -5,6 +5,13 @@ thin kernel. Tasarım: [VIBE_CODING_TASARIM_TEMMUZ_2026.md](VIBE_CODING_TASARIM_
 Vizyon: [AURASAGENTS_PRODUCT_VISION.md](AURASAGENTS_PRODUCT_VISION.md) ·
 Kararlar: [docs/decisions/](docs/decisions/)
 
+## Yeni bir projeyi bağlamak
+
+Herhangi bir proje klasöründe Claude Code aç ve `/auras` yaz. Kurulum
+(AGENTS.md, profiller, form, CI, kanca, GitHub) tek adımda yapılır.
+Global skill: `~/.claude/skills/auras/` — kanonik kopyası
+`.agents/skills/auras/`. Motor: `bin/auras-init.sh` (idempotent).
+
 ## Yapı
 
 ```
