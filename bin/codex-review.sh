@@ -37,7 +37,10 @@ if [ -z "$DIFF" ]; then
   exit 0
 fi
 
-PROMPT=$(cat <<EOF
+PROMPT_FILE=$(mktemp)
+trap 'rm -f "$PROMPT_FILE"' EXIT
+
+cat > "$PROMPT_FILE" <<EOF
 Sen bagimsiz bir kod inceleyicisisin. Asagidaki diff'i incele.
 
 Kurallar:
@@ -45,16 +48,15 @@ Kurallar:
 - Stil, isimlendirme, "daha iyi olabilirdi" turu yorum YAPMA — gurultu uretme.
 - Her bulgu: [P0|P1|P2] dosya:satir — sorun — somut istismar/hata senaryosu.
 - P0 = merge engelleyici, P1 = merge oncesi duzeltilmeli, P2 = bilgi.
-- Bulgu yoksa acikca "TEMIZ" yaz. Bulgu uydurma.
-- Sonuna tek satirlik hukum: "SONUC: TEMIZ" veya "SONUC: N bulgu (en yuksek: PX)".
+- Bulgu yoksa acikca TEMIZ yaz. Bulgu uydurma.
+- Sonuna tek satirlik hukum: SONUC: TEMIZ veya SONUC: N bulgu (en yuksek: PX).
 
 ## Diff
 $DIFF
 EOF
-)
 
 echo "Codex inceliyor..." >&2
-OUT=$(printf '%s' "$PROMPT" | "$BRIDGE")
+OUT=$("$BRIDGE" < "$PROMPT_FILE")
 
 BODY="## Codex incelemesi (risk sinyali)
 
