@@ -1,0 +1,21 @@
+schema_version: 1
+task_class: code-change
+description: "Contract'lı kod değişikliği — sistemin ana iş sınıfı"
+skills:
+  - implement-change
+  - security-review
+tools:
+  filesystem: workspace-write
+  commands: [test, lint, build, typecheck, gh]
+network:
+  mode: allowlist
+  domains:
+    - api.github.com
+evidence_required:
+  - tests
+  - lint
+  - build
+risk:
+  provisional_from: issue_form
+  final_from: diff
+  escalation: upward_only

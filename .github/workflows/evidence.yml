@@ -1,0 +1,39 @@
+name: evidence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PyYAML kur
+        run: python3 -m pip install --quiet pyyaml
+
+      - name: Kernel doğrulama
+        run: python3 bin/validate.py
+
+      - name: Contract ID çıkar
+        id: contract
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          ID=$(echo "$TITLE" | grep -oE '#[0-9]+' | head -1 || true)
+          echo "id=${ID:-micro}" >> "$GITHUB_OUTPUT"
+
+      - name: Evidence üret
+        run: |
+          python3 bin/make_evidence.py \
+            --out evidence.json \
+            --contract "${{ steps.contract.outputs.id }}" \
+            --task-class "${{ contains(github.event.pull_request.labels.*.name, 'contract') && 'code-change' || 'micro' }}" \
+            --check "kernel-validate=passed"
+
+      - name: Evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence
+          path: evidence.json

@@ -1,0 +1,18 @@
+schema_version: 1
+task_class: research
+description: "Kaynaklı araştırma/keşif — kod değişikliği yok"
+skills:
+  - research-with-evidence
+tools:
+  filesystem: read-only
+  report_path: ".agents/reports/"
+  commands: [gh]
+network:
+  mode: open-web
+  note: "Web araştırması serbest; indirme/çalıştırma yasak"
+evidence_required:
+  - cited_sources
+risk:
+  provisional_from: issue_form
+  final_from: diff
+  escalation: upward_only
