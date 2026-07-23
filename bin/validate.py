@@ -199,8 +199,10 @@ def test_mechanisms():
     if os.path.isfile(hook):
         check("validate.py" in open(hook, encoding="utf-8").read(),
               "pre-push kancası kernel doğrulamasını koşmuyor")
+    # Kurulu kanca makineye özel durumdur; CI'da .git/hooks yoktur ve CI
+    # zaten aynı doğrulamayı doğrudan koşar.
     installed = os.path.join(ROOT, ".git", "hooks", "pre-push")
-    if os.path.isdir(os.path.join(ROOT, ".git")):
+    if os.path.isdir(os.path.join(ROOT, ".git")) and not os.environ.get("CI"):
         check(os.path.isfile(installed) and os.access(installed, os.X_OK),
               "pre-push kancası kurulu değil (bash bin/install-hooks.sh)")
 
