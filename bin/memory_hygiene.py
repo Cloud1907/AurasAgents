@@ -30,8 +30,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # İç göstergeler — memory kayıtlarında beklenen provenance alanları
 DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 SECRET_RE = re.compile(
-    r"(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY|"
-    r"password\s*[:=]\s*['\"][^'\"]{6,})", re.I)
+    r"("
+    r"sk-[A-Za-z0-9]{16,}"                      # OpenAI-tarzı anahtar
+    r"|ghp_[A-Za-z0-9]{20,}"                    # GitHub token
+    r"|AKIA[0-9A-Z]{16}"                        # AWS access key id
+    r"|AIza[0-9A-Za-z_\-]{35}"                  # Google API key
+    r"|xox[baprs]-[0-9A-Za-z-]{10,}"           # Slack token
+    r"|eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"  # JWT
+    r"|-----BEGIN [A-Z ]*PRIVATE KEY"          # özel anahtar bloğu
+    r"|(?:authorization\s*[:=]|bearer)\s*['\"]?(?:basic|bearer|digest)?\s*[A-Za-z0-9_\-\.+/=]{16,}"  # Authorization: Basic/Bearer (base64 dahil)
+    r"|password\s*[:=]\s*['\"][^'\"]{6,}"       # hardcoded parola
+    r")", re.I)
 CONFLICT_MARKERS = ("çelişki", "conflict", "eski karar", "yanlış çıktı",
                     "superseded", "geçersiz")
 
