@@ -31,7 +31,13 @@ description: Mevcut bir repoyu AurasAgents çalışma sistemine bağlar; AGENTS.
   conventions→AGENTS.md, routing→profil. Düz metne kopyalayıp geçme.
 - Onboarding tek PR'dır; repo koduna davranış değişikliği karıştırma.
 
+## Referanslar
+
+- `references/onboarding-checklist.md` — keşif, AGENTS.md uyarlama, CI
+  entegrasyonu, Agent Ofis göçü ve doğrulama derin listesi.
+
 ## Eval
 
+`eval/cases.md` — temsili vakalar (biri negatif: bağlı projede tetiklenmemeli).
 Onboarding sonrası ölçüt: yeni cihazdan yalnız login ile contract'lı iş
 başlatılıp doğrulanmış PR alınabiliyor mu (tasarım Aşama 1 ölçütü).

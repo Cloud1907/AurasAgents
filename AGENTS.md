@@ -33,7 +33,8 @@ Hiyerarşi (çelişkide üstteki kazanır):
 
 Kalıcılaştırma yalnız reviewed PR ile olur. Secret, kullanıcı verisi ve
 doğrulanmamış çıkarım kalıcı hafızaya giremez. 90 gün dokunulmamış kayıt
-gözden geçirilir.
+gözden geçirilir. Bakım robotu: `python3 bin/memory_hygiene.py` bayat/
+kaynaksız/çelişen kaydı işaretler (silmez — emeklilik reviewed PR ile).
 
 ## Risk politikası — üç deterministik sonuç
 

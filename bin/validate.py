@@ -200,6 +200,36 @@ def test_agents_md():
           ".claude/skills → .agents/skills symlink'i yok/yanlış")
 
 
+def test_rules():
+    """Path-scoped domain kuralları geçerli frontmatter taşıyor mu."""
+    rules_dir = os.path.join(ROOT, ".claude", "rules")
+    if not os.path.isdir(rules_dir):
+        return
+    for f in sorted(os.listdir(rules_dir)):
+        if not f.endswith(".md"):
+            continue
+        fm = frontmatter(os.path.join(rules_dir, f))
+        check(fm is not None, f"rule {f}: frontmatter yok")
+        if fm:
+            check("paths" in fm, f"rule {f}: 'paths' scope tanımı yok")
+            check(isinstance(fm.get("paths"), list) and fm["paths"],
+                  f"rule {f}: 'paths' boş/liste değil")
+
+
+def test_memory_tool():
+    """Hafıza bakım robotu var ve çalışıyor mu."""
+    path = os.path.join(ROOT, "bin", "memory_hygiene.py")
+    check(os.path.isfile(path), "bin/memory_hygiene.py yok")
+    if os.path.isfile(path):
+        proc = subprocess.run(
+            [sys.executable, path, "--today", "2026-07-24"],
+            capture_output=True, text=True, cwd=ROOT)
+        check(proc.returncode in (0, 1),
+              f"memory_hygiene beklenmedik exit: {proc.returncode}")
+        check("HAFIZA BAKIMI" in proc.stdout,
+              "memory_hygiene beklenen çıktı biçimini üretmedi")
+
+
 def test_mechanisms():
     """Deterministik kapılar ve risk sinyali araçları yerinde mi."""
     for rel in ("bin/hooks/pre-push", "bin/install-hooks.sh",
@@ -227,6 +257,8 @@ def main():
     test_workflow()
     test_evidence_roundtrip()
     test_agents_md()
+    test_rules()
+    test_memory_tool()
     test_mechanisms()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")
