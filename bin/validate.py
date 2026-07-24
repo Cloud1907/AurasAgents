@@ -59,8 +59,21 @@ def test_skills():
             check("kullan" in desc.lower(),
                   f"skill '{d}': description ne zaman kullanılacağını söylemiyor")
         body = open(md, encoding="utf-8").read()
-        for section in ("## Prosedür", "## Gotcha", "## Eval"):
-            check(section in body, f"skill '{d}': '{section}' bölümü eksik")
+        low = body.lower()
+        # SKILL.md < 500 satır (Anthropic best-practice; derinlik references/'a iner)
+        check(len(body.splitlines()) < 500,
+              f"skill '{d}': SKILL.md 500 satırı aştı — derinliği references/'a taşı")
+        # İş akışı bölümü: eski 'Prosedür' veya yeni 'İş akışı'
+        check("prosedür" in low or "akış" in low,
+              f"skill '{d}': iş akışı/prosedür bölümü yok")
+        # Gotcha içeriği (tuzak bilgisi) — bölüm adı serbest
+        check("gotcha" in low or "tuzak" in low,
+              f"skill '{d}': gotcha/tuzak bölümü yok (en yüksek sinyalli içerik)")
+        # Eval: '## Eval' bölümü VEYA eval/ klasörü
+        has_eval = ("## eval" in low or
+                    os.path.isdir(os.path.join(full, "eval")))
+        check(has_eval, f"skill '{d}': eval yok (## Eval bölümü ya da eval/ klasörü)")
+        # Derin skill sinyali (uyarı değil, bilgi): references/ veya scripts/
         names.append(d)
     check(len(names) >= 4, f"en az 4 çekirdek skill bekleniyor, {len(names)} var")
     return set(names)
