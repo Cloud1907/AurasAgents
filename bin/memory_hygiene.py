@@ -38,7 +38,7 @@ SECRET_RE = re.compile(
     r"|xox[baprs]-[0-9A-Za-z-]{10,}"           # Slack token
     r"|eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"  # JWT
     r"|-----BEGIN [A-Z ]*PRIVATE KEY"          # özel anahtar bloğu
-    r"|(?:authorization|bearer)\s*[:=]?\s*['\"]?[A-Za-z0-9_\-\.]{20,}"    # Bearer/Authorization
+    r"|(?:authorization\s*[:=]|bearer)\s*['\"]?(?:basic|bearer|digest)?\s*[A-Za-z0-9_\-\.+/=]{16,}"  # Authorization: Basic/Bearer (base64 dahil)
     r"|password\s*[:=]\s*['\"][^'\"]{6,}"       # hardcoded parola
     r")", re.I)
 CONFLICT_MARKERS = ("çelişki", "conflict", "eski karar", "yanlış çıktı",

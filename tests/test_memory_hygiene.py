@@ -53,6 +53,7 @@ class TestMemoryHygiene(unittest.TestCase):
             "xoxb-" + "1" * 20,                         # Slack
             "eyJ" + "a" * 12 + "." + "b" * 12 + "." + "c" * 12,  # JWT
             "Authorization: " + "x" * 24,               # Bearer/Authorization
+            "Authorization: Basic dXNlcjpwYXNzd29yZA==",  # Codex P1: base64 Basic auth
         ]
         for tok in ornekler:
             self.assertIsNotNone(mh.SECRET_RE.search(tok),
