@@ -45,6 +45,21 @@ class TestMemoryHygiene(unittest.TestCase):
             mh.scan_file(p, mh.parse_date("2026-07-24"), 90, findings)
             self.assertIn("KRİTİK", [f[0] for f in findings])
 
+    def test_guclu_secret_desenleri(self):
+        # Rapor bulgusu: AWS/JWT/Bearer/Google/Slack de yakalanmalı
+        ornekler = [
+            "AKIA" + "A" * 16,                          # AWS
+            "AIza" + "b" * 35,                          # Google
+            "xoxb-" + "1" * 20,                         # Slack
+            "eyJ" + "a" * 12 + "." + "b" * 12 + "." + "c" * 12,  # JWT
+            "Authorization: " + "x" * 24,               # Bearer/Authorization
+        ]
+        for tok in ornekler:
+            self.assertIsNotNone(mh.SECRET_RE.search(tok),
+                                 f"yakalanmalı: {tok[:12]}...")
+        # placeholder tetiklememeli
+        self.assertIsNone(mh.SECRET_RE.search("password = kisa"))
+
     def test_okunamayan_dosya_yutulmaz(self):
         # Var olmayan dosya sessizce atlanmamalı — bulgu üretmeli
         findings = []
