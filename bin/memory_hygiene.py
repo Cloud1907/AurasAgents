@@ -54,8 +54,11 @@ def read_frontmatter(text):
 def scan_file(path, today, max_age, findings):
     rel = os.path.relpath(path, ROOT)
     try:
-        text = open(path, encoding="utf-8").read()
-    except Exception:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        # Okunamayan dosyayı sessizce yutma — bulgu olarak raporla.
+        findings.append(("OKUNAMADI", rel, f"taranamadı: {type(e).__name__}"))
         return
     fm = read_frontmatter(text)
 
@@ -96,9 +99,10 @@ def default_targets():
         p = os.path.join(ROOT, d)
         if os.path.isdir(p):
             t.append(p)
-    # Kullanıcı auto-memory (varsa)
-    home = os.path.expanduser(
-        "~/.claude/projects/-Users-cloudsmac-Developer-GitHub-AurasAgents/memory")
+    # Kullanıcı auto-memory (varsa). Claude proje-slug'ı mutlak yoldan türetilir;
+    # sabit /Users/... yolu yok (no hidden local dependency ilkesi).
+    slug = os.path.abspath(ROOT).replace("/", "-")
+    home = os.path.expanduser(os.path.join("~/.claude/projects", slug, "memory"))
     if os.path.isdir(home):
         t.append(home)
     return t

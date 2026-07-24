@@ -217,7 +217,7 @@ def test_rules():
 
 
 def test_memory_tool():
-    """Hafıza bakım robotu var ve çalışıyor mu."""
+    """Hafıza bakım robotu var, çalışıyor ve birim testleri geçiyor mu."""
     path = os.path.join(ROOT, "bin", "memory_hygiene.py")
     check(os.path.isfile(path), "bin/memory_hygiene.py yok")
     if os.path.isfile(path):
@@ -228,6 +228,14 @@ def test_memory_tool():
               f"memory_hygiene beklenmedik exit: {proc.returncode}")
         check("HAFIZA BAKIMI" in proc.stdout,
               "memory_hygiene beklenen çıktı biçimini üretmedi")
+    # Bekçinin bekçisi: araçların kendi birim testleri de koşmalı
+    if os.path.isdir(os.path.join(ROOT, "tests")):
+        proc = subprocess.run(
+            [sys.executable, "-W", "error::ResourceWarning",
+             "-m", "unittest", "discover", "-s", "tests", "-q"],
+            capture_output=True, text=True, cwd=ROOT)
+        check(proc.returncode == 0,
+              f"tests/ birim testleri başarısız: {proc.stderr[-300:]}")
 
 
 def test_mechanisms():
