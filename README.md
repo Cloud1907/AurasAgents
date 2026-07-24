@@ -40,6 +40,12 @@ bash bin/install-hooks.sh
 bin/codex-review.sh --dry-run
 ```
 
+Sistem hafızası raporunu canlı veriden üret ve aç:
+
+```bash
+python3 bin/report.py --open
+```
+
 ## Kurulum sonrası (GitHub tarafı — bir kez)
 
 1. Repo'yu GitHub'a push'la.
