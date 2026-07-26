@@ -9,3 +9,8 @@
 - Kanıt üretimi lokal deneme: `python3 bin/make_evidence.py --out /tmp/evidence.json`
 - Skill'ler `.claude/skills` üzerinden görünür (`.agents/skills`'e symlink);
   yeni skill eklerken symlink'i bozma, `.agents/skills/` altına yaz.
+- Skill yönlendirmesi: `.claude/settings.json` UserPromptSubmit hook'u her
+  istekte `bin/route.py`'yi çalıştırır ve zorunlu skill'i bağlama basar.
+  Elle deneme: `echo '{"prompt":"..."}' | python3 bin/route.py`
+  Hook yeni eklendiyse çalışan oturum görmeyebilir — `/hooks` aç ya da
+  Claude Code'u yeniden başlat.

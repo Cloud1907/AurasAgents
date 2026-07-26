@@ -4,6 +4,7 @@ description: "Contract'lı kod değişikliği — sistemin ana iş sınıfı"
 skills:
   - implement-change
   - security-review
+  - kernel-work
 tools:
   filesystem: workspace-write
   commands: [test, lint, build, typecheck, gh]

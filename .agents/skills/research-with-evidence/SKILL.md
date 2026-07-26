@@ -1,6 +1,6 @@
 ---
 name: research-with-evidence
-description: Kaynaklı ve doğrulanabilir araştırma/keşif raporu üretir — her iddiaya kaynak bağlar, kaynak güvenini derecelendirir, doğrulanmış/ikincil/spekülatif ayrımını açık yapar. "Araştır, incele, karşılaştır, nerede/nasıl, hangi seçenek" tipi research sınıfı işlerde kullan. Kod değişikliği gerektiren, dosya yazan/düzenleyen işte (rapor dosyası hariç) kullanma.
+description: Kaynaklı ve doğrulanabilir araştırma/keşif raporu üretir — her iddiaya kaynak bağlar, kaynak güvenini derecelendirir, doğrulanmış/ikincil/spekülatif ayrımını açık yapar. Kullanıcı "araştır, incele, karşılaştır, nerede tanımlı, nasıl çalışıyor, hangi seçenek, neden böyle" dediğinde kullan — rapor/doküman üretmek bu skill'e dahildir. Kod veya davranış değiştiren işte kullanma (bkz. implement-change).
 ---
 
 # research-with-evidence

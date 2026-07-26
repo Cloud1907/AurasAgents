@@ -238,6 +238,72 @@ def test_memory_tool():
               f"tests/ birim testleri başarısız: {proc.stderr[-300:]}")
 
 
+def test_routing(skill_names):
+    """Router mekanizması: tablo eksiksiz mi, hook kayıtlı mı, seçim doğru mu."""
+    path = os.path.join(ROOT, ".agents", "routing.yml")
+    check(os.path.isfile(path), ".agents/routing.yml yok (skill yönlendirme tablosu)")
+    router = os.path.join(ROOT, "bin", "route.py")
+    check(os.path.isfile(router), "bin/route.py yok")
+    if not (os.path.isfile(path) and os.path.isfile(router)):
+        return
+
+    cfg = yaml.safe_load(open(path, encoding="utf-8"))
+    routed = set()
+    for rule in cfg.get("rules", []):
+        skill = rule.get("skill")
+        check(skill, f"routing kuralı 'skill' alanı taşımıyor: {rule}")
+        check(rule.get("task_class") in ("code-change", "research", "incident"),
+              f"routing '{skill}': geçersiz task_class '{rule.get('task_class')}'")
+        trig = rule.get("triggers") or []
+        check(len(trig) >= 3,
+              f"routing '{skill}': en az 3 tetik ifadesi gerekli ({len(trig)} var)")
+        if rule.get("external"):
+            continue  # skill repo dışında (kullanıcı-global) — varlığı doğrulanamaz
+        check(skill in skill_names,
+              f"routing '{skill}': böyle bir skill yok (kayıtlı: {sorted(skill_names)})")
+        routed.add(skill)
+    check(cfg.get("fallback", {}).get("message"),
+          "routing: eşleşme yoksa ne yapılacağını söyleyen fallback mesajı yok")
+
+    # Her skill ya yönlendirilir ya da gerekçeli olarak dışarıda bırakılır —
+    # yoksa görünür ama hiç seçilmeyen ölü ağırlık olur.
+    excluded = set()
+    for entry in cfg.get("not_routed", []):
+        skill = entry.get("skill")
+        check(skill in skill_names,
+              f"not_routed '{skill}': böyle bir skill yok")
+        check(len((entry.get("reason") or "").strip()) >= 40,
+              f"not_routed '{skill}': yönlendirilmeme gerekçesi yok/çok kısa")
+        excluded.add(skill)
+    missing = skill_names - routed - excluded
+    check(not missing,
+          f"routing tablosunda tetiği olmayan skill(ler): {sorted(missing)} "
+          f"— tetik ekle ya da not_routed'a gerekçeyle yaz")
+
+    # Hook kayıtlı mı (mekanizma; bağlam değil).
+    settings = os.path.join(ROOT, ".claude", "settings.json")
+    check(os.path.isfile(settings), ".claude/settings.json yok (router hook'u kayıtsız)")
+    if os.path.isfile(settings):
+        data = json.load(open(settings, encoding="utf-8"))
+        cmds = [h.get("command", "")
+                for entry in data.get("hooks", {}).get("UserPromptSubmit", [])
+                for h in entry.get("hooks", [])]
+        check(any("route.py" in c for c in cmds),
+              "settings.json: UserPromptSubmit hook'u route.py'yi çağırmıyor")
+
+    # Golden vaka: router gerçekten doğru skill'i seçiyor mu (regresyon kapısı).
+    for prompt, expected in (("kullanıcı endpoint'i ekle", "implement-change"),
+                             ("bu metrik nerede hesaplanıyor", "research-with-evidence"),
+                             ("login akışını güvenlik açısından incele", "security-review")):
+        proc = subprocess.run(
+            [sys.executable, router],
+            input=json.dumps({"prompt": prompt}), capture_output=True,
+            text=True, cwd=ROOT)
+        check(proc.returncode == 0, f"route.py exit {proc.returncode} ('{prompt}')")
+        check(expected in proc.stdout,
+              f"router '{prompt}' → beklenen '{expected}' yönlendirmesi yok")
+
+
 def test_mechanisms():
     """Deterministik kapılar ve risk sinyali araçları yerinde mi."""
     for rel in ("bin/hooks/pre-push", "bin/install-hooks.sh",
@@ -267,6 +333,7 @@ def main():
     test_agents_md()
     test_rules()
     test_memory_tool()
+    test_routing(skill_names)
     test_mechanisms()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")

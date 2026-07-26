@@ -61,14 +61,22 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 - Görev sınıfı (`code-change` | `research` | `incident`) →
   `.agents/capability-profiles/<sınıf>.yml` profili → izinli skill/araç/ağ
   kümesi. Agent seçimini yalnız bu küme içinde yapar ve seçim loglanır.
-- Yeni skill kuralı: aynı iş tipi üçüncü kez elle tarif ediliyorsa skill'dir;
-  eval'siz skill yayınlanmaz.
+- Skill seçimi takdire bırakılmaz: `.agents/routing.yml` tabloya bağlar,
+  `bin/route.py` her istekte (UserPromptSubmit hook'u) görev sınıfı + zorunlu
+  skill üretir. Yönlendirilen skill yüklenmeden işe başlanmaz; yanlış
+  yönlendirme sessizce atlanmaz, gerekçelendirilip kullanıcıya söylenir.
+- Yeni skill kuralı: aynı iş tipi üçüncü kez elle tarif ediliyorsa skill'dir.
+  Yayın koşulu üçlüdür: eval + routing.yml tetiği + en az bir profil kaydı.
+  Kasten yönlendirilmeyen skill `routing.yml` `not_routed`'a gerekçesiyle yazılır.
 
 ## Deterministik kapılar
 
 - `bin/hooks/pre-push`: kernel doğrulaması geçmeden push edilemez
   (kurulum: `bash bin/install-hooks.sh`; bilinçli atlama: `git push --no-verify`).
 - CI `evidence` job'ı: aynı doğrulamayı bağımsız makinede tekrarlar.
+- `.claude/settings.json` UserPromptSubmit hook'u: skill yönlendirmesini her
+  isteğe enjekte eder. Router asla bloklamaz (hatada sessiz exit 0) — kapı
+  değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
 - Not: private repo + Free plan'da GitHub dal koruması kapalıdır; koruma
