@@ -92,7 +92,15 @@ def log_path(explicit=None, pdir=None):
     if env:
         return env
     base = pdir or os.environ.get("CLAUDE_PROJECT_DIR") or ROOT
-    return os.path.join(base, DEFAULT_LOG)
+    # YABANCI REPOYA YAZMA. Global router her projede çalışır; sisteme bağlı
+    # olmayan bir repoya kayıt bırakmak orada untracked dosya üretir ve
+    # sohbet metni yanlışlıkla commit'lenebilir (gerçek vaka: 4cast/4Flow).
+    # Bağlı proje = kendi routing.yml'ini taşıyan proje.
+    if os.path.isfile(os.path.join(base, ".agents", "routing.yml")):
+        return os.path.join(base, DEFAULT_LOG)
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", os.path.abspath(base)).strip("-")[-60:]
+    return os.path.expanduser(os.path.join(
+        "~", ".claude", "auras", "runtime", f"{slug or 'bilinmeyen'}.jsonl"))
 
 
 def append(event, path=None):

@@ -64,6 +64,21 @@ class AppendTest(unittest.TestCase):
                     kayit = run_event.temizle(v)
                     self.assertIn("[gizlendi]", kayit, f"maskelenmedi: {v}")
 
+    def test_bagli_olmayan_repoya_yazilmaz(self):
+        """Global router yabancı repoya kayıt bırakmamalı (untracked sızıntı)."""
+        with tempfile.TemporaryDirectory() as td:
+            yol = run_event.log_path(pdir=td)
+            self.assertNotIn(td, yol, "yabancı repoya yazıyor")
+            self.assertIn(os.path.expanduser("~/.claude/auras/runtime"), yol)
+
+    def test_bagli_projede_yerel_kayit(self):
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".agents"))
+            with open(os.path.join(td, ".agents", "routing.yml"), "w") as fh:
+                fh.write("schema_version: 1\n")
+            yol = run_event.log_path(pdir=td)
+            self.assertTrue(yol.startswith(td), "bağlı projede yerel yazmalı")
+
     def test_intent_kapatilabilir(self):
         os.environ["AURAS_LOG_INTENT"] = "0"
         try:
