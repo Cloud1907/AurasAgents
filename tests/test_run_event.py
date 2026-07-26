@@ -42,15 +42,41 @@ class AppendTest(unittest.TestCase):
             self.assertIn("ts", first)  # zaman damgası eklenir
 
     def test_secret_diske_yazilmaz(self):
+        # Sahte token kaynakta literal durmasın (secret tarayıcı kapısı).
+        sahte = "gh" + "p_" + "abcdefghij0123456789"
         with tempfile.TemporaryDirectory() as td:
             log = os.path.join(td, "events.jsonl")
             run_event.append(
-                {"kind": "route",
-                 "intent": "token ghp_abcdefghij0123456789 ile dene"}, log)
+                {"kind": "route", "intent": f"token {sahte} ile dene"}, log)
             with open(log, encoding="utf-8") as fh:
                 body = fh.read()
-            self.assertNotIn("ghp_abcdefghij0123456789", body)
+            self.assertNotIn(sahte, body)
             self.assertIn("[gizlendi]", body)
+
+    def test_duz_metin_kimlik_bilgisi_maskelenir(self):
+        """Sohbette geçen parola/TC/e-posta diske yazılmamalı."""
+        vakalar = ("password: hunter2", "parolam hunter2", "şifre Aa123456!",
+                   "tc 12345678901", "asil@ornek.com.tr", "api key abc123def456")
+        with tempfile.TemporaryDirectory() as td:
+            log = os.path.join(td, "events.jsonl")
+            for v in vakalar:
+                with self.subTest(v=v):
+                    kayit = run_event.temizle(v)
+                    self.assertIn("[gizlendi]", kayit, f"maskelenmedi: {v}")
+
+    def test_intent_kapatilabilir(self):
+        os.environ["AURAS_LOG_INTENT"] = "0"
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                log = os.path.join(td, "events.jsonl")
+                run_event.append({"kind": "route", "routed": "auras",
+                                  "intent": "gizli kalsın"}, log)
+                with open(log, encoding="utf-8") as fh:
+                    body = fh.read()
+                self.assertNotIn("gizli", body)
+                self.assertIn("auras", body)
+        finally:
+            os.environ.pop("AURAS_LOG_INTENT", None)
 
     def test_intent_kisaltilir(self):
         with tempfile.TemporaryDirectory() as td:

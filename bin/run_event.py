@@ -51,11 +51,31 @@ def secret_re():
         return _FALLBACK_SECRET
 
 
+# Düz metin kimlik bilgisi/PII — sohbette geçebilir, diske GİRMEMELİ.
+# (security-review bulgusu: memory_hygiene regex'i yalnız tırnaklı parolayı
+# ve bilinen token biçimlerini yakalıyordu; "password: hunter2", "şifre X",
+# TC kimlik no ve e-posta sızıyordu.)
+PII_RE = re.compile(
+    r"("
+    # Türkçe ek alabilir: parola/parolam/parolası, şifre/şifresi/şifremiz…
+    r"(?:parola|şifre|sifre|password|passwd|pwd|secret|api[\s_-]?key|token)\w*"
+    r"\s*(?:[:=]|\s)\s*['\"]?\S{4,}"          # anahtar kelime + değer
+    r"|\b\d{11}\b"                             # TC kimlik no
+    r"|\b[\w.+-]+@[\w-]+\.[\w.]{2,}\b"        # e-posta
+    r"|\b(?:\d[ -]?){13,19}\b"                # kart numarası benzeri dizi
+    r")", re.I)
+
+
 def temizle(text):
-    """Secret'ı gizle, uzunluğu kırp — kayıt yerel ama yine de veri sızdırmaz."""
+    """Secret + düz metin kimlik bilgisini gizle, uzunluğu kırp.
+
+    Kayıt yerel ve gitignore'lu olsa bile veri sızdırmaz: makineye erişen
+    biri bu dosyadan kimlik bilgisi toplayamamalı.
+    """
     if not text:
         return text
-    text = secret_re().sub("[gizlendi]", str(text)).strip()
+    text = secret_re().sub("[gizlendi]", str(text))
+    text = PII_RE.sub("[gizlendi]", text).strip()
     text = " ".join(text.split())
     return text[:INTENT_MAX] + "…" if len(text) > INTENT_MAX else text
 
@@ -80,7 +100,12 @@ def append(event, path=None):
     path = path or log_path()
     rec = {k: v for k, v in event.items() if k in ALLOWED and v is not None}
     if "intent" in rec:
-        rec["intent"] = temizle(rec["intent"])
+        # AURAS_LOG_INTENT=0 → istek metni hiç yazılmaz (en katı gizlilik);
+        # skill/sınıf kaydı yine tutulur, tablo çalışmaya devam eder.
+        if os.environ.get("AURAS_LOG_INTENT") == "0":
+            rec.pop("intent")
+        else:
+            rec["intent"] = temizle(rec["intent"])
     rec["ts"] = dt.datetime.now().isoformat(timespec="seconds")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
