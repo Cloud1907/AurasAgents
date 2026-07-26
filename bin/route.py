@@ -197,6 +197,31 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     return context, summary
 
 
+def _kaydet(prompt, cfg, pdir):
+    """Yönlendirme kararını görünür kayda yaz (best-effort; asla bloklamaz).
+
+    Böylece `bin/durum.py` "ne yönlendirildi vs ne yüklendi" karşılaştırmasını
+    ajanın beyanına değil kayda dayandırır.
+    """
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_run_event", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       "run_event.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        task_class, primary, extras, _hits, explicit = route(prompt, cfg)
+        mod.append({
+            "kind": "route",
+            "task_class": task_class,
+            "routed": (primary or {}).get("skill") or (explicit if explicit else None),
+            "extras": extras,
+            "intent": prompt,
+        }, mod.log_path(pdir=pdir))
+    except Exception:
+        pass
+
+
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
     pdir = project_dir()
@@ -219,6 +244,7 @@ def main(argv=None):
         context, summary = render(prompt, cfg, pdir, is_local)
     except Exception:
         return 0  # yönlendirme yardımdır; asla isteği bloklamaz
+    _kaydet(prompt, cfg, pdir)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",

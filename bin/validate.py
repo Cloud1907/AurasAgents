@@ -292,16 +292,74 @@ def test_routing(skill_names):
               "settings.json: UserPromptSubmit hook'u route.py'yi çağırmıyor")
 
     # Golden vaka: router gerçekten doğru skill'i seçiyor mu (regresyon kapısı).
+    # Doğrulama koşumu kullanıcının aktivite kaydını kirletmemeli (izolasyon).
+    with tempfile.TemporaryDirectory() as td:
+        env = dict(os.environ, AURAS_EVENT_LOG=os.path.join(td, "events.jsonl"))
+        _routing_golden_cases(router, env)
+
+
+def _routing_golden_cases(router, env):
     for prompt, expected in (("kullanıcı endpoint'i ekle", "implement-change"),
                              ("bu metrik nerede hesaplanıyor", "research-with-evidence"),
                              ("login akışını güvenlik açısından incele", "security-review")):
         proc = subprocess.run(
             [sys.executable, router],
             input=json.dumps({"prompt": prompt}), capture_output=True,
-            text=True, cwd=ROOT)
+            text=True, cwd=ROOT, env=env)
         check(proc.returncode == 0, f"route.py exit {proc.returncode} ('{prompt}')")
         check(expected in proc.stdout,
               f"router '{prompt}' → beklenen '{expected}' yönlendirmesi yok")
+
+
+def test_visibility():
+    """Görünürlük katmanı: skill çağrıları ve tur aktivitesi kayda geçiyor mu.
+
+    Kullanıcı 'hangi skill çağrıldı, ne yapıldı' sorusunu benim beyanımdan
+    değil makine kaydından cevaplayabilmeli.
+    """
+    for rel in ("bin/run_event.py", "bin/durum.py"):
+        check(os.path.isfile(os.path.join(ROOT, rel)), f"görünürlük aracı yok: {rel}")
+    if not all(os.path.isfile(os.path.join(ROOT, r))
+               for r in ("bin/run_event.py", "bin/durum.py")):
+        return
+
+    settings = os.path.join(ROOT, ".claude", "settings.json")
+    if os.path.isfile(settings):
+        data = json.load(open(settings, encoding="utf-8"))
+        hooks = data.get("hooks", {})
+        skill_hook = any(
+            "run_event.py" in h.get("command", "")
+            for e in hooks.get("PostToolUse", [])
+            if "Skill" in (e.get("matcher") or "")
+            for h in e.get("hooks", []))
+        check(skill_hook,
+              "settings.json: PostToolUse/Skill hook'u run_event.py'yi çağırmıyor "
+              "— skill çağrıları kayda geçmez")
+        check(any("run_event.py" in h.get("command", "")
+                  for e in hooks.get("Stop", []) for h in e.get("hooks", [])),
+              "settings.json: Stop hook'u yok — tur kapanışı kayda geçmez")
+
+    # Kayıt disposable ve gitignore'lu olmalı (auto-memory kuralı: hiçbir iş
+    # buna bağımlı olamaz, repoya sızmamalı).
+    gi = os.path.join(ROOT, ".gitignore")
+    check(os.path.isfile(gi) and ".agents/runtime" in open(gi, encoding="utf-8").read(),
+          ".gitignore: .agents/runtime yok — disposable kayıt repoya sızar")
+
+    # Uçtan uca: sahte Skill hook payload'u → olay → tabloda görünür.
+    with tempfile.TemporaryDirectory() as td:
+        log = os.path.join(td, "events.jsonl")
+        p1 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "bin", "run_event.py"),
+             "--kind", "skill", "--log", log],
+            input=json.dumps({"tool_input": {"skill": "kernel-work"}}),
+            capture_output=True, text=True, cwd=ROOT)
+        check(p1.returncode == 0, f"run_event.py exit {p1.returncode}")
+        p2 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "bin", "durum.py"), "--log", log],
+            capture_output=True, text=True, cwd=ROOT)
+        check(p2.returncode == 0, f"durum.py exit {p2.returncode}")
+        check("kernel-work" in p2.stdout,
+              "durum.py: kaydedilen skill çağrısı tabloda görünmüyor")
 
 
 def test_onboarding_parity():
@@ -324,7 +382,8 @@ def test_onboarding_parity():
         ".github/workflows/evidence.yml",
         "schemas/evidence.schema.json",
         "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
-        "bin/memory_hygiene.py", "bin/codex-review.sh", "bin/install-hooks.sh",
+        "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
+        "bin/codex-review.sh", "bin/install-hooks.sh",
         "bin/hooks", "tests",
     ]
     for rel in required:
@@ -364,6 +423,7 @@ def main():
     test_rules()
     test_memory_tool()
     test_routing(skill_names)
+    test_visibility()
     test_onboarding_parity()
     test_mechanisms()
     if ERRORS:
