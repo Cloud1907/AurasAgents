@@ -131,7 +131,9 @@ def main():
 
     targets = args.path or default_targets()
     if not targets:
-        print("Taranacak hafıza konumu bulunamadı (henüz kayıt yok) — temiz.")
+        # Çıktı sözleşmesi: rapor başlığı her koşumda basılır (yeni projede de).
+        print("HAFIZA BAKIMI: 0 kayıt tarandı, 0 bulgu")
+        print("  taranacak hafıza konumu yok (henüz kayıt yok) — temiz ✓")
         return 0
 
     findings = []

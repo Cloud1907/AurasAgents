@@ -1,0 +1,236 @@
+# Skill yönlendirme tablosu — istek metninden görev sınıfı ve skill seçimi.
+#
+# Tek doğruluk kaynağı: bu dosya. `bin/route.py` bunu okur ve her istekte
+# UserPromptSubmit hook'u olarak yönlendirme üretir; `bin/validate.py` her
+# skill'in burada kayıtlı olduğunu ve her kaydın gerçek skill'e işaret
+# ettiğini doğrular.
+#
+# Eşleşme kuralı: istek küçük harfe indirilir, kelimelere bölünür; bir tetik
+# kelime, isteğin bir kelimesinin BAŞINDA geçiyorsa eşleşir (Türkçe eklerin
+# üstesinden gelmek için: "ekle" → "ekleyelim", "eklemek"). Boşluk içeren
+# tetikler alt-dize olarak aranır. Puan = eşleşen tetik sayısı; en yüksek
+# puanlı kural birincil, diğerleri ek skill olur. Puan eşitliğinde
+# `specificity` (varsayılan 1) yüksek olan kazanır: alan-özgül kural,
+# genel kuralı yener. Açık /komut her şeyi yener.
+
+schema_version: 1
+
+# Sahip disiplinler (dünya standardı rol tanımları ~/.claude/agents altında).
+# Analiz her işte TEK sahip seçer — zincir değil. "Rol tiyatrosu yok"
+# (VIBE_CODING_TASARIM_TEMMUZ_2026.md:62): aynı çıktı personalar arasında
+# devredilmez; ayrı ajan yalnız bağımsız doğrulama ve izole araştırma için.
+roles:
+  - backend-engineer
+  - frontend-engineer
+  - database-engineer
+  - devops-engineer
+  - mobile-engineer
+  - ml-ai-engineer
+  - software-architect
+  - ux-designer
+  - security-engineer
+  - qa-engineer
+  - research-analyst
+
+# Disiplin tespiti skill seçiminden BAĞIMSIZ çalışır: aynı skill (örn.
+# implement-change) frontend işinde de backend işinde de kullanılır, ama
+# sahip değişir. Eşleşme yoksa kuralın kendi `owner` alanı geçerlidir.
+disciplines:
+  - owner: frontend-engineer
+    triggers: [buton, css, görünüm, gorunum, render, bileşen, component,
+               responsive, animasyon, tailwind, react, razor, sayfa yüklen]
+  - owner: ux-designer
+    triggers: [kullanıcı akış, kullanılabilir, hedefe var, karmaşık geliyor,
+               anlaşılmıyor, akış bozuk, heuristik, kullanıcı kayboluyor]
+  - owner: backend-engineer
+    triggers: [endpoint, api, servis, controller, middleware, iş kuralı,
+               yetki kontrol, dto, service, auth akış]
+  - owner: database-engineer
+    triggers: [sorgu, query, index, yavaş çalış, n+1, join, migration şema,
+               tablo, stored procedure, view]
+  - owner: devops-engineer
+    triggers: [deploy, pipeline, docker, ci/cd, env değişken, port, sunucu,
+               health check, container]
+  - owner: mobile-engineer
+    triggers: [mobil, ios, android, capacitor, react native, push bildirim,
+               offline senkron, store release]
+  - owner: ml-ai-engineer
+    triggers: [model, eval, drift, training, embedding, inference, dataset,
+               fine-tune]
+  - owner: software-architect
+    triggers: [mimari, monolit, mikroservis, servis sınır, ölçeklen,
+               trade-off, adr, sistem tasarım, bağımlılık yön]
+  - owner: security-engineer
+    triggers: [güvenlik, istismar, owasp, idor, injection, sızma, secret,
+               yetki bypass]
+  - owner: research-analyst
+    triggers: [nerede tanımlı, hangi dosya, nasıl hesaplan, kod tabanında,
+               envanter çıkar]
+
+rules:
+  - skill: implement-change
+    owner: backend-engineer
+    task_class: code-change
+    risk: approval
+    triggers:
+      - yap
+      - uygula
+      - ekle
+      - yaz
+      - düzelt
+      - kodla
+      - refactor
+      - taşı
+      - kaldır
+      - bug
+      - hata al
+      - çalışmıyor
+      - implement
+      - fix
+      - endpoint
+      - test yaz
+      - migration
+
+  - skill: research-with-evidence
+    owner: research-analyst
+    task_class: research
+    risk: auto
+    triggers:
+      - araştır
+      - incele
+      - karşılaştır
+      - nerede
+      - nasıl
+      - hangi
+      - neden
+      - kıyasla
+      - keşfet
+      - analiz
+      - öğren
+      - dokümantasyon oku
+      - seçenek
+
+  - skill: security-review
+    owner: security-engineer
+    specificity: 2
+    task_class: code-change
+    risk: approval
+    triggers:
+      - güvenlik
+      - auth
+      - kimlik doğrula
+      - oturum
+      - token
+      - secret
+      - sızma
+      - istismar
+      - yetki
+      - owasp
+      - injection
+      - xss
+      - idor
+      - ödeme
+      - upload
+
+  - skill: designing-interfaces
+    owner: frontend-engineer
+    specificity: 2
+    task_class: code-change
+    risk: approval
+    triggers:
+      - tasarla
+      - tasarım
+      - arayüz
+      - ekran
+      - sayfa
+      - premium
+      - güzelleştir
+      - dashboard
+      - landing
+      - component
+      - bileşen
+      - css
+      - tipografi
+      - renk
+      - animasyon
+
+  - skill: kernel-work
+    owner: software-architect
+    specificity: 2
+    task_class: code-change
+    risk: approval
+    triggers:
+      - kernel
+      - skill
+      - profil
+      - validate
+      - hook
+      - kanca
+      - evidence
+      - kanıt
+      - agents.md
+      - router
+      - yönlendir
+      - hafıza
+      - memory
+      - iskelet
+      - çekirdek
+
+  - skill: auras
+    owner: devops-engineer
+    specificity: 2
+    task_class: code-change
+    risk: approval
+    triggers:
+      - projeyi bağla
+      - sisteme al
+      - kurulum yap
+      - onboard
+      - bağla
+      - auras kur
+
+  - skill: codex-debate
+    owner: software-architect
+    specificity: 2
+    external: true  # skill repo dışında (kullanıcı-global ~/.claude/skills)
+    task_class: research
+    risk: auto
+    triggers:
+      - codex
+      - ikinci görüş
+      - tartış
+      - eleştirt
+      - haklı mıyım
+      - karşı görüş
+
+# Birincil kural seçildikten sonra, isteğin içinde bu tetiklerden biri varsa
+# ilgili skill ek skill olarak DAİMA eklenir (risk yüzeyi kuralı).
+always_add:
+  - skill: security-review
+    triggers:
+      - auth
+      - secret
+      - token
+      - şifre
+      - parola
+      - ödeme
+      - migration
+      - upload
+      - yetki
+      - oturum
+
+# Bilinçli yönlendirilmeyen skill'ler. Her kayıt gerekçe taşımak zorundadır
+# (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
+# "kasten dışarıda" demektir.
+not_routed:
+  - skill: project-onboarding
+    reason: >-
+      auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
+      yaratmamak için giriş noktası auras'tır; bu skill onun altında çağrılan
+      prosedürdür. İkisinin birleştirilmesi ayrı bir kernel işidir.
+
+fallback:
+  task_class: research
+  message: >-
+    Eşleşen skill yok. Serbest çalış; ama aynı iş tipini üçüncü kez elle tarif
+    ediyorsan bu bir skill adayıdır (AGENTS.md skill kuralı) — kullanıcıya söyle.

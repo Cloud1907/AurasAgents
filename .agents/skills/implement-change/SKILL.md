@@ -1,6 +1,6 @@
 ---
 name: implement-change
-description: Contract'lı kod değişikliğini spec-anchored TDD döngüsüyle uygular — EARS kabul kriterini teste 1:1 çevirir, RED→GREEN→commit ritmiyle ilerler, backend/frontend tuzaklarını erken yakalar. Issue form'da kabul kriterleri (EARS) tanımlı bir code-change işi başladığında kullan. Araştırma, salt inceleme, doküman veya keşif işinde kullanma.
+description: Kod/davranış değişikliğini spec-anchored TDD döngüsüyle uygular — kabul kriterini teste 1:1 çevirir, RED→GREEN→commit ritmiyle ilerler, backend/frontend tuzaklarını erken yakalar. Kullanıcı "yap, uygula, ekle, düzelt, refactor et, şu bug'ı çöz, endpoint ekle" dediğinde kullan; kabul kriteri (EARS) yoksa önce onu üret, skill'i atlamak için değil. Araştırma, salt inceleme, doküman veya keşif işinde kullanma.
 ---
 
 # implement-change

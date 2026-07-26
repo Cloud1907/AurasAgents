@@ -80,9 +80,10 @@ def test_skills():
 
 
 def test_profiles(skill_names):
+    """Profilleri doğrular ve sınıf→izinli skill kümesini döndürür."""
     prof_dir = os.path.join(ROOT, ".agents", "capability-profiles")
     required_classes = {"code-change", "research", "incident"}
-    seen = set()
+    seen, izinli_kume = set(), {}
     for f in sorted(os.listdir(prof_dir)):
         if not f.endswith(".yml"):
             continue
@@ -90,6 +91,7 @@ def test_profiles(skill_names):
         data = yaml.safe_load(open(path, encoding="utf-8"))
         tc = data.get("task_class")
         seen.add(tc)
+        izinli_kume[tc] = set(data.get("skills") or [])
         check(f == f"{tc}.yml", f"profil {f}: dosya adı task_class ile uyuşmuyor")
         for key in ("schema_version", "skills", "tools", "network",
                     "evidence_required", "risk"):
@@ -105,6 +107,7 @@ def test_profiles(skill_names):
               f"profil {f}: geçersiz network.mode '{net.get('mode')}'")
     check(seen >= required_classes,
           f"eksik profil sınıfı: {required_classes - seen}")
+    return izinli_kume
 
 
 def test_issue_form():
@@ -238,6 +241,221 @@ def test_memory_tool():
               f"tests/ birim testleri başarısız: {proc.stderr[-300:]}")
 
 
+def test_routing(skill_names, profil_skills=None):
+    """Router mekanizması: tablo eksiksiz mi, hook kayıtlı mı, seçim doğru mu."""
+    path = os.path.join(ROOT, ".agents", "routing.yml")
+    check(os.path.isfile(path), ".agents/routing.yml yok (skill yönlendirme tablosu)")
+    router = os.path.join(ROOT, "bin", "route.py")
+    check(os.path.isfile(router), "bin/route.py yok")
+    if not (os.path.isfile(path) and os.path.isfile(router)):
+        return
+
+    cfg = yaml.safe_load(open(path, encoding="utf-8"))
+    routed = set()
+    for rule in cfg.get("rules", []):
+        skill = rule.get("skill")
+        check(skill, f"routing kuralı 'skill' alanı taşımıyor: {rule}")
+        check(rule.get("task_class") in ("code-change", "research", "incident"),
+              f"routing '{skill}': geçersiz task_class '{rule.get('task_class')}'")
+        trig = rule.get("triggers") or []
+        check(len(trig) >= 3,
+              f"routing '{skill}': en az 3 tetik ifadesi gerekli ({len(trig)} var)")
+        if rule.get("external"):
+            continue  # skill repo dışında (kullanıcı-global) — varlığı doğrulanamaz
+        check(skill in skill_names,
+              f"routing '{skill}': böyle bir skill yok (kayıtlı: {sorted(skill_names)})")
+        routed.add(skill)
+    # Analiz katmanı: her iş bir disipline sahiplenir (tek sahip — zincir değil).
+    roller = set(cfg.get("roles") or [])
+    check(len(roller) >= 5,
+          "routing: 'roles' kaydı yok/eksik — analiz 'bu iş kimin işi' sorusunu "
+          "cevaplayamaz")
+    for rule in cfg.get("rules", []):
+        check(rule.get("owner") in roller,
+              f"routing '{rule.get('skill')}': geçersiz/eksik owner "
+              f"'{rule.get('owner')}' (kayıtlı roller: {sorted(roller)})")
+    for d in cfg.get("disciplines", []):
+        check(d.get("owner") in roller,
+              f"disiplin '{d.get('owner')}': roles kaydında yok")
+        check(len(d.get("triggers") or []) >= 3,
+              f"disiplin '{d.get('owner')}': en az 3 tetik gerekli")
+    # Codex hükmü (2026-07-26): profil "izin sınırı", routing "bu turdaki
+    # seçim". Sınır uygulanmıyorsa profil süstür. routing ⊆ profile.skills.
+    if profil_skills:
+        for rule in cfg.get("rules", []):
+            if rule.get("external"):
+                continue  # repo dışı skill profil kümesinde aranmaz
+            tc, sk = rule.get("task_class"), rule.get("skill")
+            izinli = profil_skills.get(tc, set())
+            check(sk in izinli,
+                  f"routing '{sk}' sınıfı '{tc}' için zorunlu kılıyor ama o "
+                  f"sınıfın profilinde yok (izinli: {sorted(izinli)}) — "
+                  "ya profili genişlet ya task_class'ı düzelt")
+    check(cfg.get("fallback", {}).get("message"),
+          "routing: eşleşme yoksa ne yapılacağını söyleyen fallback mesajı yok")
+
+    # Her skill ya yönlendirilir ya da gerekçeli olarak dışarıda bırakılır —
+    # yoksa görünür ama hiç seçilmeyen ölü ağırlık olur.
+    excluded = set()
+    for entry in cfg.get("not_routed", []):
+        skill = entry.get("skill")
+        check(skill in skill_names,
+              f"not_routed '{skill}': böyle bir skill yok")
+        check(len((entry.get("reason") or "").strip()) >= 40,
+              f"not_routed '{skill}': yönlendirilmeme gerekçesi yok/çok kısa")
+        excluded.add(skill)
+    missing = skill_names - routed - excluded
+    check(not missing,
+          f"routing tablosunda tetiği olmayan skill(ler): {sorted(missing)} "
+          f"— tetik ekle ya da not_routed'a gerekçeyle yaz")
+
+    # Hook kayıtlı mı (mekanizma; bağlam değil).
+    settings = os.path.join(ROOT, ".claude", "settings.json")
+    check(os.path.isfile(settings), ".claude/settings.json yok (router hook'u kayıtsız)")
+    if os.path.isfile(settings):
+        data = json.load(open(settings, encoding="utf-8"))
+        cmds = [h.get("command", "")
+                for entry in data.get("hooks", {}).get("UserPromptSubmit", [])
+                for h in entry.get("hooks", [])]
+        check(any("route.py" in c for c in cmds),
+              "settings.json: UserPromptSubmit hook'u route.py'yi çağırmıyor")
+
+    # Golden vaka: router gerçekten doğru skill'i seçiyor mu (regresyon kapısı).
+    # Doğrulama koşumu kullanıcının aktivite kaydını kirletmemeli (izolasyon).
+    with tempfile.TemporaryDirectory() as td:
+        env = dict(os.environ, AURAS_EVENT_LOG=os.path.join(td, "events.jsonl"))
+        _routing_golden_cases(router, env)
+
+
+def _routing_golden_cases(router, env):
+    for prompt, expected in (("kullanıcı endpoint'i ekle", "implement-change"),
+                             ("bu metrik nerede hesaplanıyor", "research-with-evidence"),
+                             ("login akışını güvenlik açısından incele", "security-review")):
+        proc = subprocess.run(
+            [sys.executable, router],
+            input=json.dumps({"prompt": prompt}), capture_output=True,
+            text=True, cwd=ROOT, env=env)
+        check(proc.returncode == 0, f"route.py exit {proc.returncode} ('{prompt}')")
+        check(expected in proc.stdout,
+              f"router '{prompt}' → beklenen '{expected}' yönlendirmesi yok")
+        check("🧭" in proc.stdout and "🔧" in proc.stdout,
+              "router: cevap başlığı biçimini dayatmıyor — kullanıcı yazışmada "
+              "hangi skill'in çalıştığını göremez")
+
+
+def test_no_external_roles():
+    """Sabit rol dosyası KURMA ilkesi mekanizmaya bağlandı.
+
+    Disiplin bir ETİKETTİR (analiz çıktısı); derinlik yalnız skill'lerde
+    yaşar. Router dış rol dosyasına (ör. ~/.claude/agents/*.md) atıf yaparsa
+    ikinci bir bilgi otoritesi doğar ve skill'lerle çakışıp bayatlar —
+    kullanıcı itirazı 2026-07-26, Codex mutabakatı aynı gün.
+    """
+    router = os.path.join(ROOT, "bin", "route.py")
+    if not os.path.isfile(router):
+        return
+    metin = open(router, encoding="utf-8").read()
+    for yasak in ("~/.claude/agents", ".claude/agents/"):
+        check(yasak not in metin,
+              f"route.py: dış rol dosyasına atıf ('{yasak}') — disiplin etiket "
+              "olmalı, derinlik skill'de yaşamalı")
+    check(not os.path.isdir(os.path.join(ROOT, ".agents", "roles")),
+          ".agents/roles/ var — sabit rol tanımı skill'lerle çakışır; "
+          "derinlik gerekiyorsa skill yaz")
+
+
+def test_visibility():
+    """Görünürlük katmanı: skill çağrıları ve tur aktivitesi kayda geçiyor mu.
+
+    Kullanıcı 'hangi skill çağrıldı, ne yapıldı' sorusunu benim beyanımdan
+    değil makine kaydından cevaplayabilmeli.
+    """
+    for rel in ("bin/run_event.py", "bin/durum.py"):
+        check(os.path.isfile(os.path.join(ROOT, rel)), f"görünürlük aracı yok: {rel}")
+    if not all(os.path.isfile(os.path.join(ROOT, r))
+               for r in ("bin/run_event.py", "bin/durum.py")):
+        return
+
+    settings = os.path.join(ROOT, ".claude", "settings.json")
+    if os.path.isfile(settings):
+        data = json.load(open(settings, encoding="utf-8"))
+        hooks = data.get("hooks", {})
+        skill_hook = any(
+            "run_event.py" in h.get("command", "")
+            for e in hooks.get("PostToolUse", [])
+            if "Skill" in (e.get("matcher") or "")
+            for h in e.get("hooks", []))
+        check(skill_hook,
+              "settings.json: PostToolUse/Skill hook'u run_event.py'yi çağırmıyor "
+              "— skill çağrıları kayda geçmez")
+        check(any("kapi.py" in h.get("command", "")
+                  for e in hooks.get("Stop", []) for h in e.get("hooks", [])),
+              "settings.json: Stop hook'u kapi.py'yi çağırmıyor — kanıtsız tur "
+              "kapanabilir")
+        check(any("--kind ui" in h.get("command", "")
+                  for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
+              "settings.json: tarayıcı etkileşimi kayda geçmiyor — 'tıklama "
+              "kanıtı' kapısı çalışmaz")
+        check(any("--kind edit" in h.get("command", "")
+                  for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
+              "settings.json: düzenlemeler kayda geçmiyor — kapı neyin "
+              "değiştiğini bilemez")
+
+    # Kayıt disposable ve gitignore'lu olmalı (auto-memory kuralı: hiçbir iş
+    # buna bağımlı olamaz, repoya sızmamalı).
+    gi = os.path.join(ROOT, ".gitignore")
+    check(os.path.isfile(gi) and ".agents/runtime" in open(gi, encoding="utf-8").read(),
+          ".gitignore: .agents/runtime yok — disposable kayıt repoya sızar")
+
+    # Uçtan uca: sahte Skill hook payload'u → olay → tabloda görünür.
+    with tempfile.TemporaryDirectory() as td:
+        log = os.path.join(td, "events.jsonl")
+        p1 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "bin", "run_event.py"),
+             "--kind", "skill", "--log", log],
+            input=json.dumps({"tool_input": {"skill": "kernel-work"}}),
+            capture_output=True, text=True, cwd=ROOT)
+        check(p1.returncode == 0, f"run_event.py exit {p1.returncode}")
+        p2 = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "bin", "durum.py"), "--log", log],
+            capture_output=True, text=True, cwd=ROOT)
+        check(p2.returncode == 0, f"durum.py exit {p2.returncode}")
+        check("kernel-work" in p2.stdout,
+              "durum.py: kaydedilen skill çağrısı tabloda görünmüyor")
+
+
+def test_onboarding_parity():
+    """auras-init.sh, validate.py'nin aradığı her şeyi yeni projeye taşıyor mu.
+
+    Sürüklenme bekçisi: kernel'e yeni zorunlu dosya eklenip kurulum betiği
+    güncellenmezse, /auras ile bağlanan proje ilk doğrulamada kırmızı verir.
+    """
+    # auras-init.sh yalnız kanonik şablon reposunda bulunur; bağlanmış
+    # projelerde yoktur ve orada denetlenecek bir şey de yok.
+    path = os.path.join(ROOT, "bin", "auras-init.sh")
+    if not os.path.isfile(path):
+        return
+    text = open(path, encoding="utf-8").read()
+    required = [
+        "AGENTS.md", "CLAUDE.md",
+        ".agents/skills", ".agents/capability-profiles", ".agents/routing.yml",
+        ".claude/rules",
+        ".github/ISSUE_TEMPLATE/work-contract.yml",
+        ".github/workflows/evidence.yml",
+        "schemas/evidence.schema.json",
+        "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
+        "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
+        "bin/kapi.py", "bin/araclar.py",
+        "bin/codex-review.sh", "bin/install-hooks.sh",
+        "bin/hooks", "tests",
+    ]
+    for rel in required:
+        check(rel in text,
+              f"auras-init.sh '{rel}' taşımıyor — yeni proje doğrulamada kırılır")
+    check("route.py" in text and "UserPromptSubmit" in text,
+          "auras-init.sh: router hook'unu hedef projeye kaydetmiyor")
+
+
 def test_mechanisms():
     """Deterministik kapılar ve risk sinyali araçları yerinde mi."""
     for rel in ("bin/hooks/pre-push", "bin/install-hooks.sh",
@@ -260,13 +478,17 @@ def test_mechanisms():
 
 def main():
     skill_names = test_skills()
-    test_profiles(skill_names)
+    profil_skills = test_profiles(skill_names)
     test_issue_form()
     test_workflow()
     test_evidence_roundtrip()
     test_agents_md()
     test_rules()
     test_memory_tool()
+    test_routing(skill_names, profil_skills)
+    test_no_external_roles()
+    test_visibility()
+    test_onboarding_parity()
     test_mechanisms()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")
