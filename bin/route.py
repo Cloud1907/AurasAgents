@@ -187,6 +187,18 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
         "Yönlendirme yanlışsa tek cümleyle gerekçelendir ve kullanıcıya söyle "
         "— sessizce atlama.")
 
+    # Görünürlük sözleşmesi: kullanıcı ne olduğunu yazışmadan anlamalı.
+    # Kullanıcının şikâyeti buydu ("hangi skill çağrıldı görmüyorum") — bu
+    # yüzden biçim temenni değil, her turda enjekte edilen zorunluluk.
+    lines.append(
+        "Cevabına ŞU BAŞLIKLA BAŞLA (kullanıcı yazışmada ne olduğunu görmeli):\n"
+        "🧭 Skill: <yüklediğin skill | 'yok — <tek cümle gerekçe>'>"
+        f"  ·  Sınıf: {task_class}  ·  Risk: "
+        f"{(primary or {}).get('risk', 'auto')}\n"
+        "🔧 Yaptım: <tek cümle, somut — hangi dosya/komut/sonuç>\n"
+        "Alt-ajan çağırdıysan ek satır: 🤖 Ajan: <rol> — <ne için>\n"
+        "Sohbet/soru turunda da başlığı yaz; skill yoksa 'yok' de.")
+
     context = "\n".join(lines)
     picked = primary["skill"] if primary else "—"
     if explicit:

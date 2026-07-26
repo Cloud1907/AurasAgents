@@ -115,6 +115,18 @@ class RouteTest(unittest.TestCase):
         context, _s = route.render("cache ekle", self.cfg, pdir=ROOT)
         self.assertNotIn("kurulu değil", context)
 
+    def test_gorunurluk_basligi_dayatilir(self):
+        # Kullanıcı yazışmada ne olduğunu görmeli — bu bir temenni değil,
+        # her turda enjekte edilen zorunlu biçim.
+        context, _s = route.render("cache ekle", self.cfg, pdir=ROOT)
+        self.assertIn("🧭", context)
+        self.assertIn("🔧", context)
+        self.assertIn("Cevabına", context)
+
+    def test_baslik_sohbet_turunda_da_istenir(self):
+        context, _s = route.render("merhaba nasılsın", self.cfg, pdir=ROOT)
+        self.assertIn("🧭", context)
+
     def test_bos_istek_ciktisiz(self):
         # main() stdin okur; boş istek yönlendirme üretmemeli
         self.assertEqual(route.route("", self.cfg)[1], None)

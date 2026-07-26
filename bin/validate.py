@@ -309,6 +309,9 @@ def _routing_golden_cases(router, env):
         check(proc.returncode == 0, f"route.py exit {proc.returncode} ('{prompt}')")
         check(expected in proc.stdout,
               f"router '{prompt}' → beklenen '{expected}' yönlendirmesi yok")
+        check("🧭" in proc.stdout and "🔧" in proc.stdout,
+              "router: cevap başlığı biçimini dayatmıyor — kullanıcı yazışmada "
+              "hangi skill'in çalıştığını göremez")
 
 
 def test_visibility():
