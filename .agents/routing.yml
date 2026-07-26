@@ -31,8 +31,6 @@ roles:
   - security-engineer
   - qa-engineer
   - research-analyst
-  - product-strategist
-  - tech-lead
 
 # Disiplin tespiti skill seçiminden BAĞIMSIZ çalışır: aynı skill (örn.
 # implement-change) frontend işinde de backend işinde de kullanılır, ama
@@ -157,7 +155,7 @@ rules:
       - animasyon
 
   - skill: kernel-work
-    owner: tech-lead
+    owner: software-architect
     specificity: 2
     task_class: code-change
     risk: approval
@@ -179,7 +177,7 @@ rules:
       - çekirdek
 
   - skill: auras
-    owner: tech-lead
+    owner: devops-engineer
     specificity: 2
     task_class: code-change
     risk: approval

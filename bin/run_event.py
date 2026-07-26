@@ -31,7 +31,7 @@ INTENT_MAX = 80
 
 # Diske yazılmasına izin verilen alanlar (allowlist — prompt/araç çıktısı yok).
 ALLOWED = ("kind", "skill", "agent", "routed", "extras", "task_class",
-           "intent", "session")
+           "intent", "session", "file", "cmd", "ok", "sig")
 
 _FALLBACK_SECRET = re.compile(
     r"(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}"
@@ -121,6 +121,33 @@ def append(event, path=None):
     return rec
 
 
+# Test/doğrulama komutu imzaları (koştu mu?) ve sonuç göstergeleri (geçti mi?).
+TEST_CMD_RE = re.compile(
+    r"(unittest|pytest|\bnpm (run )?test|yarn test|dotnet test|go test|vitest"
+    r"|jest|validate\.py|scan_secrets\.py|check_citations\.py)", re.I)
+BASARISIZ_RE = re.compile(r"(FAILED|Traceback|✗|AssertionError|ERROR:|hata)", re.I)
+BASARILI_RE = re.compile(r"(\bOK\b|passed|geçti|✓|SONUÇ: TEMİZ)", re.I)
+
+
+def test_gecti(tool_response):
+    """Test çıktısından sonuç çıkar: True/False/None(belirsiz).
+
+    Heuristik ve bilinçli olarak muhafazakâr: belirsizse None döner, kapı da
+    belirsizi 'kanıt yok' saymaz ama 'geçti' de saymaz — kullanıcıya söyler.
+    """
+    if not isinstance(tool_response, dict):
+        return None
+    metin = " ".join(str(tool_response.get(k, "")) for k in
+                     ("stdout", "stderr", "output", "content"))[-4000:]
+    if not metin.strip():
+        return None
+    if BASARISIZ_RE.search(metin):
+        return False
+    if BASARILI_RE.search(metin):
+        return True
+    return None
+
+
 def hook_payload():
     try:
         return json.loads(sys.stdin.read() or "{}") or {}
@@ -131,7 +158,8 @@ def hook_payload():
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--kind", required=True,
-                    choices=("route", "skill", "subagent", "stop"))
+                    choices=("route", "skill", "subagent", "stop", "edit",
+                             "bash"))
     ap.add_argument("--log", default=None)
     args = ap.parse_args(argv)
 
@@ -143,6 +171,19 @@ def main(argv=None):
             event["skill"] = ti.get("skill") or ti.get("name")
             if not event["skill"]:
                 return 0  # adsız skill olayı bilgi taşımaz — gürültü yazma
+        elif args.kind == "edit":
+            # Hangi dosya değişti — "kanıtsız bitiş" kapısının girdisi.
+            event["file"] = ti.get("file_path") or ti.get("path")
+            if not event["file"]:
+                return 0
+        elif args.kind == "bash":
+            # Test/doğrulama komutu koştu mu ve GEÇTİ Mİ — beyan değil kanıt.
+            cmd = (ti.get("command") or "")[:200]
+            if not TEST_CMD_RE.search(cmd):
+                return 0  # sıradan komut; gürültü yazma
+            event["kind"] = "test"
+            event["cmd"] = cmd
+            event["ok"] = test_gecti(data.get("tool_response"))
         elif args.kind == "subagent":
             event["agent"] = (ti.get("subagent_type") or ti.get("agentType")
                               or data.get("subagent_type"))

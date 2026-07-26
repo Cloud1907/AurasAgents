@@ -328,6 +328,27 @@ def _routing_golden_cases(router, env):
               "hangi skill'in çalıştığını göremez")
 
 
+def test_no_external_roles():
+    """Sabit rol dosyası KURMA ilkesi mekanizmaya bağlandı.
+
+    Disiplin bir ETİKETTİR (analiz çıktısı); derinlik yalnız skill'lerde
+    yaşar. Router dış rol dosyasına (ör. ~/.claude/agents/*.md) atıf yaparsa
+    ikinci bir bilgi otoritesi doğar ve skill'lerle çakışıp bayatlar —
+    kullanıcı itirazı 2026-07-26, Codex mutabakatı aynı gün.
+    """
+    router = os.path.join(ROOT, "bin", "route.py")
+    if not os.path.isfile(router):
+        return
+    metin = open(router, encoding="utf-8").read()
+    for yasak in ("~/.claude/agents", ".claude/agents/"):
+        check(yasak not in metin,
+              f"route.py: dış rol dosyasına atıf ('{yasak}') — disiplin etiket "
+              "olmalı, derinlik skill'de yaşamalı")
+    check(not os.path.isdir(os.path.join(ROOT, ".agents", "roles")),
+          ".agents/roles/ var — sabit rol tanımı skill'lerle çakışır; "
+          "derinlik gerekiyorsa skill yaz")
+
+
 def test_visibility():
     """Görünürlük katmanı: skill çağrıları ve tur aktivitesi kayda geçiyor mu.
 
@@ -352,9 +373,14 @@ def test_visibility():
         check(skill_hook,
               "settings.json: PostToolUse/Skill hook'u run_event.py'yi çağırmıyor "
               "— skill çağrıları kayda geçmez")
-        check(any("run_event.py" in h.get("command", "")
+        check(any("kapi.py" in h.get("command", "")
                   for e in hooks.get("Stop", []) for h in e.get("hooks", [])),
-              "settings.json: Stop hook'u yok — tur kapanışı kayda geçmez")
+              "settings.json: Stop hook'u kapi.py'yi çağırmıyor — kanıtsız tur "
+              "kapanabilir")
+        check(any("--kind edit" in h.get("command", "")
+                  for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
+              "settings.json: düzenlemeler kayda geçmiyor — kapı neyin "
+              "değiştiğini bilemez")
 
     # Kayıt disposable ve gitignore'lu olmalı (auto-memory kuralı: hiçbir iş
     # buna bağımlı olamaz, repoya sızmamalı).
@@ -400,6 +426,7 @@ def test_onboarding_parity():
         "schemas/evidence.schema.json",
         "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
         "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
+        "bin/kapi.py",
         "bin/codex-review.sh", "bin/install-hooks.sh",
         "bin/hooks", "tests",
     ]
@@ -440,6 +467,7 @@ def main():
     test_rules()
     test_memory_tool()
     test_routing(skill_names)
+    test_no_external_roles()
     test_visibility()
     test_onboarding_parity()
     test_mechanisms()

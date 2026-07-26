@@ -22,6 +22,26 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/bin/run_event.py\" --kind edit",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/bin/run_event.py\" --kind bash",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SubagentStop": [
@@ -40,8 +60,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/bin/run_event.py\" --kind stop",
-            "timeout": 10
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/bin/kapi.py\"",
+            "timeout": 20,
+            "statusMessage": "Kanıt kapısı"
           }
         ]
       }

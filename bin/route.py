@@ -126,7 +126,8 @@ def sahip(prompt, cfg, primary=None):
             en_iyi, en_puan = d.get("owner"), puan
     if en_iyi:
         return en_iyi
-    return (primary or {}).get("owner") or "tech-lead"
+    # Sahip uydurma: disiplin okunamıyorsa None döner, router bunu söyler.
+    return (primary or {}).get("owner")
 
 
 def route(prompt, cfg):
@@ -210,11 +211,17 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
 
     # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
     owner = sahip(prompt, cfg, primary)
-    lines.append(
-        f"👤 Sahip disiplin: {owner} — bu işi o alanın DÜNYA STANDARDI "
-        f"uzmanı gibi ele al (rol tanımı: ~/.claude/agents/{owner}.md). "
-        "Sahiplik tektir; aynı işi roller arasında bölme. Ayrı ajan yalnız "
-        "iki durumda: bağımsız doğrulama ve izole araştırma.")
+    if owner:
+        lines.append(
+            f"👤 Sahip disiplin: {owner} — bu işi o alanın dünya standardı "
+            "uzmanı gibi ele al. Disiplin bir ETİKETTİR: derinlik rol "
+            "dosyasında değil, yüklediğin SKILL'de yaşar. Sahiplik tektir; "
+            "aynı işi roller arasında bölme. Ayrı ajan yalnız iki durumda: "
+            "bağımsız doğrulama ve izole araştırma.")
+    else:
+        lines.append(
+            "👤 Sahip disiplin: BELİRSİZ — işin hangi disiplinin işi olduğunu "
+            "ilk cümlede sen belirle ya da kullanıcıya sor; uydurma.")
 
     # İtiraz yükümlülüğü: uzman susarak uymaz, gerekçeyle itiraz eder.
     lines.append(
@@ -231,7 +238,7 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
         "🧭 Skill: <yüklediğin skill | 'yok — <tek cümle gerekçe>'>"
         f"  ·  Sınıf: {task_class}  ·  Risk: "
         f"{(primary or {}).get('risk', 'auto')}\n"
-        f"👤 Sahip: {owner}\n"
+        f"👤 Sahip: {owner or 'belirsiz'}\n"
         "🔧 Yaptım: <tek cümle, somut — hangi dosya/komut/sonuç>\n"
         "Alt-ajan çağırdıysan ek satır: 🤖 Ajan: <rol> — <ne için>\n"
         "Sohbet/soru turunda da başlığı yaz; skill yoksa 'yok' de.")
