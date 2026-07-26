@@ -452,8 +452,13 @@ def test_onboarding_parity():
     for rel in required:
         check(rel in text,
               f"auras-init.sh '{rel}' taşımıyor — yeni proje doğrulamada kırılır")
-    check("route.py" in text and "UserPromptSubmit" in text,
-          "auras-init.sh: router hook'unu hedef projeye kaydetmiyor")
+    # Güncelleme yolu: motor dosyaları her koşumda senkronlanmalı, hook'lar
+    # kaynak settings.json'dan türetilmeli (elle liste tutulursa bayatlar).
+    check(".kernel-manifest.json" in text,
+          "auras-init.sh: motor dosyaları için güncelleme kaydı yok — bağlı "
+          "projeler eski sürümde kalır")
+    check('".claude", "settings.json"' in text or '.claude/settings.json' in text,
+          "auras-init.sh: hook'ları kaynak settings.json'dan birleştirmiyor")
 
 
 def test_mechanisms():

@@ -1,6 +1,6 @@
 ---
 name: auras
-description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md kuralları, capability profilleri, iş sözleşmesi formu, CI kanıt üretimi, push kapısı ve Codex risk sinyali kurulur. Kullanıcı "/auras", "bu projeyi bağla", "sisteme al", "kur" dediğinde veya yeni/boş bir projede çalışma sistemi istendiğinde kullan. Zaten bağlı projede eksikleri tamamlar. Günlük geliştirme işinde kullanma.
+description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md kuralları, capability profilleri, iş sözleşmesi formu, CI kanıt üretimi, push kapısı ve Codex risk sinyali kurulur. Kullanıcı "/auras", "bu projeyi bağla", "sisteme al", "kur" dediğinde veya yeni/boş bir projede çalışma sistemi istendiğinde kullan. Zaten bağlı projede motor dosyalarını GÜNCELLER (elle değiştirilmiş dosyayı ezmez, bildirir). Günlük geliştirme işinde kullanma.
 ---
 
 # auras — projeyi sisteme bağla
@@ -11,9 +11,18 @@ description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md 
 
 1. Hedef klasörü doğrula: kullanıcının bulunduğu proje klasörü. Kaynak reponun
    kendisiyse dur — orada zaten kurulu.
-2. Kurulum motorunu çalıştır:
+2. Kurulum/güncelleme motorunu çalıştır:
    `bash ~/Developer/GitHub/AurasAgents/bin/auras-init.sh`
-   Var olan dosyaları ezmez; eksikleri tamamlar, kancayı kurar, doğrulamayı koşar.
+   İki ayrı davranış vardır:
+   - **Proje dosyaları** (AGENTS.md, CLAUDE.md, .gitignore): bir kez yazılır,
+     ASLA ezilmez.
+   - **Motor dosyaları** (bin/*, .agents/skills, profiller, routing.yml,
+     workflow, şema, tests): her koşumda güncellenir — ama kullanıcı elle
+     değiştirdiyse korunur ve `KORUNDU` diye raporlanır. Kimin dokunduğu
+     `.agents/.kernel-manifest.json` hash kaydından bilinir.
+   - Hook'lar kaynak `.claude/settings.json`'dan birleştirilir; kernel yeni
+     hook eklediğinde bağlı projeler bunu `/auras` ile alır.
+   Kapanışta `KORUNDU` satırlarını kullanıcıya MUTLAKA söyle — sessiz geçme.
 3. Projeyi tanı ve `AGENTS.md`'yi ona göre uyarla — şablonu olduğu gibi bırakma:
    - Dil/framework, test/lint/build komutları
    - Riskli path'ler (auth, ödeme, migration, secret) → risk tablosunun
