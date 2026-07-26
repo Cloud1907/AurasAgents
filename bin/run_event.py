@@ -124,7 +124,7 @@ def append(event, path=None):
 # Test/doğrulama komutu imzaları (koştu mu?) ve sonuç göstergeleri (geçti mi?).
 TEST_CMD_RE = re.compile(
     r"(unittest|pytest|\bnpm (run )?test|yarn test|dotnet test|go test|vitest"
-    r"|jest|validate\.py|scan_secrets\.py|check_citations\.py)", re.I)
+    r"|jest|playwright|cypress|selenium|puppeteer|validate\.py|scan_secrets\.py|check_citations\.py)", re.I)
 BASARISIZ_RE = re.compile(r"(FAILED|Traceback|✗|AssertionError|ERROR:|hata)", re.I)
 BASARILI_RE = re.compile(r"(\bOK\b|passed|geçti|✓|SONUÇ: TEMİZ)", re.I)
 
@@ -159,7 +159,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--kind", required=True,
                     choices=("route", "skill", "subagent", "stop", "edit",
-                             "bash"))
+                             "bash", "ui"))
     ap.add_argument("--log", default=None)
     args = ap.parse_args(argv)
 
@@ -184,6 +184,9 @@ def main(argv=None):
             event["kind"] = "test"
             event["cmd"] = cmd
             event["ok"] = test_gecti(data.get("tool_response"))
+        elif args.kind == "ui":
+            # Tarayıcıda gerçek etkileşim (tıklama/ekran görüntüsü) = kanıt.
+            event["cmd"] = (data.get("tool_name") or "")[:80]
         elif args.kind == "subagent":
             event["agent"] = (ti.get("subagent_type") or ti.get("agentType")
                               or data.get("subagent_type"))

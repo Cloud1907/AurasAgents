@@ -377,6 +377,10 @@ def test_visibility():
                   for e in hooks.get("Stop", []) for h in e.get("hooks", [])),
               "settings.json: Stop hook'u kapi.py'yi çağırmıyor — kanıtsız tur "
               "kapanabilir")
+        check(any("--kind ui" in h.get("command", "")
+                  for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
+              "settings.json: tarayıcı etkileşimi kayda geçmiyor — 'tıklama "
+              "kanıtı' kapısı çalışmaz")
         check(any("--kind edit" in h.get("command", "")
                   for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
               "settings.json: düzenlemeler kayda geçmiyor — kapı neyin "
@@ -426,7 +430,7 @@ def test_onboarding_parity():
         "schemas/evidence.schema.json",
         "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
         "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
-        "bin/kapi.py",
+        "bin/kapi.py", "bin/araclar.py",
         "bin/codex-review.sh", "bin/install-hooks.sh",
         "bin/hooks", "tests",
     ]

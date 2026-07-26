@@ -42,6 +42,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "mcp__chrome-devtools__click|mcp__chrome-devtools__take_screenshot|mcp__Claude_Browser__computer|mcp__Claude_Code_iOS_Simulator__control",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/bin/run_event.py\" --kind ui",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SubagentStop": [

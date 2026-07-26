@@ -39,7 +39,13 @@ TEST_YOL = re.compile(r"(^|/)tests?/|(^|/)test_|_test\.|\.test\.|\.spec\.")
 RISK_YOL = re.compile(
     r"(auth|kimlik|oturum|session|secret|credential|\.env|migration|payment"
     r"|odeme|ödeme|upload|permission|settings\.json|/hooks/|token)", re.I)
+# Görünür yüzey: değişirse birim testi yetmez, TIKLAMA kanıtı istenir.
+UI_UZANTI = (".tsx", ".jsx", ".vue", ".svelte", ".cshtml", ".razor", ".html",
+             ".css", ".scss")
+UI_YOL = re.compile(r"(components?|pages?|views?|screens?|web|ui|frontend)/", re.I)
+
 # Büyük değişim eşikleri (Codex: 300 satır kaba; dosya sayısı + net satır).
+E2E_CMD_RE = re.compile(r"(playwright|cypress|selenium|puppeteer|e2e)", re.I)
 BUYUK_DOSYA = 5
 BUYUK_SATIR = 150
 
@@ -94,6 +100,8 @@ def degerlendir(olaylar, satir_sayisi=0):
         elif kind == "skill" and o.get("skill"):
             skiller.append(o["skill"])
 
+    ui = [f for f in duzenlenen
+          if f.lower().endswith(UI_UZANTI) or UI_YOL.search(f)]
     kaynak = [f for f in duzenlenen
               if f.lower().endswith(KAYNAK_UZANTI) and not TEST_YOL.search(f)]
     riskli = [f for f in duzenlenen if RISK_YOL.search(f)]
@@ -117,6 +125,18 @@ def degerlendir(olaylar, satir_sayisi=0):
             bulgular.append((
                 "UYARI", "test sonucu belirsiz",
                 "Test komutu koştu ama çıktısından geçti/kaldı okunamadı."))
+
+    if ui:
+        tiklama = [o for i, o in enumerate(tur)
+                   if o.get("kind") == "ui" or
+                   (o.get("kind") == "test" and E2E_CMD_RE.search(o.get("cmd") or ""))]
+        if not tiklama:
+            bulgular.append((
+                "BLOK", "tıklama kanıtı yok",
+                f"Görünür yüzey değişti ({', '.join(ui[:3])}) ama kimse "
+                "tıklamadı. E2E koştur ya da tarayıcıda aç-tıkla-ekran görüntüsü "
+                "al. Projede E2E aracı yoksa bunu SÖYLE ve kurulum öner "
+                "(python3 bin/araclar.py)."))
 
     if riskli and "security-review" not in skiller:
         bulgular.append((

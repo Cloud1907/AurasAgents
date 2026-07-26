@@ -75,6 +75,35 @@ class KapiTest(unittest.TestCase):
                            olay("test", cmd="unittest", ok=True)])
         self.assertEqual(b, set())
 
+    def test_ui_degisti_tiklama_yoksa_bloklar(self):
+        b = self.bulgular([
+            olay("edit", file="web/components/Login.tsx"),
+            olay("test", cmd="npx vitest run", ok=True),   # birim testi YETMEZ
+        ])
+        self.assertIn(("BLOK", "tıklama kanıtı yok"), b)
+
+    def test_tarayici_etkilesimi_tiklama_kaniti_sayilir(self):
+        b = self.bulgular([
+            olay("edit", file="web/components/Login.tsx"),
+            olay("test", cmd="npx vitest run", ok=True),
+            olay("ui", cmd="mcp__chrome-devtools__click"),
+        ])
+        self.assertNotIn(("BLOK", "tıklama kanıtı yok"), b)
+
+    def test_e2e_komutu_tiklama_kaniti_sayilir(self):
+        b = self.bulgular([
+            olay("edit", file="src/pages/Home.jsx"),
+            olay("test", cmd="npx playwright test", ok=True),
+        ])
+        self.assertNotIn(("BLOK", "tıklama kanıtı yok"), b)
+
+    def test_backend_degisikligi_tiklama_istemez(self):
+        b = self.bulgular([
+            olay("edit", file="src/services/hesap.py"),
+            olay("test", cmd="unittest", ok=True),
+        ])
+        self.assertEqual(b, set())
+
     def test_risk_yuzeyi_incelemesiz_bloklar(self):
         b = self.bulgular([
             olay("edit", file="src/auth/login.py"),
