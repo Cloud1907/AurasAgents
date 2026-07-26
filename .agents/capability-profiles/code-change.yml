@@ -2,9 +2,13 @@ schema_version: 1
 task_class: code-change
 description: "Contract'lı kod değişikliği — sistemin ana iş sınıfı"
 skills:
+  # Bu küme routing.yml ile CI'da eşleşmek ZORUNDA (validate test_routing):
+  # profil izin sınırıdır, routing o sınır içinden seçim yapar.
   - implement-change
   - security-review
   - kernel-work
+  - designing-interfaces   # görünür yüzey işi de kod değişikliğidir
+  - auras                  # projeyi sisteme bağlamak dosya yazar
 tools:
   filesystem: workspace-write
   commands: [test, lint, build, typecheck, gh]

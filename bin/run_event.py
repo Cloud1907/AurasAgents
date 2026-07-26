@@ -31,7 +31,7 @@ INTENT_MAX = 80
 
 # Diske yazılmasına izin verilen alanlar (allowlist — prompt/araç çıktısı yok).
 ALLOWED = ("kind", "skill", "agent", "routed", "extras", "task_class",
-           "intent", "session", "file", "cmd", "ok", "sig")
+           "intent", "session", "file", "cmd", "ok", "sig", "reason", "note")
 
 _FALLBACK_SECRET = re.compile(
     r"(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}"
@@ -148,6 +148,10 @@ def test_gecti(tool_response):
     return None
 
 
+# Atlama gerekçesi kodları — serbest metin değil, sayılabilir kategori.
+SEBEPLER = ("misroute", "not_applicable", "unavailable", "user_override")
+
+
 def hook_payload():
     try:
         return json.loads(sys.stdin.read() or "{}") or {}
@@ -155,11 +159,35 @@ def hook_payload():
         return {}
 
 
+def zaten_yuklendi(skill, log=None):
+    """Bu turda (son 'stop'tan sonra) aynı skill zaten kaydedildi mi."""
+    try:
+        with open(log or log_path(), encoding="utf-8") as fh:
+            satirlar = fh.readlines()[-200:]
+    except OSError:
+        return False
+    gorulen = False
+    for satir in satirlar:
+        try:
+            o = json.loads(satir)
+        except ValueError:
+            continue
+        if o.get("kind") == "stop":
+            gorulen = False
+        elif o.get("kind") == "skill" and o.get("skill") == skill:
+            gorulen = True
+    return gorulen
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--kind", required=True,
                     choices=("route", "skill", "subagent", "stop", "edit",
-                             "bash", "ui"))
+                             "bash", "ui", "skipped"))
+    ap.add_argument("--skill", help="--kind skipped için: atlanan skill")
+    ap.add_argument("--reason", choices=SEBEPLER,
+                    help="--kind skipped için: sınırlı gerekçe kodu")
+    ap.add_argument("--note", default=None, help="tek cümle açıklama")
     ap.add_argument("--log", default=None)
     args = ap.parse_args(argv)
 
@@ -171,6 +199,8 @@ def main(argv=None):
             event["skill"] = ti.get("skill") or ti.get("name")
             if not event["skill"]:
                 return 0  # adsız skill olayı bilgi taşımaz — gürültü yazma
+            if zaten_yuklendi(event["skill"], args.log):
+                return 0  # aynı turda ikinci yükleme: tekrar kaydetme
         elif args.kind == "edit":
             # Hangi dosya değişti — "kanıtsız bitiş" kapısının girdisi.
             event["file"] = ti.get("file_path") or ti.get("path")
@@ -184,6 +214,15 @@ def main(argv=None):
             event["kind"] = "test"
             event["cmd"] = cmd
             event["ok"] = test_gecti(data.get("tool_response"))
+        elif args.kind == "skipped":
+            # Zorunlu skill yüklenmediyse gerekçe KAYDA girer. Bu bir kanıt
+            # değil, denetlenebilir beyandır (Codex hükmü 2026-07-26):
+            # "gerekçeli"yi "haklı" diye sunmak tiyatrodur.
+            if not args.skill or not args.reason:
+                return 0
+            event["skill"] = args.skill
+            event["reason"] = args.reason
+            event["note"] = args.note
         elif args.kind == "ui":
             # Tarayıcıda gerçek etkileşim (tıklama/ekran görüntüsü) = kanıt.
             event["cmd"] = (data.get("tool_name") or "")[:80]

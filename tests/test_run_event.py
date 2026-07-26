@@ -79,6 +79,37 @@ class AppendTest(unittest.TestCase):
             yol = run_event.log_path(pdir=td)
             self.assertTrue(yol.startswith(td), "bağlı projede yerel yazmalı")
 
+    def test_ayni_skill_turda_bir_kez_kaydedilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = os.path.join(td, "e.jsonl")
+            for _ in range(3):
+                subprocess.run(
+                    [sys.executable, os.path.join(ROOT, "bin", "run_event.py"),
+                     "--kind", "skill", "--log", log],
+                    input=json.dumps({"tool_input": {"skill": "kernel-work"}}),
+                    capture_output=True, text=True, cwd=ROOT)
+            with open(log, encoding="utf-8") as fh:
+                self.assertEqual(len(fh.readlines()), 1, "tekrar kaydedildi")
+
+    def test_gerekce_kodu_zorunlu(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = os.path.join(td, "e.jsonl")
+            # sebep kodu yoksa olay yazılmaz
+            subprocess.run(
+                [sys.executable, os.path.join(ROOT, "bin", "run_event.py"),
+                 "--kind", "skipped", "--skill", "implement-change",
+                 "--log", log],
+                input="{}", capture_output=True, text=True, cwd=ROOT)
+            self.assertFalse(os.path.exists(log))
+            p = subprocess.run(
+                [sys.executable, os.path.join(ROOT, "bin", "run_event.py"),
+                 "--kind", "skipped", "--skill", "implement-change",
+                 "--reason", "misroute", "--note", "sohbet turu", "--log", log],
+                input="{}", capture_output=True, text=True, cwd=ROOT)
+            self.assertEqual(p.returncode, 0)
+            with open(log, encoding="utf-8") as fh:
+                self.assertIn("misroute", fh.read())
+
     def test_intent_kapatilabilir(self):
         os.environ["AURAS_LOG_INTENT"] = "0"
         try:

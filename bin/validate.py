@@ -80,9 +80,10 @@ def test_skills():
 
 
 def test_profiles(skill_names):
+    """Profilleri doğrular ve sınıf→izinli skill kümesini döndürür."""
     prof_dir = os.path.join(ROOT, ".agents", "capability-profiles")
     required_classes = {"code-change", "research", "incident"}
-    seen = set()
+    seen, izinli_kume = set(), {}
     for f in sorted(os.listdir(prof_dir)):
         if not f.endswith(".yml"):
             continue
@@ -90,6 +91,7 @@ def test_profiles(skill_names):
         data = yaml.safe_load(open(path, encoding="utf-8"))
         tc = data.get("task_class")
         seen.add(tc)
+        izinli_kume[tc] = set(data.get("skills") or [])
         check(f == f"{tc}.yml", f"profil {f}: dosya adı task_class ile uyuşmuyor")
         for key in ("schema_version", "skills", "tools", "network",
                     "evidence_required", "risk"):
@@ -105,6 +107,7 @@ def test_profiles(skill_names):
               f"profil {f}: geçersiz network.mode '{net.get('mode')}'")
     check(seen >= required_classes,
           f"eksik profil sınıfı: {required_classes - seen}")
+    return izinli_kume
 
 
 def test_issue_form():
@@ -238,7 +241,7 @@ def test_memory_tool():
               f"tests/ birim testleri başarısız: {proc.stderr[-300:]}")
 
 
-def test_routing(skill_names):
+def test_routing(skill_names, profil_skills=None):
     """Router mekanizması: tablo eksiksiz mi, hook kayıtlı mı, seçim doğru mu."""
     path = os.path.join(ROOT, ".agents", "routing.yml")
     check(os.path.isfile(path), ".agents/routing.yml yok (skill yönlendirme tablosu)")
@@ -276,6 +279,18 @@ def test_routing(skill_names):
               f"disiplin '{d.get('owner')}': roles kaydında yok")
         check(len(d.get("triggers") or []) >= 3,
               f"disiplin '{d.get('owner')}': en az 3 tetik gerekli")
+    # Codex hükmü (2026-07-26): profil "izin sınırı", routing "bu turdaki
+    # seçim". Sınır uygulanmıyorsa profil süstür. routing ⊆ profile.skills.
+    if profil_skills:
+        for rule in cfg.get("rules", []):
+            if rule.get("external"):
+                continue  # repo dışı skill profil kümesinde aranmaz
+            tc, sk = rule.get("task_class"), rule.get("skill")
+            izinli = profil_skills.get(tc, set())
+            check(sk in izinli,
+                  f"routing '{sk}' sınıfı '{tc}' için zorunlu kılıyor ama o "
+                  f"sınıfın profilinde yok (izinli: {sorted(izinli)}) — "
+                  "ya profili genişlet ya task_class'ı düzelt")
     check(cfg.get("fallback", {}).get("message"),
           "routing: eşleşme yoksa ne yapılacağını söyleyen fallback mesajı yok")
 
@@ -463,14 +478,14 @@ def test_mechanisms():
 
 def main():
     skill_names = test_skills()
-    test_profiles(skill_names)
+    profil_skills = test_profiles(skill_names)
     test_issue_form()
     test_workflow()
     test_evidence_roundtrip()
     test_agents_md()
     test_rules()
     test_memory_tool()
-    test_routing(skill_names)
+    test_routing(skill_names, profil_skills)
     test_no_external_roles()
     test_visibility()
     test_onboarding_parity()

@@ -90,6 +90,7 @@ def degerlendir(olaylar, satir_sayisi=0):
 
     duzenlenen, son_edit_idx = [], -1
     test_olaylari, skiller = [], []
+    zorunlu, atlanan = [], []
     for i, o in enumerate(tur):
         kind = o.get("kind")
         if kind == "edit" and o.get("file"):
@@ -99,6 +100,10 @@ def degerlendir(olaylar, satir_sayisi=0):
             test_olaylari.append((i, o))
         elif kind == "skill" and o.get("skill"):
             skiller.append(o["skill"])
+        elif kind == "route" and o.get("routed"):
+            zorunlu.append(o["routed"])
+        elif kind == "skipped" and o.get("skill"):
+            atlanan.append(o["skill"])
 
     ui = [f for f in duzenlenen
           if f.lower().endswith(UI_UZANTI) or UI_YOL.search(f)]
@@ -137,6 +142,17 @@ def degerlendir(olaylar, satir_sayisi=0):
                 "tıklamadı. E2E koştur ya da tarayıcıda aç-tıkla-ekran görüntüsü "
                 "al. Projede E2E aracı yoksa bunu SÖYLE ve kurulum öner "
                 "(python3 bin/araclar.py)."))
+
+    # Zorunlu skill karşılıksız kalamaz: ya yüklenir ya gerekçesi kayda geçer.
+    # (Codex hükmü: gerekçe kanıt değil, denetlenebilir beyandır.)
+    karsiliksiz = [z for z in zorunlu if z not in skiller and z not in atlanan]
+    if karsiliksiz:
+        bulgular.append((
+            "BLOK", "zorunlu skill karşılıksız",
+            f"Router {', '.join(karsiliksiz)} skill'ini zorunlu kıldı; ne "
+            "yüklendi ne gerekçesi kayda geçti. Yükle ya da şunu koş: "
+            "python3 bin/run_event.py --kind skipped --skill <ad> --reason "
+            "<misroute|not_applicable|unavailable|user_override> --note '<tek cümle>'"))
 
     if riskli and "security-review" not in skiller:
         bulgular.append((

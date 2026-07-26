@@ -104,6 +104,23 @@ class KapiTest(unittest.TestCase):
         ])
         self.assertEqual(b, set())
 
+    def test_zorunlu_skill_karsiliksizsa_bloklar(self):
+        b = self.bulgular([olay("route", routed="implement-change")])
+        self.assertIn(("BLOK", "zorunlu skill karşılıksız"), b)
+
+    def test_zorunlu_skill_yuklendiyse_temiz(self):
+        b = self.bulgular([olay("route", routed="kernel-work"),
+                           olay("skill", skill="kernel-work")])
+        self.assertEqual(b, set())
+
+    def test_gerekceli_atlama_bloklamaz(self):
+        b = self.bulgular([
+            olay("route", routed="implement-change"),
+            olay("skipped", skill="implement-change", reason="misroute",
+                 note="sohbet turu, kod değişmiyor"),
+        ])
+        self.assertEqual(b, set())
+
     def test_risk_yuzeyi_incelemesiz_bloklar(self):
         b = self.bulgular([
             olay("edit", file="src/auth/login.py"),
@@ -126,11 +143,12 @@ class KapiTest(unittest.TestCase):
         self.assertIn(("UYARI", "bağımsız inceleme önerilir"), b)
 
     def test_onceki_tur_sayilmaz(self):
-        # 'stop' öncesi olaylar geçmiş turdur; bu turu bloklamamalı
+        # 'stop' öncesi olaylar geçmiş turdur; bu turun test kanıtını etkilemez
         b = self.bulgular([
             olay("edit", file="src/eski.py"),
             olay("stop"),
             olay("route", routed="research-with-evidence"),
+            olay("skill", skill="research-with-evidence"),
         ])
         self.assertEqual(b, set())
 

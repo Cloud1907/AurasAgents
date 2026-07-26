@@ -9,8 +9,8 @@ Kullanım:
 Sütunların anlamı:
   YÖNLENDİRİLEN  router'ın zorunlu tuttuğu skill (bin/route.py)
   YÜKLENEN       gerçekten Skill aracıyla yüklenen skill (PostToolUse kaydı)
-  DURUM          uyumlu | SAPMA (başkası yüklendi) | ATLANDI (hiç yüklenmedi)
-                 | sohbet (yönlendirme yok)
+  DURUM          uyumlu | SAPMA (başkası yüklendi) | ATLANDI (sessiz atlama)
+                 | atlandı:<sebep> (gerekçesi kayda geçmiş) | sohbet
 
 SAPMA/ATLANDI satırları hesap sorulacak yerlerdir: ajan yönlendirmeyi
 gerekçesiz atlamışsa burada görünür.
@@ -54,7 +54,7 @@ def _yeni_tur(olay=None):
     return {"ts": (olay or {}).get("ts", ""), "intent": (olay or {}).get("intent", ""),
             "routed": (olay or {}).get("routed"), "extras": (olay or {}).get("extras", []),
             "task_class": (olay or {}).get("task_class", ""),
-            "skills": [], "subagent": [], "kapandi": False}
+            "skills": [], "subagent": [], "atlanan": {}, "kapandi": False}
 
 
 def turlari_cikar(olaylar):
@@ -71,6 +71,8 @@ def turlari_cikar(olaylar):
             cur["skills"].append(o["skill"])
         elif kind == "subagent" and o.get("agent"):
             cur["subagent"].append(o["agent"])
+        elif kind == "skipped" and o.get("skill"):
+            cur.setdefault("atlanan", {})[o["skill"]] = o.get("reason", "?")
         elif kind == "stop":
             cur["kapandi"] = True
     for t in turlar:
@@ -85,6 +87,9 @@ def _durum(tur):
         return "sohbet" if not skills else "uyumlu"
     if routed in skills:
         return "uyumlu"
+    if routed in (tur.get("atlanan") or {}):
+        # Gerekçesi kayda geçmiş atlama: denetlenebilir (haklı demek değil).
+        return f"atlandı:{tur['atlanan'][routed]}"
     return "SAPMA" if skills else "ATLANDI"
 
 
@@ -96,7 +101,7 @@ def _kirp(s, n):
 def tablo(turlar):
     basliklar = ("#", "ZAMAN", "İSTEK", "SINIF", "YÖNLENDİRİLEN",
                  "YÜKLENEN", "AJAN", "DURUM")
-    genis = (3, 5, 34, 12, 20, 20, 14, 8)
+    genis = (3, 5, 30, 12, 20, 20, 12, 20)
     satirlar = [" ".join(b.ljust(w) for b, w in zip(basliklar, genis)).rstrip()]
     satirlar.append(" ".join("─" * w for w in genis))
     for i, t in enumerate(turlar, 1):
@@ -130,7 +135,7 @@ def main(argv=None):
         print(f"Kayıt yok ({path}). Hook'lar kuruluysa ilk istekte dolmaya başlar.")
         return 0
     print(tablo(turlar))
-    sapma = [t for t in turlar if t["durum"] in ("SAPMA", "ATLANDI")]
+    sapma = [t for t in turlar if t["durum"] in ("SAPMA", "ATLANDI")]  # sessizler
     if sapma:
         print(f"\n{len(sapma)} turda yönlendirilen skill yüklenmedi — "
               "gerekçesi konuşmada olmalı.")
