@@ -108,6 +108,27 @@ def _extras(cfg, text, tokens):
     return out
 
 
+def sahip(prompt, cfg, primary=None):
+    """İşin TEK sahip disiplinini seç: 'bu iş kimin işi?'
+
+    Skill seçiminden bağımsızdır — aynı skill farklı disiplinlerde kullanılır
+    (implement-change hem frontend hem backend işinde). Zincir DEĞİL tek sahip
+    döner: rol tiyatrosu yasağı (VIBE_CODING_TASARIM_TEMMUZ_2026.md:62).
+    Eşleşme yoksa kuralın kendi `owner` alanına düşer.
+    """
+    text = normalize(prompt)
+    tokens = tokenize(text)
+    en_iyi, en_puan = None, 0
+    for d in cfg.get("disciplines", []):
+        puan = sum(1 for t in d.get("triggers", [])
+                   if matches(normalize(t), text, tokens))
+        if puan > en_puan:
+            en_iyi, en_puan = d.get("owner"), puan
+    if en_iyi:
+        return en_iyi
+    return (primary or {}).get("owner") or "tech-lead"
+
+
 def route(prompt, cfg):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -187,6 +208,21 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
         "Yönlendirme yanlışsa tek cümleyle gerekçelendir ve kullanıcıya söyle "
         "— sessizce atlama.")
 
+    # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
+    owner = sahip(prompt, cfg, primary)
+    lines.append(
+        f"👤 Sahip disiplin: {owner} — bu işi o alanın DÜNYA STANDARDI "
+        f"uzmanı gibi ele al (rol tanımı: ~/.claude/agents/{owner}.md). "
+        "Sahiplik tektir; aynı işi roller arasında bölme. Ayrı ajan yalnız "
+        "iki durumda: bağımsız doğrulama ve izole araştırma.")
+
+    # İtiraz yükümlülüğü: uzman susarak uymaz, gerekçeyle itiraz eder.
+    lines.append(
+        "İTİRAZ YÜKÜMLÜLÜĞÜ: isteğin yanlış/eksik/riskli olduğunu düşünüyorsan "
+        "uygulamadan ÖNCE tek paragraf itiraz yaz (neyi, neden, alternatif ne). "
+        "Sessiz uyum kabul edilmez; itiraz ettikten sonra kullanıcı ısrar "
+        "ederse kararı uygula ve bunu belirt.")
+
     # Görünürlük sözleşmesi: kullanıcı ne olduğunu yazışmadan anlamalı.
     # Kullanıcının şikâyeti buydu ("hangi skill çağrıldı görmüyorum") — bu
     # yüzden biçim temenni değil, her turda enjekte edilen zorunluluk.
@@ -195,6 +231,7 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
         "🧭 Skill: <yüklediğin skill | 'yok — <tek cümle gerekçe>'>"
         f"  ·  Sınıf: {task_class}  ·  Risk: "
         f"{(primary or {}).get('risk', 'auto')}\n"
+        f"👤 Sahip: {owner}\n"
         "🔧 Yaptım: <tek cümle, somut — hangi dosya/komut/sonuç>\n"
         "Alt-ajan çağırdıysan ek satır: 🤖 Ajan: <rol> — <ne için>\n"
         "Sohbet/soru turunda da başlığı yaz; skill yoksa 'yok' de.")

@@ -262,6 +262,20 @@ def test_routing(skill_names):
         check(skill in skill_names,
               f"routing '{skill}': böyle bir skill yok (kayıtlı: {sorted(skill_names)})")
         routed.add(skill)
+    # Analiz katmanı: her iş bir disipline sahiplenir (tek sahip — zincir değil).
+    roller = set(cfg.get("roles") or [])
+    check(len(roller) >= 5,
+          "routing: 'roles' kaydı yok/eksik — analiz 'bu iş kimin işi' sorusunu "
+          "cevaplayamaz")
+    for rule in cfg.get("rules", []):
+        check(rule.get("owner") in roller,
+              f"routing '{rule.get('skill')}': geçersiz/eksik owner "
+              f"'{rule.get('owner')}' (kayıtlı roller: {sorted(roller)})")
+    for d in cfg.get("disciplines", []):
+        check(d.get("owner") in roller,
+              f"disiplin '{d.get('owner')}': roles kaydında yok")
+        check(len(d.get("triggers") or []) >= 3,
+              f"disiplin '{d.get('owner')}': en az 3 tetik gerekli")
     check(cfg.get("fallback", {}).get("message"),
           "routing: eşleşme yoksa ne yapılacağını söyleyen fallback mesajı yok")
 

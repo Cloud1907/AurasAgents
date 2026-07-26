@@ -15,8 +15,63 @@
 
 schema_version: 1
 
+# Sahip disiplinler (dünya standardı rol tanımları ~/.claude/agents altında).
+# Analiz her işte TEK sahip seçer — zincir değil. "Rol tiyatrosu yok"
+# (VIBE_CODING_TASARIM_TEMMUZ_2026.md:62): aynı çıktı personalar arasında
+# devredilmez; ayrı ajan yalnız bağımsız doğrulama ve izole araştırma için.
+roles:
+  - backend-engineer
+  - frontend-engineer
+  - database-engineer
+  - devops-engineer
+  - mobile-engineer
+  - ml-ai-engineer
+  - software-architect
+  - ux-designer
+  - security-engineer
+  - qa-engineer
+  - research-analyst
+  - product-strategist
+  - tech-lead
+
+# Disiplin tespiti skill seçiminden BAĞIMSIZ çalışır: aynı skill (örn.
+# implement-change) frontend işinde de backend işinde de kullanılır, ama
+# sahip değişir. Eşleşme yoksa kuralın kendi `owner` alanı geçerlidir.
+disciplines:
+  - owner: frontend-engineer
+    triggers: [buton, css, görünüm, gorunum, render, bileşen, component,
+               responsive, animasyon, tailwind, react, razor, sayfa yüklen]
+  - owner: ux-designer
+    triggers: [kullanıcı akış, kullanılabilir, hedefe var, karmaşık geliyor,
+               anlaşılmıyor, akış bozuk, heuristik, kullanıcı kayboluyor]
+  - owner: backend-engineer
+    triggers: [endpoint, api, servis, controller, middleware, iş kuralı,
+               yetki kontrol, dto, service, auth akış]
+  - owner: database-engineer
+    triggers: [sorgu, query, index, yavaş çalış, n+1, join, migration şema,
+               tablo, stored procedure, view]
+  - owner: devops-engineer
+    triggers: [deploy, pipeline, docker, ci/cd, env değişken, port, sunucu,
+               health check, container]
+  - owner: mobile-engineer
+    triggers: [mobil, ios, android, capacitor, react native, push bildirim,
+               offline senkron, store release]
+  - owner: ml-ai-engineer
+    triggers: [model, eval, drift, training, embedding, inference, dataset,
+               fine-tune]
+  - owner: software-architect
+    triggers: [mimari, monolit, mikroservis, servis sınır, ölçeklen,
+               trade-off, adr, sistem tasarım, bağımlılık yön]
+  - owner: security-engineer
+    triggers: [güvenlik, istismar, owasp, idor, injection, sızma, secret,
+               yetki bypass]
+  - owner: research-analyst
+    triggers: [nerede tanımlı, hangi dosya, nasıl hesaplan, kod tabanında,
+               envanter çıkar]
+
 rules:
   - skill: implement-change
+    owner: backend-engineer
     task_class: code-change
     risk: approval
     triggers:
@@ -39,6 +94,7 @@ rules:
       - migration
 
   - skill: research-with-evidence
+    owner: research-analyst
     task_class: research
     risk: auto
     triggers:
@@ -57,6 +113,7 @@ rules:
       - seçenek
 
   - skill: security-review
+    owner: security-engineer
     specificity: 2
     task_class: code-change
     risk: approval
@@ -78,6 +135,7 @@ rules:
       - upload
 
   - skill: designing-interfaces
+    owner: frontend-engineer
     specificity: 2
     task_class: code-change
     risk: approval
@@ -99,6 +157,7 @@ rules:
       - animasyon
 
   - skill: kernel-work
+    owner: tech-lead
     specificity: 2
     task_class: code-change
     risk: approval
@@ -120,6 +179,7 @@ rules:
       - çekirdek
 
   - skill: auras
+    owner: tech-lead
     specificity: 2
     task_class: code-change
     risk: approval
@@ -132,6 +192,7 @@ rules:
       - auras kur
 
   - skill: codex-debate
+    owner: software-architect
     specificity: 2
     external: true  # skill repo dışında (kullanıcı-global ~/.claude/skills)
     task_class: research

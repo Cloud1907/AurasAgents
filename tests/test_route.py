@@ -127,6 +127,40 @@ class RouteTest(unittest.TestCase):
         context, _s = route.render("merhaba nasılsın", self.cfg, pdir=ROOT)
         self.assertIn("🧭", context)
 
+    def test_disiplin_sahibi_secilir(self):
+        """Analiz 'bu iş kimin işi' sorusunu cevaplamalı — tek sahip."""
+        vakalar = (
+            ("login ekranının butonları bozuk görünüyor", "frontend-engineer"),
+            ("kullanıcı endpoint'ine yetki kontrolü ekle", "backend-engineer"),
+            ("bu sorgu çok yavaş, index önerisi lazım", "database-engineer"),
+            ("monolit mi mikroservis mi olmalı", "software-architect"),
+            ("kullanıcı bu akışta hedefe varamıyor", "ux-designer"),
+            ("docker compose deploy pipeline'ı kur", "devops-engineer"),
+            ("model drift'i nasıl izleyelim", "ml-ai-engineer"),
+        )
+        for prompt, beklenen in vakalar:
+            with self.subTest(prompt=prompt):
+                self.assertEqual(route.sahip(prompt, self.cfg), beklenen)
+
+    def test_tek_sahip_dondurur_zincir_degil(self):
+        # Rol tiyatrosu yasağı: birden çok disiplin eşleşse de TEK sahip döner
+        sahip = route.sahip("frontend butonu backend endpoint'i sorgu index",
+                            self.cfg)
+        self.assertIsInstance(sahip, str)
+
+    def test_sahip_baglama_enjekte_edilir(self):
+        context, _s = route.render("bu sorguyu hızlandır", self.cfg, pdir=ROOT)
+        self.assertIn("👤", context)
+        self.assertIn("database-engineer", context)
+
+    def test_baslikta_sahip_satiri_var(self):
+        context, _s = route.render("bu sorguyu hızlandır", self.cfg, pdir=ROOT)
+        self.assertIn("👤 Sahip: database-engineer", context)
+
+    def test_itiraz_yukumlulugu_enjekte_edilir(self):
+        context, _s = route.render("cache ekle", self.cfg, pdir=ROOT)
+        self.assertIn("İTİRAZ", context.upper())
+
     def test_bos_istek_ciktisiz(self):
         # main() stdin okur; boş istek yönlendirme üretmemeli
         self.assertEqual(route.route("", self.cfg)[1], None)
