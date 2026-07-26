@@ -74,9 +74,10 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 - `bin/hooks/pre-push`: kernel doğrulaması geçmeden push edilemez
   (kurulum: `bash bin/install-hooks.sh`; bilinçli atlama: `git push --no-verify`).
 - CI `evidence` job'ı: aynı doğrulamayı bağımsız makinede tekrarlar.
-- `.claude/settings.json` UserPromptSubmit hook'u: skill yönlendirmesini her
-  isteğe enjekte eder. Router asla bloklamaz (hatada sessiz exit 0) — kapı
-  değil, pusuladır.
+- UserPromptSubmit hook'u: skill yönlendirmesini her isteğe enjekte eder.
+  Proje hook'u (`.claude/settings.json`, repoyla taşınır) + kullanıcı-global
+  yedek (`--global-fallback`, proje hook'u varsa susar). Router asla
+  bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
 - Not: private repo + Free plan'da GitHub dal koruması kapalıdır; koruma

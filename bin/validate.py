@@ -304,6 +304,36 @@ def test_routing(skill_names):
               f"router '{prompt}' → beklenen '{expected}' yönlendirmesi yok")
 
 
+def test_onboarding_parity():
+    """auras-init.sh, validate.py'nin aradığı her şeyi yeni projeye taşıyor mu.
+
+    Sürüklenme bekçisi: kernel'e yeni zorunlu dosya eklenip kurulum betiği
+    güncellenmezse, /auras ile bağlanan proje ilk doğrulamada kırmızı verir.
+    """
+    # auras-init.sh yalnız kanonik şablon reposunda bulunur; bağlanmış
+    # projelerde yoktur ve orada denetlenecek bir şey de yok.
+    path = os.path.join(ROOT, "bin", "auras-init.sh")
+    if not os.path.isfile(path):
+        return
+    text = open(path, encoding="utf-8").read()
+    required = [
+        "AGENTS.md", "CLAUDE.md",
+        ".agents/skills", ".agents/capability-profiles", ".agents/routing.yml",
+        ".claude/rules",
+        ".github/ISSUE_TEMPLATE/work-contract.yml",
+        ".github/workflows/evidence.yml",
+        "schemas/evidence.schema.json",
+        "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
+        "bin/memory_hygiene.py", "bin/codex-review.sh", "bin/install-hooks.sh",
+        "bin/hooks", "tests",
+    ]
+    for rel in required:
+        check(rel in text,
+              f"auras-init.sh '{rel}' taşımıyor — yeni proje doğrulamada kırılır")
+    check("route.py" in text and "UserPromptSubmit" in text,
+          "auras-init.sh: router hook'unu hedef projeye kaydetmiyor")
+
+
 def test_mechanisms():
     """Deterministik kapılar ve risk sinyali araçları yerinde mi."""
     for rel in ("bin/hooks/pre-push", "bin/install-hooks.sh",
@@ -334,6 +364,7 @@ def main():
     test_rules()
     test_memory_tool()
     test_routing(skill_names)
+    test_onboarding_parity()
     test_mechanisms()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")

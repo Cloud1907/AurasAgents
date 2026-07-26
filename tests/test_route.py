@@ -2,6 +2,7 @@
 """bin/route.py yönlendirme testleri — istek → beklenen skill eşlemesi."""
 import importlib.util
 import os
+import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,6 +79,41 @@ class RouteTest(unittest.TestCase):
         context, summary = route.render("cache ekle", self.cfg)
         self.assertIn("implement-change", context)
         self.assertIn("router", summary)
+
+    def test_proje_tablosu_kanonigi_yener(self):
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".agents"))
+            local = os.path.join(td, ".agents", "routing.yml")
+            open(local, "w").close()
+            path, is_local = route.routing_path(td)
+            self.assertEqual(path, local)
+            self.assertTrue(is_local)
+
+    def test_tablosuz_projede_kanonige_duser(self):
+        with tempfile.TemporaryDirectory() as td:
+            path, is_local = route.routing_path(td)
+            self.assertEqual(path, route.CANONICAL)
+            self.assertFalse(is_local)
+
+    def test_global_yedek_proje_hooku_varsa_cekilir(self):
+        # AurasAgents'ın kendisi router hook'unu kaydeder → global yedek susar
+        os.environ["CLAUDE_PROJECT_DIR"] = ROOT
+        try:
+            self.assertTrue(route.project_registers_router(ROOT))
+            self.assertEqual(route.main(["--global-fallback"]), 0)
+        finally:
+            os.environ.pop("CLAUDE_PROJECT_DIR", None)
+
+    def test_kurulu_olmayan_skill_uyarisi(self):
+        with tempfile.TemporaryDirectory() as td:
+            context, _s = route.render("cache ekle", self.cfg, pdir=td,
+                                       table_is_local=False)
+            self.assertIn("kurulu değil", context)
+            self.assertIn("kanonik", context)
+
+    def test_kurulu_skill_uyari_uretmez(self):
+        context, _s = route.render("cache ekle", self.cfg, pdir=ROOT)
+        self.assertNotIn("kurulu değil", context)
 
     def test_bos_istek_ciktisiz(self):
         # main() stdin okur; boş istek yönlendirme üretmemeli
