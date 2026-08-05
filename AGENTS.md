@@ -80,6 +80,10 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
+- Kernel senkronu çift yönlüdür (ADR-0002). `/auras` kanonikten projeye
+  taşır; ezme kararı manifest'e değil kanonik git geçmişine dayanır — projede
+  üretilmiş içerik ezilmez, korunur. Ters yön `bin/auras_geri.py`: projede
+  kalan kernel işini kanonik çalışma ağacına alır (commit insanındır).
 - Not: private repo + Free plan'da GitHub dal koruması kapalıdır; koruma
   yerel kanca + CI ile sağlanır. Repo public olur veya Pro alınırsa
   `kernel` check'i required status check yapılmalıdır.

@@ -97,6 +97,24 @@ class KapiTest(unittest.TestCase):
         ])
         self.assertNotIn(("BLOK", "tıklama kanıtı yok"), b)
 
+    def test_view_alt_dizesi_yanlis_pozitif_uretmez(self):
+        # 2026-08-01 yanlış pozitifi (4cast): "security-review/", "overview/",
+        # "Interview/" içinde "view/" alt dizesi geçiyor — bunlar görünür
+        # yüzey DEĞİL. Desen yol-parçası sınırına demirli olmalı.
+        for yol in (".agents/skills/security-review/SKILL.md",
+                    "docs/overview/rapor.md",
+                    "src/Interview/notlar.md"):
+            b = self.bulgular([olay("edit", file=yol)])
+            self.assertEqual(b, set(), f"{yol} görünür yüzey sanıldı")
+
+    def test_gercek_ui_dizini_hala_yakalanir(self):
+        for yol in ("web/views/home.cshtml", "app/screens/Login.tsx",
+                    "src/ui/button.css"):
+            b = self.bulgular([olay("edit", file=yol),
+                               olay("test", cmd="npx vitest run", ok=True)])
+            self.assertIn(("BLOK", "tıklama kanıtı yok"), b,
+                          f"{yol} görünür yüzey sayılmadı")
+
     def test_backend_degisikligi_tiklama_istemez(self):
         b = self.bulgular([
             olay("edit", file="src/services/hesap.py"),
