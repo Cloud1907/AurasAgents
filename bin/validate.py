@@ -523,6 +523,35 @@ def test_onboarding_parity():
           "sapma sessizce birikir")
 
 
+def test_project_gate_hook():
+    """Proje kapısı uzantı noktası: proje-özel yasak motoru çatallamadan koşar.
+
+    Neden: projeye özel pazarlıksız yasaklar ("localStorage'da token yok")
+    mekanizmaya bağlanmalı, ama bunun için motor dosyasını (pre-push,
+    validate.py) düzenlemek çatal üretir — ADR-0002'nin çözdüğü sorunun
+    kaynağı. Motor genel çağrıyı taşır, kural projenin olur.
+
+    Sözleşme: `bin/hooks/proje-kapisi` VARSA çalıştırılabilir olmalı ve
+    pre-push onu koşmalı. Dosya motor listesinde DEĞİLDİR (proje sahibidir,
+    /auras ezmez, geri-taşımada yukarı gitmez).
+    """
+    kanca = os.path.join(ROOT, "bin", "hooks", "pre-push")
+    if os.path.isfile(kanca):
+        check("proje-kapisi" in open(kanca, encoding="utf-8").read(),
+              "pre-push proje kapısını çağırmıyor — proje-özel yasak "
+              "mekanizmaya bağlanamaz, motor çatallanır")
+    kd = _kernel_dosyalari()
+    if kd is not None:
+        check("bin/hooks/proje-kapisi" not in kd.MOTOR,
+              "proje-kapisi motor listesinde — proje dosyası motorca "
+              "ezilemez (sahibi proje)")
+    proje = os.path.join(ROOT, "bin", "hooks", "proje-kapisi")
+    if os.path.isfile(proje):
+        check(os.access(proje, os.X_OK),
+              "bin/hooks/proje-kapisi çalıştırılabilir değil — kapı sessizce "
+              "atlanır (chmod +x)")
+
+
 def test_mechanisms():
     """Deterministik kapılar ve risk sinyali araçları yerinde mi."""
     for rel in ("bin/hooks/pre-push", "bin/install-hooks.sh",
@@ -557,6 +586,7 @@ def main():
     test_skill_validators_wired()
     test_visibility()
     test_onboarding_parity()
+    test_project_gate_hook()
     test_mechanisms()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")
