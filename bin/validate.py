@@ -523,6 +523,39 @@ def test_onboarding_parity():
           "sapma sessizce birikir")
 
 
+def test_quality_gate():
+    """Kod kalitesi ölçülüyor ve ölçüm bir kapıya bağlı mı.
+
+    "Ölçmediğin şeyde standardın yok, tercihin var" — dosya/fonksiyon boyutu,
+    karmaşıklık ve borç işaretleri için tek bir sayı yoksa 'temiz kod' kuralı
+    uygulanamaz. Ölçüm deterministik olmalı (LLM yorumu değil) ve regresyon
+    ratchet ile kesilmeli.
+    """
+    arac = os.path.join(ROOT, "bin", "kalite.py")
+    check(os.path.isfile(arac), "bin/kalite.py yok — kod kalitesi ölçülmüyor")
+    if not os.path.isfile(arac):
+        return
+    kd = _kernel_dosyalari()
+    if kd is not None:
+        check("bin/kalite.py" in kd.MOTOR,
+              "kalite.py motor listesinde değil — bağlı projelere gitmez")
+    ci = os.path.join(ROOT, ".github", "workflows", "evidence.yml")
+    if os.path.isfile(ci):
+        check("kalite.py" in open(ci, encoding="utf-8").read(),
+              "CI kalite ölçümünü koşmuyor — ratchet regresyonu yakalanmaz")
+    # Ölçüm çalışıyor ve beklenen çıktı sözleşmesini üretiyor mu
+    proc = subprocess.run([sys.executable, arac, "--json"],
+                          capture_output=True, text=True, cwd=ROOT, input="")
+    check(proc.returncode in (0, 1),
+          f"kalite.py beklenmedik exit: {proc.returncode}")
+    try:
+        veri = json.loads(proc.stdout or "{}")
+        check("sayaclar" in veri and "kapsam" in veri,
+              "kalite.py --json beklenen alanları üretmiyor (sayaclar, kapsam)")
+    except ValueError:
+        err("kalite.py --json geçerli JSON üretmiyor")
+
+
 def test_project_gate_hook():
     """Proje kapısı uzantı noktası: proje-özel yasak motoru çatallamadan koşar.
 
@@ -586,6 +619,7 @@ def main():
     test_skill_validators_wired()
     test_visibility()
     test_onboarding_parity()
+    test_quality_gate()
     test_project_gate_hook()
     test_mechanisms()
     if ERRORS:

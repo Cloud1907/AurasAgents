@@ -1,0 +1,10 @@
+{
+  "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz. Düşürmek serbest ve teşvik edilir.",
+  "sayaclar": {
+    "borc_isareti": 4,
+    "buyuk_dosya": 1,
+    "debug_artigi": 0,
+    "karmasik_fonksiyon": 14,
+    "uzun_fonksiyon": 9
+  }
+}

@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Kalite ölçümü + ratchet — sayan şeyin kendisi de sayılabilir olmalı.
+
+Ölçüm kapıya bağlı olduğu için sessizce bozulması sahte yeşil üretir:
+"0 bulgu" ile "hiç ölçmedim" ayırt edilemez hâle gelir.
+"""
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ARAC = os.path.join(ROOT, "bin", "kalite.py")
+
+spec = importlib.util.spec_from_file_location("_kalite", ARAC)
+kalite = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(kalite)
+
+
+def yaz(kok, rel, icerik):
+    yol = os.path.join(kok, rel)
+    os.makedirs(os.path.dirname(yol), exist_ok=True)
+    with open(yol, "w", encoding="utf-8") as fh:
+        fh.write(icerik)
+
+
+class OlcumTest(unittest.TestCase):
+    def test_uzun_fonksiyon_sayilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.py", "def uzun():\n" + "    x = 1\n" * 60)
+            r = kalite.olc(td)
+            self.assertEqual(r["sayaclar"]["uzun_fonksiyon"], 1)
+
+    def test_kisa_fonksiyon_sayilmaz(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.py", "def kisa():\n    return 1\n")
+            self.assertEqual(kalite.olc(td)["sayaclar"]["uzun_fonksiyon"], 0)
+
+    def test_buyuk_dosya_sayilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.py", "x = 1\n" * 500)
+            self.assertEqual(kalite.olc(td)["sayaclar"]["buyuk_dosya"], 1)
+
+    def test_karmasik_fonksiyon_sayilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            govde = "".join(f"    if x == {i}:\n        pass\n" for i in range(12))
+            yaz(td, "a.py", "def dallı(x):\n" + govde)
+            self.assertEqual(kalite.olc(td)["sayaclar"]["karmasik_fonksiyon"], 1)
+
+    def test_borc_ve_debug_sayilir(self):
+        # Fixture parçalı kurulur: düz yazılırsa bu test dosyası repo
+        # sayacına gerçek borçmuş gibi girer (araç kendi testini sayar).
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.js", "// TO" + "DO: sonra\n" + "console" + ".log(x)\n")
+            s = kalite.olc(td)["sayaclar"]
+            self.assertEqual(s["borc_isareti"], 1)
+            self.assertEqual(s["debug_artigi"], 1)
+
+    def test_js_fonksiyonu_analiz_edilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.js", "function uzun() {\n" + "  var x = 1;\n" * 60 + "}\n")
+            r = kalite.olc(td)
+            self.assertEqual(r["sayaclar"]["uzun_fonksiyon"], 1)
+            self.assertEqual(r["kapsam"]["fonksiyon_analizli"], 1)
+
+    def test_kapsam_durust_raporlanir(self):
+        # Fonksiyon analizi yapılamayan dil "analiz edildi" sayılmamalı
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.rb", "def x\nend\n")
+            k = kalite.olc(td)["kapsam"]
+            self.assertEqual(k["kod_dosyasi"], 1)
+            self.assertEqual(k["fonksiyon_analizli"], 0)
+            self.assertEqual(k["yalniz_satir_sayilan"], 1)
+
+    def test_atlanan_dizin_olculmez(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "node_modules/b.js", "x = 1\n" * 500)
+            self.assertEqual(kalite.olc(td)["kapsam"]["kod_dosyasi"], 0)
+
+    def test_kendi_desenini_yakalamaz(self):
+        # Tarayıcı kendi kaynağında debug artığı görmemeli (parçalı desen)
+        r = kalite.olc(ROOT)
+        kendi = [b for b in r["bulgular"]
+                 if b["dosya"] == os.path.join("bin", "kalite.py")]
+        self.assertEqual([b for b in kendi if b["tur"] == "debug_artigi"], [],
+                         "araç kendi desenini bulgu sayıyor")
+
+    def test_repoda_fixture_kaynakli_sahte_borc_yok(self):
+        # Test fixture'ları gerçek borç gibi sayaca girmemeli
+        r = kalite.olc(ROOT)
+        sahte = [b for b in r["bulgular"]
+                 if b["tur"] == "debug_artigi" and "test_" in b["dosya"]]
+        self.assertEqual(sahte, [], "test fixture'ı gerçek borç sayılıyor")
+
+
+class RatchetTest(unittest.TestCase):
+    def test_artan_sayac_regresyondur(self):
+        self.assertEqual(
+            kalite.regresyonlar({"a": 3, "b": 1}, {"a": 2, "b": 1}),
+            [("a", 2, 3)])
+
+    def test_azalan_sayac_regresyon_degildir(self):
+        self.assertEqual(kalite.regresyonlar({"a": 1}, {"a": 5}), [])
+
+    def test_tabanda_olmayan_sayac_sifir_sayilir(self):
+        self.assertEqual(kalite.regresyonlar({"yeni": 1}, {}), [("yeni", 0, 1)])
+
+    def test_check_regresyonda_exit_1(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.py", "x = 1\n" * 500)
+            taban = os.path.join(td, "taban.json")
+            with open(taban, "w") as fh:
+                json.dump({"sayaclar": {"buyuk_dosya": 0}}, fh)
+            eski = kalite.TABAN_YOL
+            try:
+                kalite.TABAN_YOL = taban
+                self.assertEqual(kalite.main(["--check", "--json",
+                                              "--path", td]), 1)
+            finally:
+                kalite.TABAN_YOL = eski
+
+
+class SozlesmeTest(unittest.TestCase):
+    def test_json_beklenen_alanlari_uretir(self):
+        p = subprocess.run([sys.executable, ARAC, "--json"],
+                           capture_output=True, text=True, cwd=ROOT,
+                           timeout=120, input="")
+        veri = json.loads(p.stdout)
+        for alan in ("sayaclar", "esikler", "kapsam", "bulgular"):
+            self.assertIn(alan, veri)
+
+    def test_taban_dosyasi_var_ve_gecerli(self):
+        # Taban yoksa ratchet sessizce kapalıdır — kapı var sanılır, yoktur
+        yol = os.path.join(ROOT, ".agents", "kalite-baseline.json")
+        self.assertTrue(os.path.isfile(yol), "ratchet tabanı yok")
+        with open(yol, encoding="utf-8") as fh:
+            self.assertIn("sayaclar", json.load(fh))
+
+
+if __name__ == "__main__":
+    unittest.main()
