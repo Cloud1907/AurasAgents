@@ -44,7 +44,11 @@ if [ -e "$PROJE_KAPI" ]; then
     echo "Duzelt: chmod +x bin/hooks/proje-kapisi"
     exit 1
   fi
-  if ! "$PROJE_KAPI"; then
+  # </dev/null ZORUNLU: git, push edilen ref listesini pre-push'a STDIN ile
+  # verir. Proje kapisi stdin'i okursa o akisi YER ve asagidaki while-read
+  # hicbir ref gormez — ref'e dayanan her politika (ör. "main'e dogrudan
+  # push") sessizce ise yaramaz hale gelir. Denetim bulgusu 2026-08-06.
+  if ! "$PROJE_KAPI" </dev/null; then
     echo ""
     echo "PUSH ENGELLENDI: proje kapisi gecilemedi (bkz. yukaridaki cikti)."
     echo "Bilincli atlamak icin: git push --no-verify"

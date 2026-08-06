@@ -72,6 +72,39 @@ class PrePushTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             self.assertEqual(kur(td, "#!/bin/sh\nexit 0\n")[0], 0)
 
+    def test_proje_kapisi_ref_akisini_yiyemez(self):
+        """Denetim bulgusu: kapı stdin okursa git'in ref listesini yer.
+
+        O zaman sonraki while-read hiçbir ref görmez ve ref'e dayanan her
+        politika (ör. 'main'e doğrudan push' uyarısı) sessizce kaybolur.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "bin", "hooks"))
+            shutil.copy2(os.path.join(ROOT, "bin", "hooks", "pre-push"),
+                         os.path.join(td, "bin", "hooks", "pre-push"))
+            with open(os.path.join(td, "bin", "validate.py"), "w") as fh:
+                fh.write('#!/usr/bin/env python3\nprint("ok")\n')
+            hedef = os.path.join(td, SCAN_REL)
+            os.makedirs(os.path.dirname(hedef))
+            shutil.copy2(os.path.join(ROOT, SCAN_REL), hedef)
+            with open(os.path.join(td, "temiz.py"), "w") as fh:
+                fh.write("x = 1\n")
+            # Stdin'i sonuna kadar yiyen bir proje kapısı
+            yol = os.path.join(td, "bin", "hooks", "proje-kapisi")
+            with open(yol, "w") as fh:
+                fh.write("#!/bin/sh\ncat >/dev/null\nexit 0\n")
+            os.chmod(yol, 0o755)
+            subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
+                           capture_output=True)
+            p = subprocess.run(
+                ["sh", os.path.join(td, "bin", "hooks", "pre-push")],
+                capture_output=True, text=True, cwd=td, timeout=60,
+                input="refs/heads/main aaa refs/heads/main bbb\n")
+            self.assertEqual(p.returncode, 0)
+            self.assertIn("dogrudan main", p.stdout,
+                          "proje kapısı git'in ref akışını yemiş — ref'e "
+                          "dayanan politikalar sessizce kayboluyor")
+
     def test_calistirilamayan_proje_kapisi_sessizce_atlanmaz(self):
         # chmod unutulursa kapı kaybolurdu — görünür hata olmalı
         with tempfile.TemporaryDirectory() as td:
