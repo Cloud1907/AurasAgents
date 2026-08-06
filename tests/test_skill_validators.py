@@ -49,6 +49,10 @@ class ScanSecretsTest(unittest.TestCase):
             os.makedirs(os.path.join(td, "eval"))
             with open(os.path.join(td, "eval", "cases.md"), "w") as fh:
                 fh.write(f"beklenen bulgu: {ORNEK_ANAHTAR}\n")
+            # Dışlanmayan temiz dosya ŞART: yoksa "hiç taranmadı" durumu
+            # doğar ve o 'temiz' değildir (bkz. test_asiri_genis_dislama).
+            with open(os.path.join(td, "temiz.py"), "w") as fh:
+                fh.write("x = 1\n")
             self.assertEqual(kos(SCAN, td)[0], 1, "dışlamasız yakalanmalı")
             self.assertEqual(kos(SCAN, "--exclude", "*/eval/*", td)[0], 0,
                              "dışlama uygulanmadı")
@@ -68,6 +72,38 @@ class ScanSecretsTest(unittest.TestCase):
 
     def test_yolsuz_cagri_kullanim_hatasi(self):
         self.assertEqual(kos(SCAN, "--exclude", "*/eval/*")[0], 2)
+
+    # --- güvenlik denetimi bulguları (2026-08-06) — fail-open sınıfı ---
+
+    def test_degersiz_exclude_temiz_demez(self):
+        # Bulgu: '--exclude' yol sanılıp tarama boşa düşüyor, exit 0 "temiz ✓"
+        kod, cikti = kos(SCAN, "--exclude")
+        self.assertEqual(kod, 2, "değersiz --exclude kullanım hatası olmalı")
+        self.assertNotIn("temiz", cikti)
+
+    def test_hic_dosya_taranmadiysa_temiz_demez(self):
+        # Bulgu: var olmayan yol → 0 bulgu → "temiz ✓" + exit 0 (sahte yeşil)
+        kod, cikti = kos(SCAN, "/yok/boyle/bir/dizin")
+        self.assertEqual(kod, 2, "hiç dosya taranmadıysa 'temiz' denemez")
+        self.assertNotIn("temiz", cikti)
+
+    def test_asiri_genis_dislama_temiz_demez(self):
+        # Dışlama her şeyi yerse bu da "taranmadı"dır, "temiz" değil
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "a.py"), "w") as fh:
+                fh.write(f'K = "{ORNEK_ANAHTAR}"\n')
+            self.assertEqual(kos(SCAN, "--exclude", "*", td)[0], 2)
+
+    def test_nokta_ile_baslayan_yol_deseni_eslesir(self):
+        # Bulgu: lstrip('./') '.agents/...' → 'agents/...' yapıyordu; nokta
+        # ile başlayan kesin desen sessizce eşleşmiyordu → operatör deseni
+        # gereğinden geniş tutmaya itiliyordu.
+        sys.path.insert(0, os.path.dirname(SCAN))
+        import scan_secrets as ss
+        self.assertTrue(ss.is_excluded(".agents/skills/x/eval/c.md",
+                                       [".agents/skills/*/eval/*"]))
+        self.assertFalse(ss.is_excluded(".agents/skills/x/src/c.py",
+                                        [".agents/skills/*/eval/*"]))
 
 
 class CheckTestFirstTest(unittest.TestCase):

@@ -81,8 +81,13 @@ def scan_line(line):
 
 
 def is_excluded(path, patterns):
-    """Yol dışlama glob'larından birine uyuyor mu (normalize edilmiş '/' ile)."""
-    norm = os.path.normpath(path).replace(os.sep, "/").lstrip("./")
+    """Yol dışlama glob'larından birine uyuyor mu (normalize edilmiş '/' ile).
+
+    normpath baştaki './'yi zaten atar. lstrip('./') KULLANILMAZ: karakter
+    kümesi siler, önek değil — '.agents/...' yolunu 'agents/...' yapıp nokta
+    ile başlayan desenleri sessizce eşleşmez kılıyordu (denetim bulgusu).
+    """
+    norm = os.path.normpath(path).replace(os.sep, "/")
     return any(fnmatch.fnmatch(norm, g) or fnmatch.fnmatch("./" + norm, g)
                for g in patterns)
 
@@ -107,8 +112,16 @@ def iter_files(paths, exclude=()):
 
 
 def scan(paths, exclude=()):
+    """(bulgular, taranan_dosya_sayısı).
+
+    Sayı önemlidir: HİÇBİR dosya taranmadıysa sonuç 'temiz' DEĞİLDİR —
+    çağıran bunu kullanım hatası olarak raporlamalı (denetim bulgusu:
+    hatalı çağrı 'temiz ✓' diyip exit 0 dönüyordu).
+    """
     findings = []
+    taranan = 0
     for path in iter_files(paths, exclude):
+        taranan += 1
         try:
             if os.path.getsize(path) > MAX_BYTES:
                 continue
@@ -119,7 +132,10 @@ def scan(paths, exclude=()):
                         findings.append((path, i, name, preview))
         except (OSError, UnicodeError):
             continue
-    return findings
+    return findings, taranan
+
+
+KULLANIM = "kullanım: scan_secrets.py [--exclude GLOB] <dosya|dizin> [...]"
 
 
 def main(argv):
@@ -129,19 +145,31 @@ def main(argv):
     exclude, paths = [], []
     i = 1
     while i < len(argv):
-        if argv[i] == "--exclude" and i + 1 < len(argv):
+        if argv[i] == "--exclude":
+            # Değersiz --exclude sessizce yol sanılıyordu → tarama boşa
+            # düşüp "temiz ✓" veriyordu. Kapıda bu, sahte yeşildir.
+            if i + 1 >= len(argv):
+                print("HATA: --exclude bir GLOB ister\n" + KULLANIM,
+                      file=sys.stderr)
+                return 2
             exclude.append(argv[i + 1])
             i += 2
             continue
         paths.append(argv[i])
         i += 1
     if not paths:
-        print("kullanım: scan_secrets.py [--exclude GLOB] <dosya|dizin> [...]",
-              file=sys.stderr)
+        print(KULLANIM, file=sys.stderr)
         return 2
-    findings = scan(paths, exclude)
+    findings, taranan = scan(paths, exclude)
+    if not taranan:
+        # "Hiç dosya taranmadı" ASLA "temiz" değildir: yanlış yol, fazla
+        # geniş dışlama ya da bozuk kurulum — hepsi kapıyı kör eder.
+        print("HATA: hiçbir dosya taranmadı (yol yanlış ya da dışlama çok "
+              "geniş) — bu 'temiz' DEĞİLDİR", file=sys.stderr)
+        return 2
     if not findings:
-        print("scan_secrets: temiz — secret deseni bulunamadı ✓")
+        print(f"scan_secrets: temiz — {taranan} dosya tarandı, secret "
+              "deseni bulunamadı ✓")
         return 0
     print(f"scan_secrets: {len(findings)} olası secret bulundu ✗")
     for path, line, name, preview in findings:

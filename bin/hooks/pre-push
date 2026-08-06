@@ -15,15 +15,21 @@ fi
 # Sızan secret geri alınamaz: uzak depoya girdikten sonra iptal etmekten
 # başka çare yok. Bu yüzden push'tan ÖNCE, blocking.
 SCAN="$ROOT/.agents/skills/security-review/scripts/scan_secrets.py"
-if [ -f "$SCAN" ]; then
-  # Dışlama: skill eval'leri kasıtlı sahte anahtar taşır (tarayıcının kendi
-  # kabul vakası). Dışlama burada görünür — tarayıcıya gömülmez.
-  if ! python3 "$SCAN" --exclude '*/eval/*' "$ROOT"; then
-    echo ""
-    echo "PUSH ENGELLENDI: olasi secret sizintisi (bkz. yukaridaki dosya:satir)."
-    echo "Temizle ve gecmisi de kontrol et; yanlis pozitifse --no-verify."
-    exit 1
-  fi
+if [ ! -f "$SCAN" ]; then
+  # FAIL-CLOSED: tarayici yoksa kapi sessizce kaybolurdu. Guvenlik kapisinin
+  # "yok" hali "gecti" olamaz — eksik kurulum gorunur olmali.
+  echo "PUSH ENGELLENDI: secret tarayicisi bulunamadi ($SCAN)."
+  echo "Kurulumu tamamla (/auras) ya da bilincli atla: git push --no-verify"
+  exit 1
+fi
+# Dislama: skill eval'leri kasitli sahte anahtar tasir (tarayicinin kendi
+# kabul vakasi). Dislama burada gorunur — tarayiciya gomulmez.
+# Cikis: 0 temiz · 1 bulgu · 2 kullanim/kapsam hatasi (hicbir dosya taranmadi).
+if ! python3 "$SCAN" --exclude '*/eval/*' "$ROOT"; then
+  echo ""
+  echo "PUSH ENGELLENDI: secret kapisi gecilemedi (bkz. yukaridaki cikti)."
+  echo "Temizle ve gecmisi de kontrol et; yanlis pozitifse --no-verify."
+  exit 1
 fi
 
 while read -r _local_ref _local_sha remote_ref _remote_sha; do
