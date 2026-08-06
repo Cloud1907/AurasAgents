@@ -31,13 +31,29 @@ URL = re.compile(r"https?://\S+")
 FILE_LINE = re.compile(r"\b[\w./-]+\.\w+:\d+")
 COMMIT = re.compile(r"\b[0-9a-f]{7,40}\b")
 PR_ISSUE = re.compile(r"(?<![\w])#\d+\b")
-CONF_TAG = re.compile(r"doğrulanmış|ikincil|spekülatif", re.I)
+# 'yorum' da geçerli bir etikettir: açıkça "bu ölçüm değil, çıkarım" demek,
+# kaynaksız iddiayı ölçümmüş gibi sunmanın tam tersidir — cezalandırılmamalı.
+CONF_TAG = re.compile(r"doğrulanmış|ikincil|spekülatif|\[yorum\]", re.I)
 NOSRC_MARK = re.compile(r"\[kaynak\?\]", re.I)
+
+# Komut çıktısı da birincil kaynaktır: koşulmuş bir komut + gözlenen sonuç,
+# dosya:satır kadar tekrarlanabilirdir. Yalnız komutu ANMAK yetmez — sonuç
+# işareti (→ / -> / exit N / HTTP N) aranır, aksi halde her araç adı geçen
+# cümle "kaynaklı" sayılırdı (4cast denetimi 2026-08-06 bulgusu).
+CMD_RUN = re.compile(
+    r"`\s*(?:git|gh|npm|npx|node|pnpm|yarn|python3?|pytest|dotnet|bash|sh|"
+    r"curl|make|go|cargo|docker|kubectl|psql|terraform)\b[^`]*`")
+CMD_RESULT = re.compile(r"(?:→|->|⇒)|(?<![\w])exit\s*[=:]?\s*\d|HTTP\s*\d{3}")
 
 # İddia SAYILMAYAN blok başlangıçları (checkbox, alıntı, tablo).
 SKIP_PREFIX = ("- [", "* [", ">", "|")
 # Bu başlıkların altındaki bloklar iddia sayılmaz (özet/meta/açık uç).
-NONCLAIM_SECTIONS = ("açık soru", "open question", "meta", "kapsam", "tl;dr")
+# Özet bölümleri iddia sayılmaz: altındaki bulguları TEKRAR ederler, kaynak
+# orada durur. TL;DR zaten hariçti; eş anlamlıları eksikti (4cast raporu
+# "Yönetici özeti" başlığı kullanınca özet satırları kaynaksız sayıldı).
+NONCLAIM_SECTIONS = ("açık soru", "open question", "meta", "kapsam", "tl;dr",
+                     "yönetici özeti", "executive summary", "özet",
+                     "yöntem", "hüküm")
 LIST_MARKER = re.compile(r"^(\s*(?:[-*+]\s|\d+[.)]\s))")
 TLDR = re.compile(r"^\**\s*tl;?dr", re.I)
 
@@ -50,6 +66,7 @@ def is_citationlike(text):
         or CONF_TAG.search(text)
         or NOSRC_MARK.search(text)
         or COMMIT.search(text)
+        or bool(CMD_RUN.search(text) and CMD_RESULT.search(text))
     )
 
 

@@ -76,6 +76,19 @@ class KapiTest(unittest.TestCase):
         self.assertEqual(kapi.dogrulayici_sonuclari(["docs/a.md"]), {})
         self.assertIn("test_first", kapi.dogrulayici_sonuclari(["src/a.py"]))
 
+    def test_ayni_rapor_bir_kez_denetlenir(self):
+        # Aynı dosya turda N kez düzenlenince kaynak denetimi N kez koşuyor
+        # ve kapı aynı uyarıyı N kez basıyordu (2026-08-06 gürültü bulgusu).
+        rapor = ".agents/reports/2026-08-06-x.md"
+        sonuc = kapi.dogrulayici_sonuclari([rapor, rapor, rapor])
+        self.assertEqual(len(sonuc.get("kaynak", [])), 1,
+                         "aynı rapor birden çok kez denetlendi")
+
+    def test_farkli_raporlar_ayri_denetlenir(self):
+        sonuc = kapi.dogrulayici_sonuclari(
+            [".agents/reports/a.md", ".agents/reports/b.md"])
+        self.assertEqual(len(sonuc.get("kaynak", [])), 2)
+
     def test_duzenlenen_dosyalar_bu_turdan(self):
         olaylar = [olay("edit", file="eski.py"), olay("stop"),
                    olay("edit", file="yeni.py")]
