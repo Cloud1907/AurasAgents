@@ -42,7 +42,11 @@ RISK_YOL = re.compile(
 # Görünür yüzey: değişirse birim testi yetmez, TIKLAMA kanıtı istenir.
 UI_UZANTI = (".tsx", ".jsx", ".vue", ".svelte", ".cshtml", ".razor", ".html",
              ".css", ".scss")
-UI_YOL = re.compile(r"(components?|pages?|views?|screens?|web|ui|frontend)/", re.I)
+# Yol-parçası sınırına demirli: aksi halde "security-review/", "overview/",
+# "Interview/" içindeki "view" alt dizesi eşleşir ve markdown/backend dosyası
+# görünür yüzey sanılır (2026-08-01 yanlış pozitifi — 4cast'te yakalandı).
+UI_YOL = re.compile(
+    r"(^|/)(components?|pages?|views?|screens?|web|ui|frontend)/", re.I)
 
 # Büyük değişim eşikleri (Codex: 300 satır kaba; dosya sayısı + net satır).
 E2E_CMD_RE = re.compile(r"(playwright|cypress|selenium|puppeteer|e2e)", re.I)

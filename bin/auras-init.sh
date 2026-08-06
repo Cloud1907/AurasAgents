@@ -37,50 +37,22 @@ chmod +x "$TARGET"/bin/*.sh "$TARGET"/bin/hooks/* 2>/dev/null || true
 
 
 # --- Motor (kernel) dosyaları: her koşumda GÜNCELLENİR --------------------
-# Ayrım: bunlar AurasAgents'ın dosyalarıdır, projenin değil. Ama kullanıcı
-# birini elle değiştirdiyse EZİLMEZ — korunur ve raporlanır. Hangi dosyanın
-# "el değmemiş" olduğu .agents/.kernel-manifest.json ile bilinir.
+# Ayrım: bunlar AurasAgents'ın dosyalarıdır, projenin değil. Ama projede yerel
+# iş yapıldıysa EZİLMEZ — korunur ve geri-taşımaya yönlendirilir.
+# Ezme kararı .kernel-manifest.json'a DEĞİL kanonik git geçmişine dayanır:
+# manifest yanılabiliyordu (2026-08-05 bulgusu — 4cast'te projenin kendi
+# içeriğini "el değmemiş" sanıp yerel düzeltmeyi ezmek üzereydi).
 echo ""
 echo "Motor dosyalari (guncelleme):"
 python3 - "$SOURCE" "$TARGET" <<'PYSYNC'
-import hashlib
 import json
 import os
 import shutil
 import sys
 
 kaynak, hedef = sys.argv[1], sys.argv[2]
-MOTOR = [
-    "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
-    "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
-    "bin/kapi.py", "bin/araclar.py", "bin/codex-review.sh",
-    "bin/install-hooks.sh", "bin/hooks/pre-push",
-    "schemas/evidence.schema.json",
-    ".github/workflows/evidence.yml",
-    ".github/ISSUE_TEMPLATE/work-contract.yml",
-    ".agents/routing.yml",
-]
-# Dizin olarak senkronlananlar (içerik tamamen motorun)
-MOTOR_DIZIN = [".agents/skills", ".agents/capability-profiles", "tests",
-               ".claude/rules"]
-
-
-def sha(yol):
-    with open(yol, "rb") as fh:
-        return hashlib.sha256(fh.read()).hexdigest()
-
-
-def dosyalar(kok, rel):
-    tam = os.path.join(kok, rel)
-    if os.path.isfile(tam):
-        yield rel
-    elif os.path.isdir(tam):
-        for dizin, _alt, isimler in os.walk(tam):
-            for i in isimler:
-                if i.endswith((".pyc",)) or "__pycache__" in dizin:
-                    continue
-                yield os.path.relpath(os.path.join(dizin, i), kok)
-
+sys.path.insert(0, os.path.join(kaynak, "bin"))
+import kernel_dosyalari as kd      # motor listesinin TEK tanımı
 
 manifest_yol = os.path.join(hedef, ".agents", ".kernel-manifest.json")
 try:
@@ -90,28 +62,26 @@ except (OSError, ValueError):
     manifest = {}
 
 eklendi, guncellendi, korundu, ayni = [], [], [], 0
-for giris in MOTOR + MOTOR_DIZIN:
-    for rel in dosyalar(kaynak, giris):
-        src, dst = os.path.join(kaynak, rel), os.path.join(hedef, rel)
-        yeni_hash = sha(src)
-        if not os.path.exists(dst):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy2(src, dst)
-            manifest[rel] = yeni_hash
-            eklendi.append(rel)
-            continue
-        mevcut = sha(dst)
-        if mevcut == yeni_hash:
-            manifest[rel] = yeni_hash
-            ayni += 1
-        elif manifest.get(rel) in (mevcut, None) and manifest.get(rel) is not None:
-            # Kurulduğundan beri el değmemiş → güvenle güncelle
-            shutil.copy2(src, dst)
-            manifest[rel] = yeni_hash
-            guncellendi.append(rel)
-        else:
-            # Elle değiştirilmiş ya da kaydı yok → EZME, bildir
-            korundu.append(rel)
+for rel in kd.motor_dosyalari(kaynak):
+    src, dst = os.path.join(kaynak, rel), os.path.join(hedef, rel)
+    yeni_hash = kd.sha(src)
+    if not os.path.exists(dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+        manifest[rel] = yeni_hash
+        eklendi.append(rel)
+        continue
+    if kd.sha(dst) == yeni_hash:
+        manifest[rel] = yeni_hash
+        ayni += 1
+    elif kd.sinifla(kaynak, hedef, rel) == "geride":
+        # İçerik kanoniğin ESKİ bir sürümü → yerel iş yok, güvenle güncelle
+        shutil.copy2(src, dst)
+        manifest[rel] = yeni_hash
+        guncellendi.append(rel)
+    else:
+        # Kanonik geçmişte hiç görülmemiş içerik = yerel iş → EZME
+        korundu.append(rel)
 
 os.makedirs(os.path.dirname(manifest_yol), exist_ok=True)
 with open(manifest_yol, "w", encoding="utf-8") as fh:
@@ -122,8 +92,14 @@ for r in eklendi:
 for r in guncellendi:
     print(f"  guncellendi: {r}")
 for r in korundu:
-    print(f"  KORUNDU:     {r}  (yerel degisiklik — elle birlestir)")
+    print(f"  KORUNDU:     {r}  (yerel is — kanonige tasinmadi)")
 print(f"  ({ayni} dosya zaten guncel)")
+if korundu:
+    print("")
+    print(f"  {len(korundu)} dosyada yerel kernel isi var ve kanonige "
+          "tasinmadi.")
+    print(f"  Gor:  python3 bin/auras_geri.py {hedef} --diff")
+    print(f"  Al :  python3 bin/auras_geri.py {hedef} --al {korundu[0]}")
 PYSYNC
 
 echo ""

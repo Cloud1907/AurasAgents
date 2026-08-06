@@ -29,6 +29,19 @@ def check(cond, msg):
         err(msg)
 
 
+def _kernel_dosyalari():
+    """Motor listesinin tek tanımını yükler (yoksa None)."""
+    try:
+        import importlib.util
+        yol = os.path.join(ROOT, "bin", "kernel_dosyalari.py")
+        spec = importlib.util.spec_from_file_location("_kd", yol)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except (OSError, ImportError, AttributeError):
+        return None
+
+
 def frontmatter(path):
     text = open(path, encoding="utf-8").read()
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
@@ -425,10 +438,11 @@ def test_visibility():
 
 
 def test_onboarding_parity():
-    """auras-init.sh, validate.py'nin aradığı her şeyi yeni projeye taşıyor mu.
+    """auras-init.sh, kernel'in tamamını yeni projeye taşıyor mu.
 
-    Sürüklenme bekçisi: kernel'e yeni zorunlu dosya eklenip kurulum betiği
-    güncellenmezse, /auras ile bağlanan proje ilk doğrulamada kırmızı verir.
+    Sürüklenme bekçisi: motor listesi TEK yerde (bin/kernel_dosyalari.py)
+    yaşamalı. İkinci bir kopya (betiğin içinde elle liste) çıkarsa listeler
+    ayrışır ve /auras eksik kurulum yapar — burada kesilir.
     """
     # auras-init.sh yalnız kanonik şablon reposunda bulunur; bağlanmış
     # projelerde yoktur ve orada denetlenecek bir şey de yok.
@@ -436,20 +450,25 @@ def test_onboarding_parity():
     if not os.path.isfile(path):
         return
     text = open(path, encoding="utf-8").read()
-    required = [
-        "AGENTS.md", "CLAUDE.md",
-        ".agents/skills", ".agents/capability-profiles", ".agents/routing.yml",
-        ".claude/rules",
-        ".github/ISSUE_TEMPLATE/work-contract.yml",
-        ".github/workflows/evidence.yml",
-        "schemas/evidence.schema.json",
-        "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
-        "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
-        "bin/kapi.py", "bin/araclar.py",
-        "bin/codex-review.sh", "bin/install-hooks.sh",
-        "bin/hooks", "tests",
-    ]
-    for rel in required:
+
+    kd = _kernel_dosyalari()
+    check(kd is not None, "bin/kernel_dosyalari.py yüklenemedi — motor "
+                          "listesinin tek tanımı yok")
+    if kd is not None:
+        # Listedeki her giriş kanonikte gerçekten var mı (ölü giriş = eksik kurulum)
+        for rel in kd.MOTOR + kd.MOTOR_DIZIN:
+            check(os.path.exists(os.path.join(ROOT, rel)),
+                  f"kernel_dosyalari: '{rel}' listede ama repoda yok")
+        # Tek tanım kuralı: betik listeyi kendi içinde YENİDEN tanımlamamalı
+        check("import kernel_dosyalari" in text,
+              "auras-init.sh motor listesini kernel_dosyalari'ndan almıyor")
+        check("MOTOR = [" not in text,
+              "auras-init.sh motor listesinin ikinci kopyasını taşıyor — "
+              "tek tanım bin/kernel_dosyalari.py'de olmalı")
+
+    # Proje dosyaları (bir kez yazılır, ezilmez) motor listesinde değildir;
+    # ayrıca denetlenir.
+    for rel in ("AGENTS.md", "CLAUDE.md"):
         check(rel in text,
               f"auras-init.sh '{rel}' taşımıyor — yeni proje doğrulamada kırılır")
     # Güncelleme yolu: motor dosyaları her koşumda senkronlanmalı, hook'lar
@@ -459,6 +478,11 @@ def test_onboarding_parity():
           "projeler eski sürümde kalır")
     check('".claude", "settings.json"' in text or '.claude/settings.json' in text,
           "auras-init.sh: hook'ları kaynak settings.json'dan birleştirmiyor")
+    # Geri-taşıma yolu: korunan yerel iş için çıkış kapısı gösterilmeli,
+    # yoksa sapma sessizce birikir (2026-08-05 bulgusu).
+    check("auras_geri.py" in text,
+          "auras-init.sh korunan yerel işi geri-taşımaya yönlendirmiyor — "
+          "sapma sessizce birikir")
 
 
 def test_mechanisms():
