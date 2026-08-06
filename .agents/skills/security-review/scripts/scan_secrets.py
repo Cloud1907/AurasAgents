@@ -111,34 +111,41 @@ def git_izlenen(kok):
     return [os.path.join(kok, x) for x in ham if x]
 
 
+def _atlanir(tam, exclude):
+    return (os.path.splitext(tam)[1].lower() in SKIP_EXT
+            or is_excluded(tam, exclude))
+
+
+def _izlenen_dosyalar(p, exclude):
+    """Yalnız git-izlenen dosyalar (push kapısı kapsamı)."""
+    izlenen = git_izlenen(p)
+    if izlenen is None:
+        print(f"HATA: git deposu değil ya da git okunamadı: {p}",
+              file=sys.stderr)
+        return
+    for tam in izlenen:
+        if not _atlanir(tam, exclude) and os.path.isfile(tam):
+            yield tam
+
+
+def _agac_dosyalari(p, exclude):
+    """Çalışma ağacının tamamı (izlenmeyenler dâhil)."""
+    for root, dirs, files in os.walk(p):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for f in files:
+            tam = os.path.join(root, f)
+            if not _atlanir(tam, exclude):
+                yield tam
+
+
 def iter_files(paths, exclude=(), git_only=False):
+    kaynak = _izlenen_dosyalar if git_only else _agac_dosyalari
     for p in paths:
         if os.path.isfile(p):
             if not is_excluded(p, exclude):
                 yield p
         elif os.path.isdir(p):
-            if git_only:
-                izlenen = git_izlenen(p)
-                if izlenen is None:
-                    print(f"HATA: git deposu değil ya da git okunamadı: {p}",
-                          file=sys.stderr)
-                    continue
-                for tam in izlenen:
-                    if os.path.splitext(tam)[1].lower() in SKIP_EXT:
-                        continue
-                    if is_excluded(tam, exclude) or not os.path.isfile(tam):
-                        continue
-                    yield tam
-                continue
-            for root, dirs, files in os.walk(p):
-                dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
-                for f in files:
-                    if os.path.splitext(f)[1].lower() in SKIP_EXT:
-                        continue
-                    tam = os.path.join(root, f)
-                    if is_excluded(tam, exclude):
-                        continue
-                    yield tam
+            yield from kaynak(p, exclude)
         else:
             print(f"UYARI: yol bulunamadı: {p}", file=sys.stderr)
 
