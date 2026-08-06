@@ -25,10 +25,15 @@ fi
 # Dislama: skill eval'leri kasitli sahte anahtar tasir (tarayicinin kendi
 # kabul vakasi). Dislama burada gorunur — tarayiciya gomulmez.
 # Cikis: 0 temiz · 1 bulgu · 2 kullanim/kapsam hatasi (hicbir dosya taranmadi).
-# --git ZORUNLU: push kapisi git'in GONDERECEGI icerige bakmali. Calisma
-# agacinin tamami taranirsa .gitignore'lu yerel .env.local push'u bloklar
-# (OICommand'da bizzat yasandi) — kullanici --no-verify aliskanligi edinir,
-# kapi olur. Izlenmeyen dosya uzak depoya gitmez.
+# --git: yalnizca git-IZLENEN icerik taranir (git ls-files = index).
+# Calisma agacinin tamami taranirsa .gitignore'lu yerel .env.local push'u
+# bloklar (OICommand'da bizzat yasandi) — kullanici --no-verify aliskanligi
+# edinir, kapi olur.
+# BILINEN SINIR (denetim 2026-08-06): kapsam INDEX'tir, push edilen COMMIT
+# ARALIGI degil. Commit A secret ekleyip commit B silerse ikisi de push
+# edilir ama index temiz gorunur → kapi gecer, secret uzaga gider. Bu sinir
+# eski tam-agac taramasinda da vardi (dosya silinmis olurdu). Kalici cozum
+# aralik taramasidir (git diff <uzak_sha>..<yerel_sha>) — ayri is.
 if ! python3 "$SCAN" --git --exclude '*/eval/*' "$ROOT"; then
   echo ""
   echo "PUSH ENGELLENDI: secret kapisi gecilemedi (bkz. yukaridaki cikti)."

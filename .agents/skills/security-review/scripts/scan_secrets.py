@@ -94,11 +94,15 @@ def is_excluded(path, patterns):
 
 
 def git_izlenen(kok):
-    """Bir depodaki git-izlenen dosyalar. Depo değilse/hata olursa None.
+    """Bir depodaki git-izlenen dosyalar (index). Depo değilse/hata olursa None.
 
-    Push kapısı için doğru kapsam budur: git'in GÖNDERECEĞİ içerik. Çalışma
-    ağacının tamamını taramak, .gitignore'lu yerel `.env.local` yüzünden
-    push'u bloklar — kullanıcı `--no-verify` alışkanlığı edinir, kapı ölür.
+    Çalışma ağacının tamamını taramak, .gitignore'lu yerel `.env.local`
+    yüzünden push'u bloklar — kullanıcı `--no-verify` alışkanlığı edinir,
+    kapı ölür. Bu mod o yanlış bloku keser.
+
+    SINIR: kapsam INDEX'tir, push edilen commit ARALIĞI değil. Bir commit'te
+    eklenip sonraki commit'te silinen secret burada görünmez (aynı sınır
+    tam-ağaç taramasında da vardı). Aralık taraması ayrı iştir.
     """
     try:
         p = subprocess.run(["git", "-C", kok, "ls-files", "-z"],
