@@ -80,6 +80,11 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
+- Kod kalitesi ratchet'i (ADR-0004): `bin/kalite.py` dosya/fonksiyon boyutu,
+  karmaşıklık ve borç işaretlerini deterministik sayar; CI `--check` ile
+  koşar. Mevcut borç kabul edilir, **büyümesi bloklanır**. Taban
+  `.agents/kalite-baseline.json` (proje sahibi). Tabanı yükseltmek bilinçli
+  karardır, gerekçesi commit mesajına yazılır.
 - Proje kapısı (opsiyonel): `bin/hooks/proje-kapisi` varsa pre-push onu koşar.
   Projeye özel pazarlıksız yasaklar (ör. "localStorage'da token yok") motor
   dosyasını çatallamadan burada mekanizmaya bağlanır. Dosya motorun değil

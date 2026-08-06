@@ -49,6 +49,11 @@ jobs:
       - name: Birim testleri
         run: python3 -m unittest discover -s tests -q
 
+      # Ratchet: mevcut borç kabul, BÜYÜMESİ yasak. Eşik yükseltmek
+      # gerekiyorsa taban bilinçli güncellenir ve gerekçe commit'e yazılır.
+      - name: Kod kalitesi (ratchet)
+        run: python3 bin/kalite.py --check
+
       - name: Contract ID çıkar
         id: contract
         run: |
@@ -65,6 +70,7 @@ jobs:
             --check "kernel-validate=passed" \
             --check "secret-scan=passed" \
             --check "tests=passed" \
+            --check "kod-kalitesi=passed" \
             --check "test-first=${{ steps.testfirst.outputs.status }}"
 
       - name: Evidence artifact
