@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # check_test_first base dalı görebilsin
 
       - name: PyYAML kur
         run: python3 -m pip install --quiet pyyaml
@@ -29,13 +31,20 @@ jobs:
       - name: Test-önce disiplini
         id: testfirst
         run: |
-          if python3 .agents/skills/implement-change/scripts/check_test_first.py \
-               --base "origin/${{ github.base_ref || 'main' }}"; then
-            echo "status=passed" >> "$GITHUB_OUTPUT"
-          else
-            echo "status=failed" >> "$GITHUB_OUTPUT"
-            echo "::warning::kaynak değişti ama test değişmedi"
-          fi
+          set +e
+          python3 .agents/skills/implement-change/scripts/check_test_first.py \
+            --base "origin/${{ github.base_ref || 'main' }}"
+          kod=$?
+          set -e
+          # Araç hatası (exit 2) disiplin ihlali DEĞİLDİR — sahte kırmızı
+          # üretmek, sahte yeşil kadar zararlıdır: ikisi de kanıtı bozar.
+          case "$kod" in
+            0) echo "status=passed" >> "$GITHUB_OUTPUT" ;;
+            1) echo "status=failed" >> "$GITHUB_OUTPUT"
+               echo "::error::kaynak değişti ama hiç test değişmedi" ;;
+            *) echo "status=skipped" >> "$GITHUB_OUTPUT"
+               echo "::warning::check_test_first araç hatası (exit $kod) — disiplin ÖLÇÜLEMEDİ" ;;
+          esac
 
       - name: Birim testleri
         run: python3 -m unittest discover -s tests -q
