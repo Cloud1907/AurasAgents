@@ -29,9 +29,57 @@ def olay(kind, **kw):
 
 
 class KapiTest(unittest.TestCase):
-    def bulgular(self, olaylar, satir=0):
-        b, _sig = kapi.degerlendir(olaylar, satir)
+    def bulgular(self, olaylar, satir=0, dogrulayici=None):
+        b, _sig = kapi.degerlendir(olaylar, satir, dogrulayici)
         return {(tip, baslik) for tip, baslik, _ayrinti in b}
+
+    # --- skill doğrulayıcılarının kapıya bağlanması ---
+
+    def test_test_once_bozulduysa_bloklar(self):
+        b = self.bulgular(
+            [olay("edit", file="src/app.py"),
+             olay("test", cmd="python3 -m unittest", ok=True)],
+            dogrulayici={"test_first": (1, "1 kaynak degisti, 0 test")})
+        self.assertIn(("BLOK", "test-önce bozuldu"), b)
+
+    def test_test_once_temizse_gecer(self):
+        b = self.bulgular(
+            [olay("edit", file="src/app.py"),
+             olay("test", cmd="python3 -m unittest", ok=True)],
+            dogrulayici={"test_first": (0, "temiz")})
+        self.assertEqual(b, set())
+
+    def test_dogrulayici_yoksa_kapi_kilitlenmez(self):
+        # Bağlanmamış projede doğrulayıcı bulunmaz → None; kapı geçmeli
+        b = self.bulgular(
+            [olay("edit", file="src/app.py"),
+             olay("test", cmd="unittest", ok=True)],
+            dogrulayici={"test_first": None})
+        self.assertEqual(b, set())
+
+    def test_dokuman_isinde_test_once_calismaz(self):
+        # Kaynak yoksa test-önce bulgusu üretilmemeli
+        b = self.bulgular([olay("edit", file="docs/rapor.md")],
+                          dogrulayici={"test_first": (1, "x")})
+        self.assertEqual(b, set())
+
+    def test_zayif_kaynakli_rapor_uyarir_bloklamaz(self):
+        b = self.bulgular(
+            [olay("edit", file=".agents/reports/2026-08-05-x.md")],
+            dogrulayici={"kaynak": [(".agents/reports/2026-08-05-x.md",
+                                     (1, "kaynaksiz oran %40"))]})
+        self.assertIn(("UYARI", "rapor kaynak sinyali zayıf"), b)
+        self.assertFalse([x for x in b if x[0] == "BLOK"])
+
+    def test_dogrulayici_secimi_dosyaya_gore(self):
+        # Kaynak değişmediyse test_first koşulmamalı (gereksiz alt süreç yok)
+        self.assertEqual(kapi.dogrulayici_sonuclari(["docs/a.md"]), {})
+        self.assertIn("test_first", kapi.dogrulayici_sonuclari(["src/a.py"]))
+
+    def test_duzenlenen_dosyalar_bu_turdan(self):
+        olaylar = [olay("edit", file="eski.py"), olay("stop"),
+                   olay("edit", file="yeni.py")]
+        self.assertEqual(kapi.duzenlenen_dosyalar(olaylar), ["yeni.py"])
 
     def test_kaynak_degisti_test_yok_bloklar(self):
         b = self.bulgular([olay("edit", file="src/app.py")])

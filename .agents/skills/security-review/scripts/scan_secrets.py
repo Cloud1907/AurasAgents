@@ -13,6 +13,7 @@ Bağımlılıksız (yalnız stdlib). Yanlış-pozitifi azaltmak için örnek/pla
 değerler (xx: your_key, example, changeme, <...>) elenir; yine de bir kanıt
 sinyalidir, insan teyidi gerekir.
 """
+import fnmatch
 import os
 import re
 import sys
@@ -79,24 +80,48 @@ def scan_line(line):
     return hits
 
 
-def iter_files(paths):
+def is_excluded(path, patterns):
+    """Yol dışlama glob'larından birine uyuyor mu (normalize edilmiş '/' ile).
+
+    normpath baştaki './'yi zaten atar. lstrip('./') KULLANILMAZ: karakter
+    kümesi siler, önek değil — '.agents/...' yolunu 'agents/...' yapıp nokta
+    ile başlayan desenleri sessizce eşleşmez kılıyordu (denetim bulgusu).
+    """
+    norm = os.path.normpath(path).replace(os.sep, "/")
+    return any(fnmatch.fnmatch(norm, g) or fnmatch.fnmatch("./" + norm, g)
+               for g in patterns)
+
+
+def iter_files(paths, exclude=()):
     for p in paths:
         if os.path.isfile(p):
-            yield p
+            if not is_excluded(p, exclude):
+                yield p
         elif os.path.isdir(p):
             for root, dirs, files in os.walk(p):
                 dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
                 for f in files:
                     if os.path.splitext(f)[1].lower() in SKIP_EXT:
                         continue
-                    yield os.path.join(root, f)
+                    tam = os.path.join(root, f)
+                    if is_excluded(tam, exclude):
+                        continue
+                    yield tam
         else:
             print(f"UYARI: yol bulunamadı: {p}", file=sys.stderr)
 
 
-def scan(paths):
+def scan(paths, exclude=()):
+    """(bulgular, taranan_dosya_sayısı).
+
+    Sayı önemlidir: HİÇBİR dosya taranmadıysa sonuç 'temiz' DEĞİLDİR —
+    çağıran bunu kullanım hatası olarak raporlamalı (denetim bulgusu:
+    hatalı çağrı 'temiz ✓' diyip exit 0 dönüyordu).
+    """
     findings = []
-    for path in iter_files(paths):
+    taranan = 0
+    for path in iter_files(paths, exclude):
+        taranan += 1
         try:
             if os.path.getsize(path) > MAX_BYTES:
                 continue
@@ -107,16 +132,44 @@ def scan(paths):
                         findings.append((path, i, name, preview))
         except (OSError, UnicodeError):
             continue
-    return findings
+    return findings, taranan
+
+
+KULLANIM = "kullanım: scan_secrets.py [--exclude GLOB] <dosya|dizin> [...]"
 
 
 def main(argv):
-    if len(argv) < 2:
-        print("kullanım: scan_secrets.py <dosya|dizin> [...]", file=sys.stderr)
+    # --exclude GLOB (tekrarlanabilir): kasıtlı fixture'ları dışarıda tutar.
+    # Dışlama gate KONFİGÜNDE görünür olsun diye tarayıcıya gömülmez —
+    # neyin taranmadığı gizli kalmamalı.
+    exclude, paths = [], []
+    i = 1
+    while i < len(argv):
+        if argv[i] == "--exclude":
+            # Değersiz --exclude sessizce yol sanılıyordu → tarama boşa
+            # düşüp "temiz ✓" veriyordu. Kapıda bu, sahte yeşildir.
+            if i + 1 >= len(argv):
+                print("HATA: --exclude bir GLOB ister\n" + KULLANIM,
+                      file=sys.stderr)
+                return 2
+            exclude.append(argv[i + 1])
+            i += 2
+            continue
+        paths.append(argv[i])
+        i += 1
+    if not paths:
+        print(KULLANIM, file=sys.stderr)
         return 2
-    findings = scan(argv[1:])
+    findings, taranan = scan(paths, exclude)
+    if not taranan:
+        # "Hiç dosya taranmadı" ASLA "temiz" değildir: yanlış yol, fazla
+        # geniş dışlama ya da bozuk kurulum — hepsi kapıyı kör eder.
+        print("HATA: hiçbir dosya taranmadı (yol yanlış ya da dışlama çok "
+              "geniş) — bu 'temiz' DEĞİLDİR", file=sys.stderr)
+        return 2
     if not findings:
-        print("scan_secrets: temiz — secret deseni bulunamadı ✓")
+        print(f"scan_secrets: temiz — {taranan} dosya tarandı, secret "
+              "deseni bulunamadı ✓")
         return 0
     print(f"scan_secrets: {len(findings)} olası secret bulundu ✗")
     for path, line, name, preview in findings:

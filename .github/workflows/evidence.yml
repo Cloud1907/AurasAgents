@@ -10,12 +10,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # check_test_first base dalı görebilsin
 
       - name: PyYAML kur
         run: python3 -m pip install --quiet pyyaml
 
       - name: Kernel doğrulama
         run: python3 bin/validate.py
+
+      # Skill doğrulayıcıları bağımsız makinede tekrarlanır (yerel kanca
+      # atlanabilir; CI atlanamaz). Sonuçları evidence.json'a check olarak girer.
+      - name: Secret taraması
+        # '*/eval/*' dışlanır: skill eval'leri tarayıcının kendi kabul
+        # vakası olarak kasıtlı sahte anahtar taşır.
+        run: |
+          python3 .agents/skills/security-review/scripts/scan_secrets.py \
+            --exclude '*/eval/*' .
+
+      - name: Test-önce disiplini
+        id: testfirst
+        run: |
+          set +e
+          python3 .agents/skills/implement-change/scripts/check_test_first.py \
+            --base "origin/${{ github.base_ref || 'main' }}"
+          kod=$?
+          set -e
+          # Araç hatası (exit 2) disiplin ihlali DEĞİLDİR — sahte kırmızı
+          # üretmek, sahte yeşil kadar zararlıdır: ikisi de kanıtı bozar.
+          case "$kod" in
+            0) echo "status=passed" >> "$GITHUB_OUTPUT" ;;
+            1) echo "status=failed" >> "$GITHUB_OUTPUT"
+               echo "::error::kaynak değişti ama hiç test değişmedi" ;;
+            *) echo "status=skipped" >> "$GITHUB_OUTPUT"
+               echo "::warning::check_test_first araç hatası (exit $kod) — disiplin ÖLÇÜLEMEDİ" ;;
+          esac
+
+      - name: Birim testleri
+        run: python3 -m unittest discover -s tests -q
 
       - name: Contract ID çıkar
         id: contract
@@ -30,7 +62,10 @@ jobs:
             --out evidence.json \
             --contract "${{ steps.contract.outputs.id }}" \
             --task-class "${{ contains(github.event.pull_request.labels.*.name, 'contract') && 'code-change' || 'micro' }}" \
-            --check "kernel-validate=passed"
+            --check "kernel-validate=passed" \
+            --check "secret-scan=passed" \
+            --check "tests=passed" \
+            --check "test-first=${{ steps.testfirst.outputs.status }}"
 
       - name: Evidence artifact
         uses: actions/upload-artifact@v4
