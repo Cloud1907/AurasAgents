@@ -71,6 +71,48 @@ def bu_turun_olaylari(olaylar):
     return olaylar[son_stop + 1:]
 
 
+def duzenlenen_dosyalar(olaylar):
+    """Bu turda düzenlenen dosyalar (doğrulayıcı seçimi için)."""
+    return [o["file"] for o in bu_turun_olaylari(olaylar)
+            if o.get("kind") == "edit" and o.get("file")]
+
+
+def calistir_dogrulayici(rel, *arg):
+    """Bir skill doğrulayıcısını koşar → (çıkış_kodu, son_satır) veya None.
+
+    Skill'lerin yazılı kuralı burada zorlanır: doğrulayıcı yoksa (bağlanmamış
+    proje, eksik kurulum) kapı sessizce geçer — mekanizma kullanıcıyı
+    kilitlemez, ama validate.py bağlanmamış doğrulayıcıyı zaten reddeder.
+    """
+    yol = os.path.join(ROOT, ".agents", "skills", rel)
+    if not os.path.isfile(yol):
+        return None
+    try:
+        p = subprocess.run([sys.executable, yol, *arg], capture_output=True,
+                           text=True, cwd=ROOT, timeout=30)
+        satirlar = [s for s in (p.stdout or "").splitlines() if s.strip()]
+        return p.returncode, (satirlar[-1] if satirlar else "")
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def dogrulayici_sonuclari(duzenlenen):
+    """Bu turda hangi doğrulayıcılar geçerliyse onları koşar."""
+    sonuc = {}
+    if any(f.lower().endswith(KAYNAK_UZANTI) and not TEST_YOL.search(f)
+           for f in duzenlenen):
+        sonuc["test_first"] = calistir_dogrulayici(
+            "implement-change/scripts/check_test_first.py")
+    raporlar = [f for f in duzenlenen
+                if ".agents/reports/" in f.replace("\\", "/")
+                and f.endswith(".md")]
+    if raporlar:
+        sonuc["kaynak"] = [(f, calistir_dogrulayici(
+            "research-with-evidence/scripts/check_citations.py", f))
+            for f in raporlar]
+    return sonuc
+
+
 def degisen_satir_sayisi():
     """git ile net değişen satır — olay sayımından daha güvenilir kanıt."""
     try:
@@ -88,8 +130,14 @@ def degisen_satir_sayisi():
         return 0
 
 
-def degerlendir(olaylar, satir_sayisi=0):
-    """(bulgular, imza) — bulgu listesi boşsa tur temiz demektir."""
+def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
+    """(bulgular, imza) — bulgu listesi boşsa tur temiz demektir.
+
+    dogrulayici: skill doğrulayıcılarının sonucu, DIŞARIDAN enjekte edilir
+    (satir_sayisi deseni). Böylece bu fonksiyon saf kalır ve testler gerçek
+    alt süreç koşturmadan her dalı deneyebilir.
+    """
+    dogrulayici = dogrulayici or {}
     tur = bu_turun_olaylari(olaylar)
 
     duzenlenen, son_edit_idx = [], -1
@@ -134,6 +182,24 @@ def degerlendir(olaylar, satir_sayisi=0):
             bulgular.append((
                 "UYARI", "test sonucu belirsiz",
                 "Test komutu koştu ama çıktısından geçti/kaldı okunamadı."))
+
+    # Test-önce disiplini: kaynak değişti ama HİÇ test değişmediyse kes.
+    # (implement-change skill'inin yazılı kuralı — burada zorlanır.)
+    tf = dogrulayici.get("test_first")
+    if kaynak and tf and tf[0] == 1:
+        bulgular.append((
+            "BLOK", "test-önce bozuldu",
+            f"{len(kaynak)} kaynak dosyası değişti ama hiçbir test dosyası "
+            f"değişmedi. {tf[1]} Testi yaz (önce kırmızıyı gör). Gerçekten "
+            "test gerektirmeyen yüzeyse: check_test_first.py --allow '<glob>'"))
+
+    # Araştırma raporu yazıldıysa kaynak disiplini ölçülür (sinyal, hakem değil).
+    for dosya, sonuc in dogrulayici.get("kaynak", []):
+        if sonuc and sonuc[0] == 1:
+            bulgular.append((
+                "UYARI", "rapor kaynak sinyali zayıf",
+                f"{dosya}: {sonuc[1]} Kaynak ekle ya da iddiayı "
+                "'spekülatif' etiketle."))
 
     if ui:
         tiklama = [o for i, o in enumerate(tur)
@@ -206,7 +272,9 @@ def main(argv=None):
         except OSError:
             olaylar = []
 
-        bulgular, imza = degerlendir(olaylar, degisen_satir_sayisi())
+        bulgular, imza = degerlendir(
+            olaylar, degisen_satir_sayisi(),
+            dogrulayici_sonuclari(duzenlenen_dosyalar(olaylar)))
         bloklar = [b for b in bulgular if b[0] == "BLOK"]
         # Sonsuz döngü koruması: hook zaten blokladıysa ya da aynı imza daha
         # önce bloklandıysa yalnız bilgi ver.

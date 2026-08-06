@@ -13,6 +13,7 @@ Bağımlılıksız (yalnız stdlib). Yanlış-pozitifi azaltmak için örnek/pla
 değerler (xx: your_key, example, changeme, <...>) elenir; yine de bir kanıt
 sinyalidir, insan teyidi gerekir.
 """
+import fnmatch
 import os
 import re
 import sys
@@ -79,24 +80,35 @@ def scan_line(line):
     return hits
 
 
-def iter_files(paths):
+def is_excluded(path, patterns):
+    """Yol dışlama glob'larından birine uyuyor mu (normalize edilmiş '/' ile)."""
+    norm = os.path.normpath(path).replace(os.sep, "/").lstrip("./")
+    return any(fnmatch.fnmatch(norm, g) or fnmatch.fnmatch("./" + norm, g)
+               for g in patterns)
+
+
+def iter_files(paths, exclude=()):
     for p in paths:
         if os.path.isfile(p):
-            yield p
+            if not is_excluded(p, exclude):
+                yield p
         elif os.path.isdir(p):
             for root, dirs, files in os.walk(p):
                 dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
                 for f in files:
                     if os.path.splitext(f)[1].lower() in SKIP_EXT:
                         continue
-                    yield os.path.join(root, f)
+                    tam = os.path.join(root, f)
+                    if is_excluded(tam, exclude):
+                        continue
+                    yield tam
         else:
             print(f"UYARI: yol bulunamadı: {p}", file=sys.stderr)
 
 
-def scan(paths):
+def scan(paths, exclude=()):
     findings = []
-    for path in iter_files(paths):
+    for path in iter_files(paths, exclude):
         try:
             if os.path.getsize(path) > MAX_BYTES:
                 continue
@@ -111,10 +123,23 @@ def scan(paths):
 
 
 def main(argv):
-    if len(argv) < 2:
-        print("kullanım: scan_secrets.py <dosya|dizin> [...]", file=sys.stderr)
+    # --exclude GLOB (tekrarlanabilir): kasıtlı fixture'ları dışarıda tutar.
+    # Dışlama gate KONFİGÜNDE görünür olsun diye tarayıcıya gömülmez —
+    # neyin taranmadığı gizli kalmamalı.
+    exclude, paths = [], []
+    i = 1
+    while i < len(argv):
+        if argv[i] == "--exclude" and i + 1 < len(argv):
+            exclude.append(argv[i + 1])
+            i += 2
+            continue
+        paths.append(argv[i])
+        i += 1
+    if not paths:
+        print("kullanım: scan_secrets.py [--exclude GLOB] <dosya|dizin> [...]",
+              file=sys.stderr)
         return 2
-    findings = scan(argv[1:])
+    findings = scan(paths, exclude)
     if not findings:
         print("scan_secrets: temiz — secret deseni bulunamadı ✓")
         return 0

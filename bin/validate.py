@@ -377,6 +377,44 @@ def test_no_external_roles():
           "derinlik gerekiyorsa skill yaz")
 
 
+def test_skill_validators_wired():
+    """Skill'in getirdiği doğrulayıcı bir KAPIYA bağlı olmalı.
+
+    "Bekçisiz kural temennidir" ilkesinin skill katmanındaki karşılığı:
+    yazılmış ama hiçbir kapının çağırmadığı doğrulayıcı, kuralı belgede var
+    sistemde yok durumuna düşürür (2026-08-05 bulgusu: 3 doğrulayıcı yazılmış,
+    0'ı çağrılıyordu).
+
+    Sözleşme: `check_*` / `scan_*` önekli script KAPI doğrulayıcısıdır ve en az
+    bir kapı dosyasında çağrılmalıdır. Diğer isimler yardımcı araçtır
+    (ör. contrast_check.py — elle renk çifti alır, diff üstünde koşamaz).
+    """
+    skills_dir = os.path.join(ROOT, ".agents", "skills")
+    if not os.path.isdir(skills_dir):
+        return
+    kapilar = ["bin/hooks/pre-push", "bin/kapi.py", "bin/validate.py",
+               ".github/workflows/evidence.yml"]
+    metin = ""
+    for rel in kapilar:
+        yol = os.path.join(ROOT, rel)
+        if os.path.isfile(yol):
+            metin += open(yol, encoding="utf-8").read()
+
+    for skill in sorted(os.listdir(skills_dir)):
+        sdir = os.path.join(skills_dir, skill, "scripts")
+        if not os.path.isdir(sdir):
+            continue
+        for f in sorted(os.listdir(sdir)):
+            if not f.endswith(".py"):
+                continue
+            if not (f.startswith("check_") or f.startswith("scan_")):
+                continue        # yardımcı araç — kapı sözleşmesi dışında
+            check(f in metin,
+                  f"{skill}/scripts/{f} hiçbir kapıya bağlı değil — yazılı "
+                  f"kural zorlanmıyor. Kapıya bağla ({', '.join(kapilar)}) "
+                  f"ya da yardımcı ise adını 'check_/scan_' önekinden çıkar")
+
+
 def test_visibility():
     """Görünürlük katmanı: skill çağrıları ve tur aktivitesi kayda geçiyor mu.
 
@@ -516,6 +554,7 @@ def main():
     test_memory_tool()
     test_routing(skill_names, profil_skills)
     test_no_external_roles()
+    test_skill_validators_wired()
     test_visibility()
     test_onboarding_parity()
     test_mechanisms()

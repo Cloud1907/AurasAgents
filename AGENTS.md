@@ -80,6 +80,10 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
+- Skill doğrulayıcı sözleşmesi (ADR-0003): `check_*` / `scan_*` önekli skill
+  script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
+  (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı
+  = kural belgede var sistemde yok. Diğer adlar yardımcı araçtır.
 - Kernel senkronu çift yönlüdür (ADR-0002). `/auras` kanonikten projeye
   taşır; ezme kararı manifest'e değil kanonik git geçmişine dayanır — projede
   üretilmiş içerik ezilmez, korunur. Ters yön `bin/auras_geri.py`: projede
