@@ -38,6 +38,11 @@ def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True):
             os.chmod(yol, 0o644)
     subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
                    capture_output=True)
+    # Dosyalar STAGE edilmeli: secret kapısı --git modunda yalnız izlenen
+    # içeriği tarar (push edilecek olan budur). Stage'lenmemiş depo "0 dosya
+    # tarandı" verir ve bu bilinçli olarak 'temiz' sayılmaz.
+    subprocess.run(["git", "-C", td, "add", "-A"], check=True,
+                   capture_output=True)
     # input="" ŞART: pre-push sonunda 'while read' ile git'ten ref bekler;
     # stdin miras alınırsa test süresiz asılır.
     p = subprocess.run(["sh", os.path.join(td, "bin", "hooks", "pre-push")],
@@ -95,6 +100,8 @@ class PrePushTest(unittest.TestCase):
                 fh.write("#!/bin/sh\ncat >/dev/null\nexit 0\n")
             os.chmod(yol, 0o755)
             subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
+                           capture_output=True)
+            subprocess.run(["git", "-C", td, "add", "-A"], check=True,
                            capture_output=True)
             p = subprocess.run(
                 ["sh", os.path.join(td, "bin", "hooks", "pre-push")],

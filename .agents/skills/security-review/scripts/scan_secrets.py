@@ -16,6 +16,7 @@ sinyalidir, insan teyidi gerekir.
 import fnmatch
 import os
 import re
+import subprocess
 import sys
 
 # Taranmayacak yollar (gürültü ve kendi kaynağımız).
@@ -92,26 +93,68 @@ def is_excluded(path, patterns):
                for g in patterns)
 
 
-def iter_files(paths, exclude=()):
+def git_izlenen(kok):
+    """Bir depodaki git-izlenen dosyalar (index). Depo değilse/hata olursa None.
+
+    Çalışma ağacının tamamını taramak, .gitignore'lu yerel `.env.local`
+    yüzünden push'u bloklar — kullanıcı `--no-verify` alışkanlığı edinir,
+    kapı ölür. Bu mod o yanlış bloku keser.
+
+    SINIR: kapsam INDEX'tir, push edilen commit ARALIĞI değil. Bir commit'te
+    eklenip sonraki commit'te silinen secret burada görünmez (aynı sınır
+    tam-ağaç taramasında da vardı). Aralık taraması ayrı iştir.
+    """
+    try:
+        p = subprocess.run(["git", "-C", kok, "ls-files", "-z"],
+                           capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    ham = p.stdout.decode("utf-8", "replace").split("\0")
+    return [os.path.join(kok, x) for x in ham if x]
+
+
+def _atlanir(tam, exclude):
+    return (os.path.splitext(tam)[1].lower() in SKIP_EXT
+            or is_excluded(tam, exclude))
+
+
+def _izlenen_dosyalar(p, exclude):
+    """Yalnız git-izlenen dosyalar (push kapısı kapsamı)."""
+    izlenen = git_izlenen(p)
+    if izlenen is None:
+        print(f"HATA: git deposu değil ya da git okunamadı: {p}",
+              file=sys.stderr)
+        return
+    for tam in izlenen:
+        if not _atlanir(tam, exclude) and os.path.isfile(tam):
+            yield tam
+
+
+def _agac_dosyalari(p, exclude):
+    """Çalışma ağacının tamamı (izlenmeyenler dâhil)."""
+    for root, dirs, files in os.walk(p):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for f in files:
+            tam = os.path.join(root, f)
+            if not _atlanir(tam, exclude):
+                yield tam
+
+
+def iter_files(paths, exclude=(), git_only=False):
+    kaynak = _izlenen_dosyalar if git_only else _agac_dosyalari
     for p in paths:
         if os.path.isfile(p):
             if not is_excluded(p, exclude):
                 yield p
         elif os.path.isdir(p):
-            for root, dirs, files in os.walk(p):
-                dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
-                for f in files:
-                    if os.path.splitext(f)[1].lower() in SKIP_EXT:
-                        continue
-                    tam = os.path.join(root, f)
-                    if is_excluded(tam, exclude):
-                        continue
-                    yield tam
+            yield from kaynak(p, exclude)
         else:
             print(f"UYARI: yol bulunamadı: {p}", file=sys.stderr)
 
 
-def scan(paths, exclude=()):
+def scan(paths, exclude=(), git_only=False):
     """(bulgular, taranan_dosya_sayısı).
 
     Sayı önemlidir: HİÇBİR dosya taranmadıysa sonuç 'temiz' DEĞİLDİR —
@@ -120,7 +163,7 @@ def scan(paths, exclude=()):
     """
     findings = []
     taranan = 0
-    for path in iter_files(paths, exclude):
+    for path in iter_files(paths, exclude, git_only):
         taranan += 1
         try:
             if os.path.getsize(path) > MAX_BYTES:
@@ -135,16 +178,21 @@ def scan(paths, exclude=()):
     return findings, taranan
 
 
-KULLANIM = "kullanım: scan_secrets.py [--exclude GLOB] <dosya|dizin> [...]"
+KULLANIM = ("kullanım: scan_secrets.py [--git] [--exclude GLOB] "
+            "<dosya|dizin> [...]")
 
 
 def main(argv):
     # --exclude GLOB (tekrarlanabilir): kasıtlı fixture'ları dışarıda tutar.
     # Dışlama gate KONFİGÜNDE görünür olsun diye tarayıcıya gömülmez —
     # neyin taranmadığı gizli kalmamalı.
-    exclude, paths = [], []
+    exclude, paths, git_only = [], [], False
     i = 1
     while i < len(argv):
+        if argv[i] == "--git":
+            git_only = True
+            i += 1
+            continue
         if argv[i] == "--exclude":
             # Değersiz --exclude sessizce yol sanılıyordu → tarama boşa
             # düşüp "temiz ✓" veriyordu. Kapıda bu, sahte yeşildir.
@@ -160,7 +208,7 @@ def main(argv):
     if not paths:
         print(KULLANIM, file=sys.stderr)
         return 2
-    findings, taranan = scan(paths, exclude)
+    findings, taranan = scan(paths, exclude, git_only)
     if not taranan:
         # "Hiç dosya taranmadı" ASLA "temiz" değildir: yanlış yol, fazla
         # geniş dışlama ya da bozuk kurulum — hepsi kapıyı kör eder.

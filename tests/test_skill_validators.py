@@ -94,6 +94,51 @@ class ScanSecretsTest(unittest.TestCase):
                 fh.write(f'K = "{ORNEK_ANAHTAR}"\n')
             self.assertEqual(kos(SCAN, "--exclude", "*", td)[0], 2)
 
+    def test_git_modu_izlenmeyen_dosyayi_taramaz(self):
+        """OICommand bulgusu: .gitignore'lu .env.local push'u blokluyordu.
+
+        Push kapısı git'in GÖNDERECEĞİ içeriğe bakmalı; izlenmeyen dosya
+        uzak depoya gitmez. Aksi hâlde kullanıcı --no-verify öğrenir.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
+                           capture_output=True)
+            for k, v in (("user.email", "t@t.t"), ("user.name", "t")):
+                subprocess.run(["git", "-C", td, "config", k, v], check=True,
+                               capture_output=True)
+            with open(os.path.join(td, ".gitignore"), "w") as fh:
+                fh.write("*.local\n")
+            with open(os.path.join(td, "app.env.local"), "w") as fh:
+                fh.write(f'KEY = "{ORNEK_ANAHTAR}"\n')
+            with open(os.path.join(td, "izlenen.py"), "w") as fh:
+                fh.write("x = 1\n")
+            subprocess.run(["git", "-C", td, "add", "-A"], check=True,
+                           capture_output=True)
+            self.assertEqual(kos(SCAN, td)[0], 1,
+                             "--git'siz tarama izlenmeyeni de görmeli")
+            self.assertEqual(kos(SCAN, "--git", td)[0], 0,
+                             "--git modu izlenmeyen dosyayı taramamalı")
+
+    def test_git_modu_izlenen_secreti_hala_yakalar(self):
+        with tempfile.TemporaryDirectory() as td:
+            subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
+                           capture_output=True)
+            with open(os.path.join(td, "cfg.py"), "w") as fh:
+                fh.write(f'KEY = "{ORNEK_ANAHTAR}"\n')
+            subprocess.run(["git", "-C", td, "add", "-A"], check=True,
+                           capture_output=True)
+            kod, cikti = kos(SCAN, "--git", td)
+            self.assertEqual(kod, 1)
+            self.assertIn("cfg.py", cikti)
+
+    def test_git_olmayan_dizinde_git_modu_temiz_demez(self):
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "a.py"), "w") as fh:
+                fh.write("x = 1\n")
+            kod, cikti = kos(SCAN, "--git", td)
+            self.assertEqual(kod, 2, "git deposu değilse 'temiz' denemez")
+            self.assertNotIn("temiz", cikti)
+
     def test_nokta_ile_baslayan_yol_deseni_eslesir(self):
         # Bulgu: lstrip('./') '.agents/...' → 'agents/...' yapıyordu; nokta
         # ile başlayan kesin desen sessizce eşleşmiyordu → operatör deseni
