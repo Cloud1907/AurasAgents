@@ -80,6 +80,11 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
+- Proje kapısı (opsiyonel): `bin/hooks/proje-kapisi` varsa pre-push onu koşar.
+  Projeye özel pazarlıksız yasaklar (ör. "localStorage'da token yok") motor
+  dosyasını çatallamadan burada mekanizmaya bağlanır. Dosya motorun değil
+  projenindir: `/auras` ezmez, geri-taşıma yukarı götürmez. Çalıştırılabilir
+  değilse push engellenir — sessiz atlama yok.
 - Skill doğrulayıcı sözleşmesi (ADR-0003): `check_*` / `scan_*` önekli skill
   script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
   (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı

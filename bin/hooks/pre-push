@@ -32,6 +32,26 @@ if ! python3 "$SCAN" --exclude '*/eval/*' "$ROOT"; then
   exit 1
 fi
 
+# Proje kapisi (opsiyonel uzanti noktasi) — projeye ozel pazarliksiz yasaklar
+# BURADA kosar. Motor yalnizca cagriyi tasir, kurali proje yazar; boylece
+# proje-ozel kural motor dosyasini CATALLAMADAN mekanizmaya baglanir
+# (ADR-0002'nin cozdugu fork sorununun tekrari onlenir).
+# Sozlesme: calistirilabilir olacak, 0 = gecti, 0-disi = push engellenir.
+PROJE_KAPI="$ROOT/bin/hooks/proje-kapisi"
+if [ -e "$PROJE_KAPI" ]; then
+  if [ ! -x "$PROJE_KAPI" ]; then
+    echo "PUSH ENGELLENDI: bin/hooks/proje-kapisi calistirilabilir degil."
+    echo "Duzelt: chmod +x bin/hooks/proje-kapisi"
+    exit 1
+  fi
+  if ! "$PROJE_KAPI"; then
+    echo ""
+    echo "PUSH ENGELLENDI: proje kapisi gecilemedi (bkz. yukaridaki cikti)."
+    echo "Bilincli atlamak icin: git push --no-verify"
+    exit 1
+  fi
+fi
+
 while read -r _local_ref _local_sha remote_ref _remote_sha; do
   case "$remote_ref" in
     refs/heads/main)
