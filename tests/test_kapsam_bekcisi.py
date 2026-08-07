@@ -12,7 +12,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bin"))
-import kernel_dosyalari as kd  # noqa: E402
+import kapsam_bekcisi as kd  # noqa: E402
 
 
 def yaz(kok, rel, icerik):
@@ -173,6 +173,20 @@ class TestKapsamiTest(unittest.TestCase):
                 "        def test_a(self):\n            pass\n")
             self.assertEqual(kd.toplanmayan_testler(td, set()),
                              ["kosul_test.py"])
+
+    def test_metot_icindeki_yerel_fonksiyon_test_sayilmaz(self):
+        # Codex bulgusu (PR #32): `ast.walk` metot gövdesine de iniyordu,
+        # yani yerel bir `def test_*` yardımcısı dosyayı "test taşıyor"
+        # yapıyordu. Bu yanlış POZİTİF — önceki sekiz turun tersi yön.
+        # Gürültü sessizlikten iyidir ama kapı yine de doğru olmalı:
+        # sürekli sahte kırmızı, insana kapıyı yok saymayı öğretir.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/yardimci.py",
+                "class Yardimci:\n"
+                "    def kur(self):\n"
+                "        def test_ic():\n            return 1\n"
+                "        return test_ic\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()), [])
 
     def test_gerekcesiz_toplanmaz_isareti_muaf_tutmaz(self):
         with tempfile.TemporaryDirectory() as td:

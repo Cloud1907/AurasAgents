@@ -29,17 +29,22 @@ def check(cond, msg):
         err(msg)
 
 
-def _kernel_dosyalari():
-    """Motor listesinin tek tanımını yükler (yoksa None)."""
+def _bin_modul(ad):
+    """bin/<ad>.py'yi kütüphane olarak yükler (yoksa None)."""
     try:
         import importlib.util
-        yol = os.path.join(ROOT, "bin", "kernel_dosyalari.py")
-        spec = importlib.util.spec_from_file_location("_kd", yol)
+        yol = os.path.join(ROOT, "bin", f"{ad}.py")
+        spec = importlib.util.spec_from_file_location(f"_{ad}", yol)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         return mod
     except (OSError, ImportError, AttributeError):
         return None
+
+
+def _kernel_dosyalari():
+    """Motor listesinin tek tanımını yükler (yoksa None)."""
+    return _bin_modul("kernel_dosyalari")
 
 
 def frontmatter(path):
@@ -651,8 +656,8 @@ def test_test_kapsami_daralmaz():
     Bekçinin SINIRI: dosya bazında çalışır. Bir modülün İÇİNDEN silinen tek
     testi göremez; onu ancak kanıt-tarafı bir sayaç yakalayabilir.
     """
-    kd = _kernel_dosyalari()
-    if kd is None or not os.path.isdir(os.path.join(ROOT, "tests")):
+    kb = _bin_modul("kapsam_bekcisi")
+    if kb is None or not os.path.isdir(os.path.join(ROOT, "tests")):
         return
     proc = subprocess.run([sys.executable, "-c", _KESIF_KODU],
                           capture_output=True, text=True, cwd=ROOT)
@@ -675,7 +680,7 @@ def test_test_kapsami_daralmaz():
     # Çöken modül keşif tarafından GÖRÜLDÜ; sorunu import'tur, adı değil —
     # ikinci kez ve yanlış çareyle raporlanmasın.
     gorulen = set(veri["sayim"]) | set(veri["hatali"])
-    for f in kd.toplanmayan_testler(ROOT, gorulen):
+    for f in kb.toplanmayan_testler(ROOT, gorulen):
         err(f"tests/{f} TestCase tanımlıyor ama keşfe hiç girmiyor — testleri "
             f"koşmuyor ve çıkış kodu 0 kalıyor (görünmez kapsam kaybı). "
             f"Adını 'test_*.py' yap")
