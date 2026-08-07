@@ -160,6 +160,20 @@ class TestKapsamiTest(unittest.TestCase):
             self.assertEqual(kd.toplanmayan_testler(td, set()),
                              ["kuyruk_test.py"])
 
+    def test_kosul_icinde_tanimlanan_test_de_yakalanir(self):
+        # Codex bulgusu (PR #30, dördüncü tur): yalnız doğrudan sınıf gövdesi
+        # geziliyordu; `if`/`try` içinde tanımlanan metot görünmüyordu.
+        # Sınıf gövdesi düz bir liste değil, bir AĞAÇTIR.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/kosul_test.py",
+                "import sys\n"
+                "Taban = __import__('unittest').TestCase\n"
+                "class X(Taban):\n"
+                "    if sys.version_info >= (3, 8):\n"
+                "        def test_a(self):\n            pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()),
+                             ["kosul_test.py"])
+
     def test_gerekcesiz_toplanmaz_isareti_muaf_tutmaz(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "tests/ortak.py",

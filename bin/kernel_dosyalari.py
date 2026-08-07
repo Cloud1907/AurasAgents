@@ -125,7 +125,9 @@ def _test_tasiyor(metin):
             continue
         if _testcase_tabanli(dugum):
             return True
-        for govde in dugum.body:
+        # Sınıf gövdesi düz liste değil AĞAÇTIR: `if`/`try` altında tanımlanan
+        # metot da testtir (sürüm/ortam koşullu tanım yaygın bir kalıptır).
+        for govde in ast.walk(dugum):
             if isinstance(govde, (ast.FunctionDef, ast.AsyncFunctionDef)) \
                     and govde.name.startswith("test"):
                 return True
