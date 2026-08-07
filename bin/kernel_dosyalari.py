@@ -66,9 +66,15 @@ _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+
 # görünür bir karar olmalı (secret-allowlist ile aynı sözleşme).
 _TESTCASE = re.compile(r"^class\s+\w+\s*\([^)]*\bTestCase\b", re.M)
 _TEST_METODU = re.compile(r"^\s+(?:async\s+)?def\s+test\w*\s*\(\s*self\b", re.M)
-# Gerekçe AYNI satırda olmalı: `\s*` satır sonunu da yerdi ve bir sonraki
-# satırın kodunu "gerekçe" sanardı — gerekçesiz susturma sessizce geçerdi.
-_TOPLANMAZ = re.compile(r"#[ \t]*toplanmaz:[ \t]*\S[^\n]*")
+# Muafiyet işareti SATIR BAŞINDA gerçek bir yorum olmalı ve gerekçesi AYNI
+# satırda gelmeli. İki tuzak da ölçüldü:
+#   `\s*` satır sonunu yiyordu → gerekçesiz işaret bir sonraki satırın kodunu
+#   gerekçe sanıp sessizce muafiyet veriyordu.
+#   Ham metinde serbest arama → bu bekçinin KENDİ test dosyası, fixture'ında
+#   işareti bir string literal olarak taşıdığı için kendini muaf tutuyordu
+#   (Codex bulgusu, PR #30). Tarayıcının kendi testine kör kalması, kapının
+#   olduğu ama korumadığı hâlin en pahalı biçimidir.
+_TOPLANMAZ = re.compile(r"^[ \t]*#[ \t]*toplanmaz:[ \t]*\S[^\n]*", re.M)
 
 
 def yol_coz(kok, rel):
@@ -156,8 +162,9 @@ def toplanmayan_testler(kok, toplanan):
 
     `toplanan`: keşfin GERÇEKTEN test ürettiği modül adları (uzantısız).
     Test metodu OLMAYAN yardımcılar (ör. tests/ortam.py) zaten denetim
-    dışıdır; test metodu taşıyan kasıtlı yardımcı `# toplanmaz: <gerekçe>`
-    yazarak muaf olur — gerekçesiz işaret muafiyet SAYILMAZ.
+    dışıdır; test metodu taşıyan kasıtlı yardımcı, SATIR BAŞINA yazılmış
+    `# toplanmaz: <gerekçe>` yorumuyla muaf olur. Gerekçesiz işaret ya da
+    string literal içindeki metin muafiyet SAYILMAZ.
     """
     tests_dir = os.path.join(kok, "tests")
     if not os.path.isdir(tests_dir):

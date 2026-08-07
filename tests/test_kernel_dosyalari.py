@@ -197,6 +197,26 @@ class TestKapsamiTest(unittest.TestCase):
                 "    def test_a(self):\n        pass\n")
             self.assertEqual(kd.toplanmayan_testler(td, set()), [])
 
+    def test_string_icindeki_isaret_muaf_tutmaz(self):
+        # Codex bulgusu (PR #30): işaret ham metinde arandığı için bir
+        # fixture string'i dosyayı muaf tutuyordu. Tarayıcının kendi test
+        # dosyasını görmemesi kapının en kötü kör noktasıdır — muafiyet
+        # yalnız satır başındaki GERÇEK yorumla verilir.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/sahte_test.py",
+                "import unittest\n"
+                'ORNEK = "# toplanmaz: bu bir fixture, gercek isaret degil"\n'
+                "class X(unittest.TestCase):\n"
+                "    def test_a(self):\n        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()),
+                             ["sahte_test.py"])
+
+    def test_bu_dosya_kendini_muaf_tutmuyor(self):
+        # Bu dosya fixture'larında '# toplanmaz:' metnini TAŞIYOR; bekçi
+        # onu muafiyet sayarsa kendi test dosyasına kör kalır.
+        self.assertIn("test_kernel_dosyalari.py",
+                      kd.toplanmayan_testler(ROOT, set()))
+
     def test_gerekcesiz_toplanmaz_isareti_muaf_tutmaz(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "tests/ortak.py",
