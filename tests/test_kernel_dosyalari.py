@@ -174,6 +174,37 @@ class TestKapsamiTest(unittest.TestCase):
                 "class X(unittest.TestCase):\n    pass\n")
             self.assertEqual(kd.toplanmayan_testler(td, {"test_a"}), [])
 
+    def test_dis_taban_sinifi_da_yakalanir(self):
+        # Codex bulgusu (PR #26, üçüncü tur): taban BAŞKA dosyadan gelirse
+        # `unittest` adı bu dosyada hiç geçmez. Kural üçüncü kez aynı yerden
+        # sızdı — çare deseni bir kez daha genişletmek değil, VARSAYILANI
+        # çevirmek: test metodu varsa dosya toplanmalıdır, aksi açıkça yazılır.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/dis_test.py",
+                "from ortak_taban import Taban\n"
+                "class X(Taban):\n"
+                "    def test_a(self):\n        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()),
+                             ["dis_test.py"])
+
+    def test_toplanmaz_isareti_gerekceyle_muaf_tutar(self):
+        # Kasıtlı yardımcı (paylaşılan mixin) susturulabilir — ama GÖRÜNÜR
+        # ve gerekçeli. Gerekçesiz işaret muafiyet saymaz.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/ortak.py",
+                "# toplanmaz: paylasilan mixin, alt siniflar uzerinden kosar\n"
+                "class Ortak:\n"
+                "    def test_a(self):\n        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()), [])
+
+    def test_gerekcesiz_toplanmaz_isareti_muaf_tutmaz(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/ortak.py",
+                "# toplanmaz:\n"
+                "class Ortak:\n"
+                "    def test_a(self):\n        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()), ["ortak.py"])
+
     def test_testcase_tasimayan_yardimci_denetlenmez(self):
         # tests/ortam.py gibi paylaşılan yardımcılar test üretmez; keşfe
         # girmemeleri normaldir, kapsam kaybı değildir.

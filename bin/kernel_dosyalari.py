@@ -53,14 +53,22 @@ URETILEN = (".agents/kalite-baseline.json",)
 
 # tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
-# Test taşıyan dosyanın iki bağımsız imzası. Yalnız birincisine bakmak KÖR
-# BEKÇİ üretir: taban sınıf takma adla gelirse (`Taban = unittest.TestCase;
-# class X(Taban)`) `class` satırında `TestCase` sözcüğü hiç geçmez. İkinci
-# imza (unittest + `def test_*(self`) o boşluğu kapatır; `tests/ortam.py`
-# gibi test metodu OLMAYAN yardımcılar ikisine de uymaz.
+# Test taşıyan dosyanın imzası — VARSAYILAN "topla", istisna yazılır.
+#
+# Bu desen üç turda üç kez sızdı (Codex incelemesi, PR #26): takma adlı taban
+# (`Taban = unittest.TestCase`), `async def test_*`, sonra dış dosyadan gelen
+# taban (`from ortak_taban import Taban`). Her seferinde çare deseni biraz
+# daha genişletmekti — ve her genişletmenin bir sonraki kaçağı vardı. Statik
+# sezginin kapatılamayacağı bu boşluk, VARSAYILAN ters olduğu için vardı:
+# "test gibi görünmüyorsa serbest". Doğrusu fail-closed olmaktır — tests/
+# altında test metodu olan her dosya toplanmak ZORUNDADIR; kasıtlı yardımcı
+# `# toplanmaz: <gerekçe>` yazarak muaf olur. Gerekçe zorunludur: susturma
+# görünür bir karar olmalı (secret-allowlist ile aynı sözleşme).
 _TESTCASE = re.compile(r"^class\s+\w+\s*\([^)]*\bTestCase\b", re.M)
-_UNITTEST = re.compile(r"^\s*(?:import\s+unittest|from\s+unittest\b)", re.M)
 _TEST_METODU = re.compile(r"^\s+(?:async\s+)?def\s+test\w*\s*\(\s*self\b", re.M)
+# Gerekçe AYNI satırda olmalı: `\s*` satır sonunu da yerdi ve bir sonraki
+# satırın kodunu "gerekçe" sanardı — gerekçesiz susturma sessizce geçerdi.
+_TOPLANMAZ = re.compile(r"#[ \t]*toplanmaz:[ \t]*\S[^\n]*")
 
 
 def yol_coz(kok, rel):
@@ -147,7 +155,9 @@ def toplanmayan_testler(kok, toplanan):
     34 test yok olmuştu ama çıktıda yalnız "3 hata" yazıyordu.
 
     `toplanan`: keşfin GERÇEKTEN test ürettiği modül adları (uzantısız).
-    TestCase taşımayan yardımcı dosyalar (ör. tests/ortam.py) denetim dışıdır.
+    Test metodu OLMAYAN yardımcılar (ör. tests/ortam.py) zaten denetim
+    dışıdır; test metodu taşıyan kasıtlı yardımcı `# toplanmaz: <gerekçe>`
+    yazarak muaf olur — gerekçesiz işaret muafiyet SAYILMAZ.
     """
     tests_dir = os.path.join(kok, "tests")
     if not os.path.isdir(tests_dir):
@@ -159,8 +169,9 @@ def toplanmayan_testler(kok, toplanan):
         with open(os.path.join(tests_dir, f), encoding="utf-8",
                   errors="replace") as fh:
             metin = fh.read()
-        if _TESTCASE.search(metin) or (_UNITTEST.search(metin) and
-                                       _TEST_METODU.search(metin)):
+        if not (_TESTCASE.search(metin) or _TEST_METODU.search(metin)):
+            continue
+        if not _TOPLANMAZ.search(metin):
             eksik.append(f)
     return eksik
 
