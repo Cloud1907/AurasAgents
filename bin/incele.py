@@ -80,11 +80,98 @@ def bulgulari_ayikla(metin):
     return bulgular, (s.group(1).strip() if s else ""), bool(s)
 
 
-def karar(risk, bulgular, ci_yesil, okunabildi):
+# --- Codex bulgularına yanıt (2026-08-07, kapı kendi PR'ını bloklad) -------
+
+def tutarli_mi(bulgular, sonuc):
+    """P1 · Hüküm satırı ile ayrıştırılan bulgular birbirini tutuyor mu.
+
+    Önce herhangi bir `SONUC:` metni geçerli inceleme sayılıyordu; bozuk ya da
+    uydurulmuş bir hüküm sessizce kabul ediliyordu.
+    """
+    sayi = sum(len(v) for v in bulgular.values())
+    temiz_diyor = "TEMIZ" in (sonuc or "").upper()
+    if temiz_diyor:
+        return sayi == 0
+    m = re.search(r"(\d+)\s*bulgu", sonuc or "", re.I)
+    if m:
+        return int(m.group(1)) == sayi
+    return sayi > 0
+
+
+# Diff, inceleyiciye TALİMAT veriyorsa hüküm güvenilmez. Yalnız EKLENEN
+# satırlara bakılır; doğal dil kalıbı aranır (kod/regex tanımı değil).
+ENJEKSIYON = re.compile(
+    r"(ignore|disregard|forget)\s+(all\s+)?(previous|prior|above)\s+"
+    r"(instruction|rule|prompt)"
+    r"|(?:sen|you)\s+bir\s+incele|you\s+are\s+(a\s+)?review"
+    r"|TEM[İI]Z\s+(olarak\s+)?(yaz|raporla|d[öo]n)"
+    r"|(output|report|respond)\s+(with\s+)?(TEMIZ|CLEAN|APPROVE)"
+    r"|(approve|onayla)\s+(this|bu)\s+(pr|diff|change)", re.I)
+
+
+def enjeksiyon_var_mi(diff):
+    """Eklenen satırlarda inceleyiciye yönelik talimat var mı."""
+    for satir in (diff or "").splitlines():
+        if satir.startswith("+") and ENJEKSIYON.search(satir):
+            return True
+    return False
+
+
+# CI "yeşil" sayılması için KANIT üreten check'in varlığı şart. Önceden
+# alakasız bir yeşil check (vercel/render) yeterliydi; evidence workflow'u
+# hiç oluşmasa bile kapı geçiyordu.
+ZORUNLU_CHECK = re.compile(r"kernel|evidence|gate", re.I)
+
+
+def _check_kayitlari(satirlar):
+    """gh pr checks satırlarını (ad, durum) çiftlerine çevirir."""
+    kayit = []
+    for s in satirlar:
+        if not s.strip():
+            continue
+        parca = s.split("\t")
+        kayit.append((parca[0].strip(),
+                      parca[1].strip() if len(parca) > 1 else "?"))
+    return kayit
+
+
+def ci_karari(satirlar):
+    """(yesil, ozet) — gh pr checks çıktı satırlarından."""
+    kayit = _check_kayitlari(satirlar)
+    if not kayit:
+        return False, "hiç check yok"
+    kanit = [d for a, d in kayit if ZORUNLU_CHECK.search(a)]
+    gecen = sum(1 for _a, d in kayit if d == "pass")
+    ozet = f"{gecen}/{len(kayit)} pass"
+    if not kanit:
+        return False, (f"{len(kayit)} check var ama kanıt check'i "
+                       "(kernel/evidence/gate) yok")
+    if not all(d == "pass" for d in kanit):
+        return False, f"kanıt check'i geçmedi ({ozet})"
+    return gecen == len(kayit), ozet
+
+
+def merge_komutu(pr, head_sha):
+    """P0 · Merge İNCELENEN commit'e sabitlenir.
+
+    İnceleme bittikten sonra dala yeni commit itilirse --match-head-commit
+    olmadan `gh pr merge` incelenmemiş kodu birleştirirdi.
+    """
+    if not head_sha:
+        raise ValueError("head SHA yok — merge incelenen commit'e sabitlenemez")
+    return ["gh", "pr", "merge", str(pr), "--merge",
+            "--match-head-commit", head_sha]
+
+
+def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
+          enjeksiyon=False):
     """(karar, gerekçe) — merge | insan | engel."""
     if not okunabildi:
         return "engel", ("inceleme çıktısı ayrıştırılamadı — 'okunamadı' "
                          "'temiz' demek değildir")
+    if not tutarli:
+        return "engel", ("inceleme hükmü bulgularla tutarsız — hüküm "
+                         "güvenilmez")
     if bulgular["P0"]:
         return "engel", f"{len(bulgular['P0'])} adet P0 (merge engelleyici)"
     if bulgular["P1"]:
@@ -93,6 +180,13 @@ def karar(risk, bulgular, ci_yesil, okunabildi):
         return "engel", "deny sınıfı — break-glass gerekir, kararı agent veremez"
     if not ci_yesil:
         return "engel", "CI yeşil değil"
+    if enjeksiyon:
+        # Güvenlik gereği: enjekte edilmiş diff OTOMATİK merge ettiremesin.
+        # ENGEL değil İNSAN — aracın kendi format dizesini içeren meşru
+        # PR'lar da eşleşir; ENGEL kalıcı öz-blok üretirdi.
+        return "insan", ("diff inceleyiciye talimat veriyor olabilir "
+                         "(enjeksiyon şüphesi) — hüküm otomatik merge için "
+                         "yeterli sayılmaz")
     if risk == "auto":
         return "merge", "auto risk · inceleme temiz · CI yeşil"
     return "insan", f"{risk} sınıfı — karar kullanıcının"
@@ -114,17 +208,24 @@ def pr_dosyalari(pr):
     return [s for s in out.splitlines() if s.strip()] if kod == 0 else []
 
 
+def pr_head_sha(pr):
+    kod, out, _e = _kos("gh", "pr", "view", str(pr), "--json", "headRefOid",
+                        "-q", ".headRefOid")
+    return out.strip() if kod == 0 else ""
+
+
+def pr_diff(pr):
+    kod, out, _e = _kos("gh", "pr", "diff", str(pr))
+    return out if kod == 0 else ""
+
+
 def ci_durumu(pr):
     """(yesil, ozet) — hiçbir check yoksa yeşil SAYILMAZ."""
     kod, out, _e = _kos("gh", "pr", "checks", str(pr))
     satirlar = [s for s in out.splitlines() if s.strip()]
     if kod != 0 and not satirlar:
         return False, "check okunamadı"
-    if not satirlar:
-        return False, "hiç check yok"
-    durumlar = [s.split("\t")[1] if "\t" in s else "?" for s in satirlar]
-    return all(d == "pass" for d in durumlar), \
-        f"{durumlar.count('pass')}/{len(durumlar)} pass"
+    return ci_karari(satirlar)
 
 
 def codex_incele(pr):
@@ -139,7 +240,8 @@ def yorum_dus(pr, govde):
     return kod == 0, err
 
 
-def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet):
+def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
+               enjeksiyon=False):
     """PR yorumu — duvar değil, KARAR biçiminde. Okunmayan yorum yoktur."""
     simge = {"merge": "✅", "insan": "👤", "engel": "⛔"}[k]
     satir = [f"## {simge} Bağımsız inceleme — {k.upper()}",
@@ -148,6 +250,10 @@ def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet):
              f"**Risk sınıfı:** `{risk}` · **CI:** {ci_ozet} · "
              f"**Codex:** {sonuc or '—'}",
              ""]
+    if enjeksiyon:
+        satir += ["> ⚠️ Diff, inceleyiciye talimat veriyor olabilir "
+                  "(enjeksiyon şüphesi). Hüküm otomatik merge için yeterli "
+                  "sayılmadı.", ""]
     for sev in ("P0", "P1", "P2"):
         for b in bulgular[sev]:
             satir.append(f"- `{sev}` {b}")
@@ -159,6 +265,21 @@ def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet):
     return "\n".join(satir)
 
 
+def topla(pr):
+    """PR'a dair tüm dış bilgiyi tek yerde toplar (main sade kalsın)."""
+    ci_yesil, ci_ozet = ci_durumu(pr)
+    ham = codex_incele(pr)
+    bulgular, sonuc, okunabildi = bulgulari_ayikla(ham)
+    return {
+        "risk": risk_sinifi(pr_dosyalari(pr)),
+        "ci_yesil": ci_yesil, "ci_ozet": ci_ozet,
+        # İncelenen commit BURADA sabitlenir; merge sonra bunu doğrular.
+        "head_sha": pr_head_sha(pr),
+        "enjeksiyon": enjeksiyon_var_mi(pr_diff(pr)),
+        "bulgular": bulgular, "sonuc": sonuc, "okunabildi": okunabildi,
+    }
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("pr")
@@ -167,14 +288,15 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
 
-    dosyalar = pr_dosyalari(a.pr)
-    risk = risk_sinifi(dosyalar)
-    ci_yesil, ci_ozet = ci_durumu(a.pr)
-    ham = codex_incele(a.pr)
-    bulgular, sonuc, okunabildi = bulgulari_ayikla(ham)
-    k, gerekce = karar(risk, bulgular, ci_yesil, okunabildi)
+    d = topla(a.pr)
+    risk, ci_ozet, head_sha = d["risk"], d["ci_ozet"], d["head_sha"]
+    bulgular, sonuc, enjeksiyon = d["bulgular"], d["sonuc"], d["enjeksiyon"]
+    k, gerekce = karar(risk, bulgular, d["ci_yesil"], d["okunabildi"],
+                       tutarli=tutarli_mi(bulgular, sonuc),
+                       enjeksiyon=enjeksiyon)
 
-    govde = ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet)
+    govde = ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
+                       enjeksiyon)
     if not a.kuru:
         ok, err = yorum_dus(a.pr, govde)
         if not ok:
@@ -192,11 +314,18 @@ def main(argv=None):
         if k != "merge":
             print(f"\nMERGE YAPILMADI — karar '{k}': {gerekce}")
             return 1
-        kod, _o, err = _kos("gh", "pr", "merge", str(a.pr), "--merge")
-        if kod != 0:
-            print(f"merge başarısız: {err[:200]}")
+        try:
+            komut = merge_komutu(a.pr, head_sha)
+        except ValueError as e:
+            print(f"\nMERGE YAPILMADI — {e}")
             return 1
-        print(f"\nPR #{a.pr} merge edildi (auto risk · inceleme temiz · CI yeşil)")
+        kod, _o, err = _kos(*komut)
+        if kod != 0:
+            # --match-head-commit uyuşmazsa: inceleme sonrası yeni commit
+            # gelmiş demektir; İNCELENMEMİŞ kod birleşmez.
+            print(f"merge başarısız (head değişmiş olabilir): {err[:200]}")
+            return 1
+        print(f"\nPR #{a.pr} merge edildi — incelenen commit {head_sha[:8]}")
     return 0 if k != "engel" else 1
 
 
