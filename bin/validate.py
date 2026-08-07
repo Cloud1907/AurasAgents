@@ -594,6 +594,52 @@ def test_onboarding_parity():
     check("auras_geri.py" in text,
           "auras-init.sh korunan yerel işi geri-taşımaya yönlendirmiyor — "
           "sapma sessizce birikir")
+    if kd is not None:
+        test_tasinan_testin_ihtiyaclari_da_tasinir(kd)
+
+
+def test_tasinan_testin_ihtiyaclari_da_tasinir(kd):
+    """Taşınan bir test, taşınmayan bir dosyayı şart koşamaz.
+
+    2026-08-07'de 4Flow kurulumunda bizzat oldu: `tests/` motor dizinidir,
+    yani KapsamSiniriTest her projeye gidiyor — ama şart koştuğu
+    `docs/yasam-dongusu-kapsami.md` motor listesinde yoktu. Yeni proje
+    kurulumdan KIRMIZI çıktı. Kutudan kırmızı çıkan kurulum, insana kapıyı
+    baştan yok saymayı öğretir; en pahalı yanlış pozitif budur.
+
+    Kural: `tests/` içindeki bir test ROOT'a göre bir yol istiyorsa o yol
+    da motorla birlikte taşınmalı (ya da test kanonik-özel olmalı).
+    """
+    tests_dir = os.path.join(ROOT, "tests")
+    if not os.path.isdir(tests_dir):
+        return
+    # Kurulumdan SONRA projede bulunacak her kaynak: motorla senkronlananlar,
+    # bir kez yazılan proje dosyaları ve kurucunun ürettikleri.
+    PROJE_DOSYASI = ("AGENTS.md", "CLAUDE.md")
+    URETILEN = (".agents/kalite-baseline.json",)
+    kapsam = set(kd.MOTOR) | set(kd.MOTOR_DIZIN) | set(PROJE_DOSYASI) | set(URETILEN)
+    # os.path.join(ROOT, "docs", "x.md") → docs/x.md
+    desen = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
+    for f in sorted(os.listdir(tests_dir)):
+        if not f.endswith(".py"):
+            continue
+        with open(os.path.join(tests_dir, f), encoding="utf-8") as fh:
+            icerik = fh.read()
+        for m in desen.finditer(icerik):
+            parca = re.findall(r"\"([^\"]+)\"", m.group(1))
+            rel = "/".join(parca)
+            tam = os.path.join(ROOT, rel)
+            if not os.path.exists(tam):
+                continue          # üretilen/geçici yol — kurulum derdi değil
+            if os.path.isdir(tam):
+                continue          # yol kökü (ör. "bin"), şart koşulan dosya değil
+            kapsanan = rel in kapsam or any(
+                rel.startswith(d + "/") for d in kd.MOTOR_DIZIN)
+            check(kapsanan,
+                  f"tests/{f} '{rel}' dosyasını şart koşuyor ama o dosya "
+                  f"motor listesinde yok — bağlı proje kurulumdan kırmızı "
+                  f"çıkar. kernel_dosyalari.MOTOR'a ekle ya da testi "
+                  f"kanonik-özel yap")
 
 
 def test_gitleaks_manifest_muafiyeti():

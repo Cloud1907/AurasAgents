@@ -32,6 +32,11 @@ MOTOR = [
     ".github/workflows/evidence.yml",
     ".github/ISSUE_TEMPLATE/work-contract.yml",
     ".agents/routing.yml",
+    # Motorun kendi kapsamı hakkındaki beyanı. Her projeye gitmeli: kullanıcı
+    # hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır. Ayrıca
+    # tests/test_evidence_workflow.py bu belgeyi şart koşuyor ve o test her
+    # projeye taşınıyor — belge gitmezse kurulum kırmızı başlar (4Flow, 2026-08-07).
+    "docs/yasam-dongusu-kapsami.md",
 ]
 # Dizin olarak senkronlananlar (içerik tamamen motorun)
 MOTOR_DIZIN = [".agents/skills", ".agents/capability-profiles", "tests",
