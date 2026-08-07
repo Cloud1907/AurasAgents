@@ -34,6 +34,28 @@ class OlcumTest(unittest.TestCase):
             r = kalite.olc(td)
             self.assertEqual(r["sayaclar"]["uzun_fonksiyon"], 1)
 
+    def test_ic_ice_calisma_agaci_sayilmaz(self):
+        """Repo içine açılan worktree/klon bu projenin borcu değildir.
+
+        2026-08-07 vakası: arka plan görevi `.claude/worktrees/<ad>/`
+        altına worktree açtı, kalite taraması onu da gezdi ve HER sayaç
+        tam iki katına çıktı (28 dosya → 56). Ratchet gerçek borç büyümüş
+        sanıp kırmızı yandı, merge bloklandı. `.git` adı ATLA listesinde
+        vardı ama worktree'de `.git` bir DOSYA (gitdir işaretçisi).
+        """
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "a.py", "def uzun():\n" + "    x = 1\n" * 60)
+            # Kendi .git'i olan alt dizin — worktree biçimi (dosya)
+            yaz(td, "wt/a.py", "def uzun():\n" + "    x = 1\n" * 60)
+            yaz(td, "wt/.git", "gitdir: /baska/yer/.git/worktrees/wt\n")
+            # Klon biçimi (dizin) de aynı kuralla dışlanmalı
+            yaz(td, "klon/a.py", "def uzun():\n" + "    x = 1\n" * 60)
+            os.makedirs(os.path.join(td, "klon", ".git"))
+            r = kalite.olc(td)
+            self.assertEqual(r["sayaclar"]["uzun_fonksiyon"], 1,
+                             "iç içe çalışma ağaçları sayıma girmemeli")
+            self.assertEqual(r["kapsam"]["kod_dosyasi"], 1)
+
     def test_kisa_fonksiyon_sayilmaz(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "a.py", "def kisa():\n    return 1\n")

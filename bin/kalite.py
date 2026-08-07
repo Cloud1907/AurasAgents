@@ -73,9 +73,27 @@ def ayarlar():
     return esik
 
 
+def ayri_calisma_agaci(yol):
+    """Alt dizin kendi başına bir git çalışma ağacı mı (nested repo/worktree)?
+
+    Neden gerekli: agent worktree'leri repo İÇİNE açılıyor
+    (`.claude/worktrees/<ad>/`). Taranırlarsa her dosya iki kez sayılır ve
+    ratchet gerçek borç büyümüş gibi kırmızı yanar. 2026-08-07'de bizzat
+    oldu: 28 dosya 56 göründü, her sayaç tam iki katına çıktı ve merge
+    bloklandı. `.git` adı ATLA'da vardı ama worktree'de `.git` bir DOSYA
+    (gitdir işaretçisi), dizin değil — filtreye takılmıyordu.
+
+    Kural genel tutuldu: kendi `.git`'i olan alt dizin bu projenin kodu
+    değildir (worktree, submodule, iç içe klon — hepsi aynı sebeple).
+    """
+    return os.path.exists(os.path.join(yol, ".git"))
+
+
 def kod_dosyalari(kok):
     for dizin, altlar, isimler in os.walk(kok):
-        altlar[:] = [d for d in altlar if d not in ATLA and not
+        altlar[:] = [d for d in altlar if d not in ATLA
+                     and not ayri_calisma_agaci(os.path.join(dizin, d))
+                     and not
                      os.path.join(os.path.relpath(dizin, kok), d)
                      .replace(os.sep, "/").startswith(".agents/runtime")]
         for i in isimler:
