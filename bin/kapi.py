@@ -103,9 +103,12 @@ def dogrulayici_sonuclari(duzenlenen):
            for f in duzenlenen):
         sonuc["test_first"] = calistir_dogrulayici(
             "implement-change/scripts/check_test_first.py")
-    raporlar = [f for f in duzenlenen
-                if ".agents/reports/" in f.replace("\\", "/")
-                and f.endswith(".md")]
+    # dict.fromkeys: tekilleştir ama sırayı koru. Aynı rapor turda birden çok
+    # kez düzenlenince kaynak denetimi her düzenleme için tekrar koşuyor ve
+    # kapı aynı uyarıyı N kez basıyordu (2026-08-06 gürültü bulgusu).
+    raporlar = list(dict.fromkeys(
+        f for f in duzenlenen
+        if ".agents/reports/" in f.replace("\\", "/") and f.endswith(".md")))
     if raporlar:
         sonuc["kaynak"] = [(f, calistir_dogrulayici(
             "research-with-evidence/scripts/check_citations.py", f))
