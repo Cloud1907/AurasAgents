@@ -63,6 +63,33 @@ _UNITTEST = re.compile(r"^\s*(?:import\s+unittest|from\s+unittest\b)", re.M)
 _TEST_METODU = re.compile(r"^\s+(?:async\s+)?def\s+test\w*\s*\(\s*self\b", re.M)
 
 
+def yol_coz(kok, rel):
+    """Göreli yolu diskte BÜYÜK/küçük harf duyarsız çözer (yoksa None).
+
+    Neden gerekli: projelerin dizin adlandırması farklı (4cast `Docs/`
+    kullanıyor, motor `docs/` yazıyor). macOS/Windows dosya sistemi
+    duyarsız olduğu için yerelde sorun çıkmıyor ama git yolu YAZILDIĞI
+    gibi saklıyor; Linux CI'da dosya "yok" görünüyor ve kapı yanlış yere
+    kırmızı yanıyor (4cast, 2026-08-07). Aynı repo platforma göre farklı
+    davranıyorsa, bu taşınabilirlik hatasıdır.
+    """
+    tam = os.path.join(kok, rel)
+    if os.path.exists(tam):
+        return tam
+    parcalar = rel.replace("\\", "/").split("/")
+    simdi = kok
+    for parca in parcalar:
+        try:
+            girisler = os.listdir(simdi)
+        except OSError:
+            return None
+        esles = [g for g in girisler if g.lower() == parca.lower()]
+        if not esles:
+            return None
+        simdi = os.path.join(simdi, esles[0])
+    return simdi
+
+
 def kurulumda_bulunur(rel):
     """Bu göreli yol, taze bir kurulumdan sonra projede bulunur mu?"""
     if rel in MOTOR or rel in PROJE_DOSYASI or rel in URETILEN:

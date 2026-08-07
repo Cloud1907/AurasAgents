@@ -68,6 +68,18 @@ class KurulumBagimliligiTest(unittest.TestCase):
             "taşınan testler taşınmayan dosya istiyor: " +
             ", ".join(f"{t} → {r}" for t, r in eksik))
 
+    def test_yol_coz_buyuk_kucuk_harf_duyarsiz(self):
+        """Proje `Docs/` kullanabilir, motor `docs/` yazar.
+
+        macOS duyarsız olduğu için yerelde sorun çıkmıyor ama git yolu
+        YAZILDIĞI gibi saklıyor; Linux CI'da dosya "yok" görünüp kapı
+        yanlış yere kırmızı yanıyordu (4cast, 2026-08-07).
+        """
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "Docs/belge.md", "içerik\n")
+            self.assertIsNotNone(kd.yol_coz(td, "docs/belge.md"))
+            self.assertIsNone(kd.yol_coz(td, "docs/yok.md"))
+
     def test_kapsam_belgesi_motorla_gider(self):
         # Kullanıcı hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır.
         self.assertIn("docs/yasam-dongusu-kapsami.md", kd.MOTOR)

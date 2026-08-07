@@ -14,6 +14,16 @@ import unittest
 from ortam import pyyaml_gerekir, yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _kd():
+    """Motor listesi modülü — yol çözücüsü için."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_kd", os.path.join(ROOT, "bin", "kernel_dosyalari.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 WF = os.path.join(ROOT, ".github", "workflows", "evidence.yml")
 VALIDATE = os.path.join(ROOT, "bin", "validate.py")
 
@@ -111,7 +121,8 @@ class KapsamSiniriTest(unittest.TestCase):
     kullanıcı korunduğunu sanır. Ölçüm: 10 aşamanın 4'ünde hiç kapı yok.
     """
 
-    BELGE = os.path.join(ROOT, "docs", "yasam-dongusu-kapsami.md")
+    BELGE = (_kd().yol_coz(ROOT, "docs/yasam-dongusu-kapsami.md")
+             or os.path.join(ROOT, "docs", "yasam-dongusu-kapsami.md"))
     AGENTS = os.path.join(ROOT, "AGENTS.md")
 
     def test_kapsam_belgesi_var(self):
