@@ -2,7 +2,57 @@
 # Kernel kapısı — doğrulama geçmeden push edilemez.
 # Kurulum: bash bin/install-hooks.sh
 
-ROOT=$(git rev-parse --show-toplevel)
+# git, kancayi KENDI ortamiyla calistirir: worktree'den push'ta GIT_DIR
+# .git/worktrees/<ad>'a isaret eder (ana depoda hic set edilmez). Bu miras
+# iki ayri sekilde kapiyi yikar — ikisi de KURAL IHLALI OLMADAN:
+#   1. `git rev-parse --show-toplevel` bu ortamda ya patlar ("fatal: this
+#      operation must be run in a work tree") ya da sessizce CWD'yi kok
+#      sanir. Patlarsa ROOT bos kalir ve kapi `/bin/validate.py` arar.
+#   2. Miras ALT SURECLERE gecer: dogrulayicinin gecici depolarda yaptigi
+#      `git add` / `git ls-files` miras alinan depoya yonelir, 128 doner,
+#      kapi bunu "dogrulama basarisiz" diye okur.
+# Cozum ikisinin de kokunu keser: ortami temizle, sonra kesfi normal yoldan
+# yap. git kancayi zaten dogru calisma agacinin tepesinde baslatir, bu
+# yuzden temiz ortamda kesif worktree'nin kendi kokunu verir (ana deponunkini
+# degil — push edilen agac odur). Bulgu 2026-08-07, PR #17.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+      GIT_NAMESPACE GIT_QUARANTINE_PATH
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$ROOT" ]; then
+  # Kesif basarisiz — kancanin kendi konumundan tureterek son bir dene.
+  # DIKKAT: bu YEDEK yoldur, birincil degil. Kurulu kanca ana deponun
+  # .git/hooks'unda durur; oradan turetilen kok ANA depodur. Worktree
+  # push'unda birincil olarak kullanilsaydi yanlis agac dogrulanirdi.
+  NEDEN=$(git rev-parse --show-toplevel 2>&1 >/dev/null)
+  ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." 2>/dev/null && pwd)
+  if [ -n "$ROOT" ]; then
+    echo "UYARI: depo koku git'ten okunamadi (${NEDEN:-sebep bildirilmedi})."
+    echo "  kanca konumundan turetildi: $ROOT"
+    # Yedek kok, push edilen agac OLMAYABILIR — o zaman secret taramasi
+    # yanlis agaci tarar ve "temiz" der. Bu, kapinin kendi hakkinda
+    # yalan soyleyebilecegi tek yer; sessiz birakilamaz. Calisma dizini
+    # gercek agacin tepesidir (git kancayi orada baslatir), bu yuzden
+    # ayrisma dogrudan sinyaldir.
+    if [ "$ROOT" != "$(pwd)" ]; then
+      echo "  DIKKAT: calisma dizini farkli ($(pwd)) — kapi push edilen"
+      echo "  agaci degil, BASKA bir agaci dogruluyor olabilir. Secret"
+      echo "  taramasinin 'temiz' demesi bu durumda kanit degildir."
+    fi
+  fi
+fi
+if [ -z "$ROOT" ] || [ ! -f "$ROOT/bin/validate.py" ]; then
+  # Bos ROOT sessizce "/bin/validate.py"ye donusurdu; mesaj "arac hatasi"
+  # derdi ama HANGI arac, NEDEN soylemezdi. Yanlis teshis --no-verify
+  # aliskanligi uretir — kapinin kayboldugu an odur.
+  echo "PUSH ENGELLENDI: kernel dogrulamasi KOSAMADI — depo koku cozulemedi."
+  echo "  cozulen kok : ${ROOT:-<bos>}"
+  echo "  aranan dosya: ${ROOT:-}/bin/validate.py"
+  echo "Kural ihlali tespit edilmedi; kapi kor. Kancayi depo icinden calistir"
+  echo "ya da bilincli atla: git push --no-verify"
+  exit 1
+fi
 
 # Yorumlayici secimi: PATH'teki ilk python3 dogru olan olmayabilir.
 # 2026-08-07'de yasandi — Homebrew python3'u 3.13'ten 3.14'e tasidi, yeni
