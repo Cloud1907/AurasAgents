@@ -156,3 +156,43 @@ class GeriTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GitleaksMuafiyetTest(unittest.TestCase):
+    """Kernel manifest'i gitleaks'te yanlış pozitif üretmemeli (2026-08-07).
+
+    4cast'te 7 yanlış pozitif CI'ı bir haftadan uzun kırmızıda tuttu; dosyayı
+    kernel ÜRETTİĞİ için sorun bağlı her projede tekrarlanır.
+    """
+
+    def wf_ile(self, td, icerik="run: gitleaks detect"):
+        os.makedirs(os.path.join(td, ".github", "workflows"), exist_ok=True)
+        yaz(td, ".github/workflows/ci.yml", icerik + "\n")
+
+    def test_workflowda_anilirsa_kullaniyor_sayilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.assertFalse(kd.gitleaks_kullaniyor(td))
+            self.wf_ile(td)
+            self.assertTrue(kd.gitleaks_kullaniyor(td))
+
+    def test_config_varsa_kullaniyor_sayilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, ".gitleaks.toml", "title = 'x'\n")
+            self.assertTrue(kd.gitleaks_kullaniyor(td))
+
+    def test_muafiyet_yoksa_tespit_edilir(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.wf_ile(td)
+            self.assertFalse(kd.manifest_muaf_mi(td))
+
+    def test_sablon_kendi_kontrolunu_gecer(self):
+        # Şablon regex kaçışı taşır (\.kernel-manifest\.json); kontrol düz
+        # nokta arasaydı kendi şablonunu bile eşleştiremezdi (gerçek hata).
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, ".gitleaks.toml", kd.MUAFIYET_BLOGU)
+            self.assertTrue(kd.manifest_muaf_mi(td),
+                            "şablon kendi kontrolünü geçmiyor")
+
+    def test_gitleaks_kullanmayan_proje_zorlanmaz(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.assertFalse(kd.gitleaks_kullaniyor(td))
