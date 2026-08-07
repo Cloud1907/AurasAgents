@@ -23,6 +23,38 @@ class RouteTest(unittest.TestCase):
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
 
+    # --- soru turu vs iş emri (2026-08-07 bulgusu) ---
+    # Bir oturumda 12+ tur yanlış sınıflandı: soru sorulduğunda router
+    # `code-change` + `approval` ilan edip zorunlu skill dayattı. Türkçe
+    # önek eşleşmesi DOĞRU çalışıyordu ("yapmalıyız" → "yap" aynı fiil);
+    # kusur tur TİPİNİN okunmamasıydı. Soru ≠ iş emri.
+
+    def test_soru_turu_zorunlu_skill_dayatmaz(self):
+        for prompt in ("bizim hafıza tarafı başarılı mı?",
+                       "sonuç anlayacağım dilde ne yapmalıyız?",
+                       "gerçekten dürüst önerin var mı?",
+                       "kodlamada nasıl bir standartta teslim ediyorsun?",
+                       "sence bu sistem iyi mi"):
+            with self.subTest(prompt=prompt):
+                tc, skill, _e, _x = self.pick(prompt)
+                self.assertIsNone(
+                    skill, f"soru turuna zorunlu skill dayatıldı: {skill}")
+                self.assertEqual(tc, "research", "soru turu salt-okunur profil almalı")
+
+    def test_is_emri_soru_kelimesi_tasisa_bile_yonlendirilir(self):
+        # "neden"/"nasıl" geçen ama EMİR olan turlar iş olarak kalmalı.
+        for prompt in ("actions'a bak neden koşmadı",
+                       "bu bug neden oluyor bul ve düzelt"):
+            with self.subTest(prompt=prompt):
+                _tc, skill, _e, _x = self.pick(prompt)
+                self.assertIsNotNone(skill, "emir turu skill'siz kaldı")
+
+    def test_acik_slash_komut_soruda_bile_kazanir(self):
+        # Kullanıcı açıkça /auras dediyse soru biçimi bunu ezmemeli.
+        _tc, skill, _e, explicit = self.pick("/auras bunu bağlar mısın?")
+        self.assertEqual(explicit, "auras")
+        self.assertEqual(skill, "auras")
+
     def test_kod_istegi_implement_change(self):
         for prompt in ("kullanıcı listesi endpoint'i ekle",
                        "şu bug'ı düzelt",

@@ -130,6 +130,36 @@ def sahip(prompt, cfg, primary=None):
     return (primary or {}).get("owner")
 
 
+# --- Soru turu tespiti (2026-08-07) --------------------------------------
+# Bulgu: bir oturumda 12+ tur yanlış sınıflandı. "bizim hafıza tarafı
+# başarılı mı?" → code-change/approval + zorunlu kernel-work; "ne
+# yapmalıyız?" → implement-change. Türkçe önek eşleşmesi DOĞRU çalışıyordu
+# ("yapmalıyız" ile "yap" aynı fiildir); kusur tur TİPİNİN okunmamasıydı.
+#
+# Soru turunda zorunlu skill dayatmak iki zarar üretir: (1) her sohbet turu
+# "onay riskli iş" görünür ve gerçek approval sinyali değersizleşir,
+# (2) ajan atlama gerekçesini kayda geçirmek zorunda kalır — bürokrasi.
+#
+# Asimetri bilinçli: yanlış "soru" ucuzdur (router zaten bloklamaz, tur
+# kapısı kanıtı yine ister), yanlış "code-change/approval" gürültülüdür.
+SORU_SONU = re.compile(r"\?\s*$")
+SORU_EKI = re.compile(
+    r"(?:^|\s)(m[ıiuü]|m[ıiuü]s[ıi]n|m[ıiuü]y[ıi]m|m[ıiuü]sunuz)\b")
+SORU_BASI = re.compile(
+    r"^(ne|neden|niye|nas[ıi]l|hangi|kim|ka[çc]|nerede|sence|acaba)\b")
+
+
+def soru_turu(text):
+    """Bu tur bir SORU mu, yoksa iş emri mi?
+
+    Soru işareti, ayrı duran soru eki (…iyi mi) ya da cümle BAŞINDA soru
+    kelimesi arar. Soru kelimesi cümle ORTASINDAysa emir sayılır:
+    "actions'a bak neden koşmadı" bir iştir, soru değil.
+    """
+    return bool(SORU_SONU.search(text) or SORU_EKI.search(text)
+                or SORU_BASI.match(text))
+
+
 def route(prompt, cfg):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -155,6 +185,12 @@ def route(prompt, cfg):
     scored.sort(key=lambda s: (-s[0], -s[1]))
 
     extras = _extras(cfg, text, tokens)
+
+    # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
+    # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil
+    # alır ve zorunlu skill dayatılmaz — ajan kendi seçer, kapı kanıtı yine ister.
+    if soru_turu(text):
+        return "research", None, extras, [], explicit
 
     if not scored:
         fb = cfg.get("fallback", {})
