@@ -142,6 +142,19 @@ class TestKapsamiTest(unittest.TestCase):
             self.assertEqual(kd.toplanmayan_testler(td, set()),
                              ["route_test.py"])
 
+    def test_async_test_metodu_da_yakalanir(self):
+        # Codex bulgusu (PR #26, ikinci tur): IsolatedAsyncioTestCase alt
+        # sınıfları `async def test_*` yazar. Takma adlı tabanla birleşince
+        # her iki imza da ıskalanırdı.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/async_test.py",
+                "import unittest\n"
+                "Taban = unittest.IsolatedAsyncioTestCase\n"
+                "class X(Taban):\n"
+                "    async def test_a(self):\n        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()),
+                             ["async_test.py"])
+
     def test_toplanan_dosya_sorun_degil(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "tests/test_a.py",

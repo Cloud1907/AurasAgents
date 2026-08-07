@@ -59,7 +59,7 @@ _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+
 # gibi test metodu OLMAYAN yardımcılar ikisine de uymaz.
 _TESTCASE = re.compile(r"^class\s+\w+\s*\([^)]*\bTestCase\b", re.M)
 _UNITTEST = re.compile(r"^\s*(?:import\s+unittest|from\s+unittest\b)", re.M)
-_TEST_METODU = re.compile(r"^\s+def\s+test\w*\s*\(\s*self\b", re.M)
+_TEST_METODU = re.compile(r"^\s+(?:async\s+)?def\s+test\w*\s*\(\s*self\b", re.M)
 
 
 def kurulumda_bulunur(rel):
