@@ -233,3 +233,21 @@ class CiKarariTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TaniTest(unittest.TestCase):
+    """Kapı 'ayrıştıramadım' derken SEBEBİNİ göstermeli.
+
+    Teşhis edilemeyen kırmızı, kapalı kapıdan farksızdır — kullanıcı bir
+    süre sonra bakmayı bırakır (gitleaks 'leaks found: 8' dersi, 2026-08-07).
+    """
+
+    def test_okunamadi_govdesinde_ham_kuyruk_gorunur(self):
+        g = incele.ozet_govde("auto", TEMIZ, "", "engel", "ayrıştırılamadı",
+                              "1/1 pass", tani="codex: connection reset")
+        self.assertIn("connection reset", g)
+        self.assertIn("Ayrıştırılamayan", g)
+
+    def test_temiz_koşumda_tani_bolumu_yok(self):
+        g = incele.ozet_govde("auto", TEMIZ, "TEMIZ", "merge", "ok", "1/1 pass")
+        self.assertNotIn("Ayrıştırılamayan", g)

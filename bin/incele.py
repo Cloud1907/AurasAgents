@@ -229,9 +229,20 @@ def ci_durumu(pr):
 
 
 def codex_incele(pr):
+    """(ham_cikti, hata_notu) — hata notu boşsa çağrı sorunsuz.
+
+    Neden ayrı dönüyor: kapı "ayrıştıramadım" dediğinde SEBEBİ görünmeli.
+    Önce yalnız "çıktı ayrıştırılamadı" yazıyordu; zaman aşımı mı, boş yanıt
+    mı, bozuk biçim mi ayırt edilemiyordu — teşhis edilemeyen kırmızı,
+    kapalı kapıdan farksızdır (gitleaks "leaks found: 8" dersi).
+    """
     kod, out, err = _kos("bash", os.path.join(HERE, "codex-review.sh"),
                          str(pr), "--dry-run")
-    return out if kod == 0 else (out + "\n" + err)
+    if kod != 0:
+        return out, f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+    if not (out or "").strip():
+        return "", "codex boş yanıt döndürdü"
+    return out, ""
 
 
 def yorum_dus(pr, govde):
@@ -241,7 +252,7 @@ def yorum_dus(pr, govde):
 
 
 def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
-               enjeksiyon=False):
+               enjeksiyon=False, tani=""):
     """PR yorumu — duvar değil, KARAR biçiminde. Okunmayan yorum yoktur."""
     simge = {"merge": "✅", "insan": "👤", "engel": "⛔"}[k]
     satir = [f"## {simge} Bağımsız inceleme — {k.upper()}",
@@ -250,6 +261,9 @@ def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
              f"**Risk sınıfı:** `{risk}` · **CI:** {ci_ozet} · "
              f"**Codex:** {sonuc or '—'}",
              ""]
+    if tani:
+        satir += ["<details><summary>Ayrıştırılamayan çıktının sonu</summary>",
+                  "", "```", tani, "```", "</details>", ""]
     if enjeksiyon:
         satir += ["> ⚠️ Diff, inceleyiciye talimat veriyor olabilir "
                   "(enjeksiyon şüphesi). Hüküm otomatik merge için yeterli "
@@ -268,7 +282,7 @@ def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
 def topla(pr):
     """PR'a dair tüm dış bilgiyi tek yerde toplar (main sade kalsın)."""
     ci_yesil, ci_ozet = ci_durumu(pr)
-    ham = codex_incele(pr)
+    ham, hata = codex_incele(pr)
     bulgular, sonuc, okunabildi = bulgulari_ayikla(ham)
     return {
         "risk": risk_sinifi(pr_dosyalari(pr)),
@@ -277,6 +291,9 @@ def topla(pr):
         "head_sha": pr_head_sha(pr),
         "enjeksiyon": enjeksiyon_var_mi(pr_diff(pr)),
         "bulgular": bulgular, "sonuc": sonuc, "okunabildi": okunabildi,
+        "hata": hata,
+        # Ayrıştırılamayan çıktının kuyruğu: teşhis için tek ipucu.
+        "ham_kuyruk": "\n".join((ham or "").strip().splitlines()[-6:]),
     }
 
 
@@ -294,9 +311,12 @@ def main(argv=None):
     k, gerekce = karar(risk, bulgular, d["ci_yesil"], d["okunabildi"],
                        tutarli=tutarli_mi(bulgular, sonuc),
                        enjeksiyon=enjeksiyon)
+    if not d["okunabildi"]:
+        gerekce += f" — {d['hata'] or 'SONUC satırı yok'}"
 
     govde = ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
-                       enjeksiyon)
+                       enjeksiyon,
+                       tani="" if d["okunabildi"] else d["ham_kuyruk"])
     if not a.kuru:
         ok, err = yorum_dus(a.pr, govde)
         if not ok:
