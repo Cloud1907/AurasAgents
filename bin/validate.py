@@ -207,6 +207,30 @@ def test_evidence_roundtrip():
               "make_evidence: failed check'te non-zero dönmeli")
 
 
+def test_kapsam_siniri_yazili():
+    """Sistem neyi zorlamadığını AÇIKÇA söylüyor mu.
+
+    Kapsam sınırını gizleyen sistem, kapsamı dar olandan tehlikelidir:
+    kullanıcı korunduğunu sanır. AGENTS.md "kanıt > beyan" diyor ama bu
+    yalnız doğruluk ve güvenlikte geçerli — tasarım (3), operasyon (8) ve
+    ölçme (9) aşamalarında kapı YOK.
+
+    Bekçinin SINIRI: belgenin varlığını ve referansını doğrular, içeriğinin
+    güncelliğini doğrulayamaz. Belge bunu kendisi de yazıyor.
+    """
+    belge = os.path.join(ROOT, "docs", "yasam-dongusu-kapsami.md")
+    check(os.path.isfile(belge),
+          "docs/yasam-dongusu-kapsami.md yok — sistemin neyi zorlamadığı "
+          "yazılı değil; kullanıcı korunduğunu sanır")
+    agents = os.path.join(ROOT, "AGENTS.md")
+    if os.path.isfile(agents):
+        with open(agents, encoding="utf-8") as fh:
+            metin = fh.read()
+        check("yasam-dongusu-kapsami" in metin,
+              "AGENTS.md kapsam haritasına referans vermiyor — belge yetim "
+              "kalır ve okunmaz")
+
+
 def test_agents_md():
     path = os.path.join(ROOT, "AGENTS.md")
     check(os.path.isfile(path), "AGENTS.md yok")
@@ -621,6 +645,7 @@ def main():
     test_issue_form()
     test_workflow()
     test_evidence_roundtrip()
+    test_kapsam_siniri_yazili()
     test_agents_md()
     test_rules()
     test_memory_tool()
