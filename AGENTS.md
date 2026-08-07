@@ -109,6 +109,11 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   dosyasını çatallamadan burada mekanizmaya bağlanır. Dosya motorun değil
   projenindir: `/auras` ezmez, geri-taşıma yukarı götürmez. Çalıştırılabilir
   değilse push engellenir — sessiz atlama yok.
+- Secret kapısı proje muafiyeti: `.agents/secret-allowlist.txt` — her satır
+  `yol-deseni  # gerekçe`. **Gerekçe zorunludur**; gerekçesiz satır kullanım
+  hatasıdır (exit 2), "temiz" değildir. Bastırılan bulgu çıktıda `muaf:`
+  etiketiyle GÖRÜNÜR kalır — sessiz susturma, kapının olduğu ama korumadığı
+  hâldir. Dosya projenindir, motor ezmez.
 - Skill doğrulayıcı sözleşmesi (ADR-0003): `check_*` / `scan_*` önekli skill
   script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
   (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı

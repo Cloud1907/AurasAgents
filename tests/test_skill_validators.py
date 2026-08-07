@@ -22,11 +22,20 @@ TESTFIRST = os.path.join(ROOT, ".agents", "skills", "implement-change",
 # (tests/test_memory_hygiene.py aynı konvansiyonu kullanır).
 ORNEK_ANAHTAR = "sk_" + "live_4eC39HqLyjWDarjtT1zdp7dc"
 
+# Muafiyet testlerinin fixture parolası. AYNI konvansiyon: düz yazılırsa bu
+# dosyanın KENDİSİ secret kapısına takılır — bugün bizzat takıldı (push
+# engellendi, 2 bulgu, ikisi de bu satırlar). Tarayıcının kendi testini
+# bloklaması ironik değil, DOĞRU davranış; kaçış yolu muafiyet değil,
+# fixture'ı desene uymayacak biçimde kurmaktır.
+FIXTURE_PAROLA = "pass" + "word123"
+
 
 def kos(script, *arg):
     p = subprocess.run([sys.executable, script, *arg],
                        capture_output=True, text=True, cwd=ROOT, timeout=60)
-    return p.returncode, p.stdout
+    # stderr de kapı çıktısıdır: kullanım hataları oraya yazılır ve
+    # "kapı ne dedi" iddiaları onu görmezse eksik denetlenir.
+    return p.returncode, p.stdout + p.stderr
 
 
 class ScanSecretsTest(unittest.TestCase):
@@ -79,13 +88,15 @@ class ScanSecretsTest(unittest.TestCase):
         # Bulgu: '--exclude' yol sanılıp tarama boşa düşüyor, exit 0 "temiz ✓"
         kod, cikti = kos(SCAN, "--exclude")
         self.assertEqual(kod, 2, "değersiz --exclude kullanım hatası olmalı")
-        self.assertNotIn("temiz", cikti)
+        self.assertNotIn("scan_secrets: temiz", cikti,
+                         "kapı temiz İDDİASINDA bulunmamalı")
 
     def test_hic_dosya_taranmadiysa_temiz_demez(self):
         # Bulgu: var olmayan yol → 0 bulgu → "temiz ✓" + exit 0 (sahte yeşil)
         kod, cikti = kos(SCAN, "/yok/boyle/bir/dizin")
         self.assertEqual(kod, 2, "hiç dosya taranmadıysa 'temiz' denemez")
-        self.assertNotIn("temiz", cikti)
+        self.assertNotIn("scan_secrets: temiz", cikti,
+                         "kapı temiz İDDİASINDA bulunmamalı")
 
     def test_asiri_genis_dislama_temiz_demez(self):
         # Dışlama her şeyi yerse bu da "taranmadı"dır, "temiz" değil
@@ -137,7 +148,8 @@ class ScanSecretsTest(unittest.TestCase):
                 fh.write("x = 1\n")
             kod, cikti = kos(SCAN, "--git", td)
             self.assertEqual(kod, 2, "git deposu değilse 'temiz' denemez")
-            self.assertNotIn("temiz", cikti)
+            self.assertNotIn("scan_secrets: temiz", cikti,
+                         "kapı temiz İDDİASINDA bulunmamalı")
 
     def test_nokta_ile_baslayan_yol_deseni_eslesir(self):
         # Bulgu: lstrip('./') '.agents/...' → 'agents/...' yapıyordu; nokta
@@ -153,6 +165,68 @@ class ScanSecretsTest(unittest.TestCase):
 
 CITATIONS = os.path.join(ROOT, ".agents", "skills", "research-with-evidence",
                          "scripts", "check_citations.py")
+
+
+class ProjeMuafiyetiTest(unittest.TestCase):
+    """Projenin kendi muafiyet dosyası — GEREKÇELİ ve GÖRÜNÜR.
+
+    Neden gerekli (4Flow kurulumu, 2026-08-07): projede meşru test fixture'ı
+    vardı (dummy kullanıcıya verilen sabit parola, localhost'a istek atan
+    yerel betik). Tarayıcının projeye özel muafiyet yolu YOKTU — yalnız
+    pre-push'a gömülü `--exclude */eval/*`. Yani proje ya kapıyı hiç
+    geçemeyecek ya da motor dosyasını çatallayacaktı; ikisi de yanlış.
+
+    Tasarım kuralı: muafiyet SESSİZ OLAMAZ. Her satır gerekçe ister ve
+    tarayıcı kaç bulguyu neyle bastırdığını yazar — "neyin taranmadığı"
+    gizli kalırsa kapı vardır ama korumaz.
+    """
+
+    def kur(self, td, muafiyet=None):
+        os.makedirs(os.path.join(td, "tests"), exist_ok=True)
+        with open(os.path.join(td, "tests", "fixture.js"), "w") as fh:
+            fh.write("const u = { password: '%s' };\n" % FIXTURE_PAROLA)
+        with open(os.path.join(td, "temiz.py"), "w") as fh:
+            fh.write("x = 1\n")
+        if muafiyet is not None:
+            os.makedirs(os.path.join(td, ".agents"), exist_ok=True)
+            with open(os.path.join(td, ".agents", "secret-allowlist.txt"),
+                      "w", encoding="utf-8") as fh:
+                fh.write(muafiyet)
+        return td
+
+    def test_muafiyet_yokken_yakalanir(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(kos(SCAN, self.kur(td))[0], 1)
+
+    def test_gerekceli_muafiyet_bastirir(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.kur(td, "tests/fixture.js  # yerel test fixture'ı, gerçek hesap yok\n")
+            kod, cikti = kos(SCAN, td)
+            self.assertEqual(kod, 0, cikti)
+            self.assertIn("muafiyet", cikti.lower(),
+                          "bastırılan bulgu sessizce kaybolmamalı")
+
+    def test_gerekcesiz_muafiyet_reddedilir(self):
+        # Gerekçesiz satır = sessiz susturma. Kapı bunu kabul edemez.
+        with tempfile.TemporaryDirectory() as td:
+            self.kur(td, "tests/fixture.js\n")
+            kod, cikti = kos(SCAN, td)
+            self.assertEqual(kod, 2, cikti)
+            self.assertIn("gerekçe", cikti.lower())
+
+    def test_muafiyet_kapsam_disini_korur(self):
+        # Muafiyet yalnız yazdığı yolu kapsar; başka dosya hâlâ yakalanır.
+        with tempfile.TemporaryDirectory() as td:
+            self.kur(td, "tests/fixture.js  # fixture\n")
+            with open(os.path.join(td, "gercek.py"), "w") as fh:
+                fh.write(f'KEY = "{ORNEK_ANAHTAR}"\n')
+            kod, cikti = kos(SCAN, td)
+            self.assertEqual(kod, 1, "muaf olmayan secret hâlâ bloklamalı")
+            self.assertIn("gercek.py", cikti)
+            # Bastırılan bulgu GÖRÜNÜR kalır ama 'muaf' etiketiyle — sessiz
+            # kaybolması, muafiyetin denetlenemez olması demekti.
+            self.assertIn("muaf: ", cikti)
+            self.assertNotIn("fixture.js:1  [Hardcoded parola]  →", cikti)
 
 
 class CheckCitationsTest(unittest.TestCase):

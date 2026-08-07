@@ -178,14 +178,69 @@ def scan(paths, exclude=(), git_only=False):
     return findings, taranan
 
 
+MUAFIYET_DOSYA = os.path.join(".agents", "secret-allowlist.txt")
+
+
+def muafiyet_yukle(kok):
+    """(desenler, hata) — projenin kendi muafiyet listesi.
+
+    Neden var (4Flow, 2026-08-07): projede meşru fixture olabiliyor
+    (localhost'a dummy kullanıcı yaratan betikteki `password123`). Tarayıcının
+    projeye özel çıkış yolu yoktu; proje ya kapıyı hiç geçemeyecek ya motor
+    dosyasını çatallayacaktı — ikisi de yanlış.
+
+    Biçim: her satır `yol-deseni  # gerekçe`. GEREKÇE ZORUNLUDUR. Sessiz
+    susturma en tehlikeli muafiyettir: kapı durur ama kimse bilmez. Gerekçesiz
+    satır kullanım hatasıdır (exit 2), "temiz" değildir.
+    """
+    yol = os.path.join(kok, MUAFIYET_DOSYA)
+    if not os.path.isfile(yol):
+        return [], None
+    desenler = []
+    try:
+        with open(yol, encoding="utf-8") as fh:
+            satirlar = fh.readlines()
+    except OSError as e:
+        return [], f"{MUAFIYET_DOSYA} okunamadı: {e}"
+    for no, ham in enumerate(satirlar, 1):
+        satir = ham.rstrip("\n")
+        if not satir.strip() or satir.lstrip().startswith("#"):
+            continue
+        if "#" not in satir:
+            return [], (f"{MUAFIYET_DOSYA}:{no} gerekçe yok — her muafiyet "
+                        f"satırı `yol  # neden` biçiminde olmalı. Sessiz "
+                        f"susturma kabul edilmez.\n    {satir.strip()}")
+        desen, _, gerekce = satir.partition("#")
+        if not desen.strip():
+            continue                      # yalnız yorum satırı
+        if not gerekce.strip():
+            return [], (f"{MUAFIYET_DOSYA}:{no} gerekçe boş — neden muaf "
+                        f"olduğunu yaz.\n    {satir.strip()}")
+        desenler.append(desen.strip())
+    return desenler, None
+
+
+def muafiyet_uygula(findings, kok, desenler):
+    """(kalan, bastirilan) — muaf yollara düşen bulgular ayrılır."""
+    if not desenler:
+        return findings, []
+    kalan, bastirilan = [], []
+    for f in findings:
+        rel = os.path.relpath(f[0], kok).replace(os.sep, "/")
+        if any(fnmatch.fnmatch(rel, d) or fnmatch.fnmatch(f[0], d)
+               for d in desenler):
+            bastirilan.append(f)
+        else:
+            kalan.append(f)
+    return kalan, bastirilan
+
+
 KULLANIM = ("kullanım: scan_secrets.py [--git] [--exclude GLOB] "
             "<dosya|dizin> [...]")
 
 
-def main(argv):
-    # --exclude GLOB (tekrarlanabilir): kasıtlı fixture'ları dışarıda tutar.
-    # Dışlama gate KONFİGÜNDE görünür olsun diye tarayıcıya gömülmez —
-    # neyin taranmadığı gizli kalmamalı.
+def arguman_coz(argv):
+    """(exclude, paths, git_only, hata_mesaji)."""
     exclude, paths, git_only = [], [], False
     i = 1
     while i < len(argv):
@@ -197,24 +252,48 @@ def main(argv):
             # Değersiz --exclude sessizce yol sanılıyordu → tarama boşa
             # düşüp "temiz ✓" veriyordu. Kapıda bu, sahte yeşildir.
             if i + 1 >= len(argv):
-                print("HATA: --exclude bir GLOB ister\n" + KULLANIM,
-                      file=sys.stderr)
-                return 2
+                return None, None, None, "HATA: --exclude bir GLOB ister\n" + KULLANIM
             exclude.append(argv[i + 1])
             i += 2
             continue
         paths.append(argv[i])
         i += 1
     if not paths:
-        print(KULLANIM, file=sys.stderr)
+        return None, None, None, KULLANIM
+    return exclude, paths, git_only, None
+
+
+def main(argv):
+    # --exclude GLOB (tekrarlanabilir): kasıtlı fixture'ları dışarıda tutar.
+    # Dışlama gate KONFİGÜNDE görünür olsun diye tarayıcıya gömülmez —
+    # neyin taranmadığı gizli kalmamalı.
+    exclude, paths, git_only, hata = arguman_coz(argv)
+    if hata:
+        print(hata, file=sys.stderr)
         return 2
     findings, taranan = scan(paths, exclude, git_only)
+
+    # Proje muafiyeti: kök, taranan ilk yolun deposu/dizinidir.
+    kok = (paths[0] if os.path.isdir(paths[0])
+           else os.path.dirname(paths[0])) or "."
+    desenler, hata = muafiyet_yukle(kok)
+    if hata:
+        print(f"HATA: {hata}", file=sys.stderr)
+        return 2
+    findings, bastirilan = muafiyet_uygula(findings, kok, desenler)
+
     if not taranan:
         # "Hiç dosya taranmadı" ASLA "temiz" değildir: yanlış yol, fazla
         # geniş dışlama ya da bozuk kurulum — hepsi kapıyı kör eder.
         print("HATA: hiçbir dosya taranmadı (yol yanlış ya da dışlama çok "
               "geniş) — bu 'temiz' DEĞİLDİR", file=sys.stderr)
         return 2
+    # Bastırılan bulgu SESSİZ KAYBOLMAZ — neyin taranmadığı görünür olmalı.
+    if bastirilan:
+        print(f"scan_secrets: {len(bastirilan)} bulgu proje muafiyetiyle "
+              f"bastırıldı ({MUAFIYET_DOSYA}):")
+        for path, line, name, _p in bastirilan:
+            print(f"  muaf: {path}:{line}  [{name}]")
     if not findings:
         print(f"scan_secrets: temiz — {taranan} dosya tarandı, secret "
               "deseni bulunamadı ✓")
