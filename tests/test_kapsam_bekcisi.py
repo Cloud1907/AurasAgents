@@ -145,6 +145,21 @@ class TestKapsamiTest(unittest.TestCase):
             self.assertEqual(kd.toplanmayan_testler(td, set()),
                              ["dis_test.py"])
 
+    def test_satir_ici_isaret_muaf_tutmaz(self):
+        # Codex bulgusu (PR #30, üçüncü tur): tokenize'a geçerken sütun
+        # bilgisi düşmüştü. Muafiyet dosya düzeyinde bir BEYANDIR; bir kod
+        # satırının kuyruğunda ya da metot gövdesinde kazara doğamaz.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/kuyruk_test.py",
+                "import unittest\n"
+                "X = 1  # toplanmaz: kuyrukta, beyan degil\n"
+                "class Y(unittest.TestCase):\n"
+                "    def test_a(self):\n"
+                "        # toplanmaz: govdede, beyan degil\n"
+                "        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()),
+                             ["kuyruk_test.py"])
+
     def test_gerekcesiz_toplanmaz_isareti_muaf_tutmaz(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "tests/ortak.py",

@@ -75,11 +75,18 @@ _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+
 _TOPLANMAZ = re.compile(r"^#[ \t]*toplanmaz:[ \t]*\S")
 
 
-def _yorumlar(metin):
-    """Dosyadaki GERÇEK yorum token'ları — string içeriği buraya giremez."""
+def _beyan_yorumlari(metin):
+    """SÜTUN 0'daki gerçek yorum token'ları — dosya düzeyi beyanlar.
+
+    İki filtre birden gerekli: `tokenize` string içeriğinin yorum sayılmasını
+    engeller, sütun kısıtı da muafiyetin bir kod satırının kuyruğunda ya da
+    metot gövdesinde KAZARA doğmasını engeller. Muafiyet dosya hakkında
+    bilinçli bir beyandır; yan cümle olarak verilemez.
+    """
     try:
         akis = tokenize.generate_tokens(io.StringIO(metin).readline)
-        return [t.string for t in akis if t.type == tokenize.COMMENT]
+        return [t.string for t in akis
+                if t.type == tokenize.COMMENT and t.start[1] == 0]
     except (tokenize.TokenError, SyntaxError, IndentationError):
         return []
 
@@ -99,6 +106,15 @@ def _test_tasiyor(metin):
 
     Ayrıştırılamayan dosya `True` sayılır: tests/ altındaki bozuk dosya zaten
     toplanamaz ve sessiz geçmemelidir (fail-closed).
+
+    BEKÇİNİN SINIRI — statik olarak kapatılamaz: testlerin TAMAMINI dış bir
+    tabandan miras alan ve kendisi hiçbir şey tanımlamayan sınıf
+    (`from ortak import Taban; class X(Taban): pass`) görünmez. Bunu bilmek
+    tabanı IMPORT etmeyi gerektirir; keşif dışı bir dosyayı import etmek ise
+    kapının kendisini rastgele kod çalıştıran bir yüzeye çevirir — bedeli
+    kazancından büyük. Kapıyı olduğundan güçlü yazmak yasak olduğu için
+    (AGENTS.md, "Kapıların gerçek sınıfı") sınır burada yazılıdır: bu bekçi
+    dosyanın KENDİ tanımladığı testleri görür, miras aldıklarını değil.
     """
     try:
         agac = ast.parse(metin)
@@ -217,7 +233,7 @@ def toplanmayan_testler(kok, toplanan):
             metin = fh.read()
         if not _test_tasiyor(metin):
             continue
-        if not any(_TOPLANMAZ.match(y) for y in _yorumlar(metin)):
+        if not any(_TOPLANMAZ.match(y) for y in _beyan_yorumlari(metin)):
             eksik.append(f)
     return eksik
 
