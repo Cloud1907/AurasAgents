@@ -10,9 +10,13 @@ Hook kullanımı (.claude/settings.json):
   Stop               → run_event.py --kind stop       (tur kapandı)
   (route olayını bin/route.py kendisi yazar)
 
-Kayıt yeri: `.agents/runtime/events.jsonl` — gitignore'lu, **disposable**.
-Hafıza otoritesinin 3. katmanı gibi davranır: hiçbir iş doğru çalışmak için
-buna bağımlı olamaz (AGENTS.md hafıza otoritesi).
+Kayıt yeri: `.agents/runtime/events.jsonl` — gitignore'lu, yerel, silinebilir.
+KARAR bu kayda bağlanamaz: hiçbir kalıcı iddia (hafıza, rapor, PR gövdesi)
+kaynağını buradan alamaz (AGENTS.md hafıza otoritesi, 3. katman).
+
+Tek istisna ve sınırı: tur kapısı (`bin/kapi.py`) bu kaydı okur. Bu yüzden
+tur kapısı bir bütünlük sınırı DEĞİL, yerel workflow guard'dır — kayıt
+silinirse kapı sessizce geçer (AGENTS.md "Kapıların gerçek sınıfı").
 
 Tasarım kuralı: hook asla bloklamaz. Her hata yolunda exit 0.
 """
@@ -31,7 +35,8 @@ INTENT_MAX = 80
 
 # Diske yazılmasına izin verilen alanlar (allowlist — prompt/araç çıktısı yok).
 ALLOWED = ("kind", "skill", "agent", "routed", "extras", "task_class",
-           "intent", "session", "file", "cmd", "ok", "sig", "reason", "note")
+           "intent", "session", "file", "cmd", "ok", "src", "sig", "reason",
+           "note")
 
 _FALLBACK_SECRET = re.compile(
     r"(sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}"
@@ -121,31 +126,76 @@ def append(event, path=None):
     return rec
 
 
-# Test/doğrulama komutu imzaları (koştu mu?) ve sonuç göstergeleri (geçti mi?).
+# Test/doğrulama komutu imzaları — "test koştu mu" sorusunun cevabı.
 TEST_CMD_RE = re.compile(
     r"(unittest|pytest|\bnpm (run )?test|yarn test|dotnet test|go test|vitest"
     r"|jest|playwright|cypress|selenium|puppeteer|validate\.py|scan_secrets\.py|check_citations\.py)", re.I)
-BASARISIZ_RE = re.compile(r"(FAILED|Traceback|✗|AssertionError|ERROR:|hata)", re.I)
-BASARILI_RE = re.compile(r"(\bOK\b|passed|geçti|✓|SONUÇ: TEMİZ)", re.I)
+
+# Çıkış kodunu taşıyabilecek alan adları — motorlar arasında ad değişir.
+CIKIS_ALANLARI = ("exit_code", "exitCode", "returncode", "returnCode",
+                  "exit_status", "status", "code")
+
+
+def cikis_kodu(tool_response):
+    """Payload'daki GERÇEK çıkış kodu (yoksa None).
+
+    bool kabul edilmez: `True` çıkış kodu değildir, ona 1 muamelesi yapmak
+    tam da kaçındığımız türden sessiz yanlış çıkarımdır.
+    """
+    for k in CIKIS_ALANLARI:
+        v = tool_response.get(k)
+        if isinstance(v, bool) or v is None:
+            continue
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str) and re.fullmatch(r"-?\d{1,3}", v.strip()):
+            return int(v.strip())
+    return None
 
 
 def test_gecti(tool_response):
-    """Test çıktısından sonuç çıkar: True/False/None(belirsiz).
+    """Testin sonucu: True/False/None(bilinmiyor) — ÇIKIŞ KODUNDAN.
 
-    Heuristik ve bilinçli olarak muhafazakâr: belirsizse None döner, kapı da
-    belirsizi 'kanıt yok' saymaz ama 'geçti' de saymaz — kullanıcıya söyler.
+    Neden çıktı sözcüğü değil: 2026-08-07'de bu repoda canlı hook üstünde
+    ölçüldü — `exit 1` ile dönen ama çıktısında "passed" geçen komut eski
+    oracle'a göre GEÇTİ sayılıyordu. Yani "kapı test kanıtı istiyor" demek,
+    pratikte "çıktıda 'OK' sözcüğü geçsin" demekti. Sözcük eşleşmesi
+    oracle değildir; kanıt diye sunulması kanıtın kendisinden kötüdür.
+
+    Kanıt yoksa cevap None'dur. Bu fonksiyon ASLA kanıtsız True dönmez.
     """
     if not isinstance(tool_response, dict):
         return None
-    metin = " ".join(str(tool_response.get(k, "")) for k in
-                     ("stdout", "stderr", "output", "content"))[-4000:]
-    if not metin.strip():
-        return None
-    if BASARISIZ_RE.search(metin):
-        return False
-    if BASARILI_RE.search(metin):
-        return True
-    return None
+    if tool_response.get("interrupted"):
+        return None       # kullanıcı kesti → sonuç bilinmiyor, "geçti" değil
+    kod = cikis_kodu(tool_response)
+    return None if kod is None else kod == 0
+
+
+def bash_sonucu(tool_response):
+    """Canlı PostToolUse hook'undan (ok, kaynak). Kaynak kayda girer.
+
+    İki farklı güven seviyesi vardır ve karıştırılmamalıdır:
+
+    "exit"     — payload gerçek çıkış kodunu taşıdı. Kesin.
+    "platform" — taşımadı; ÖLÇÜLMÜŞ platform davranışına dayanan çıkarım:
+                 2026-08-07'de bu repoda doğrulandı, Claude Code'un Bash
+                 aracı sıfırdan farklı çıkışla dönerse PostToolUse hook'u
+                 hiç koşmuyor. Yani bu satır yazıldıysa komut sıfırla
+                 çıkmıştır. Bu bir platform davranışıdır, sözleşme değil —
+                 sürüm değişirse sessizce yanlışa döner. Bu yüzden gerçek
+                 çıkış kodu geldiğinde DAİMA o kazanır ve kaynak kayda
+                 yazılır: "platform" ile "exit" aynı kanıt değildir.
+    None       — komut kesildi ya da payload okunamadı: bilinmiyor.
+    """
+    if not isinstance(tool_response, dict):
+        return None, None
+    ok = test_gecti(tool_response)
+    if ok is not None:
+        return ok, "exit"
+    if tool_response.get("interrupted"):
+        return None, None
+    return True, "platform"
 
 
 # Atlama gerekçesi kodları — serbest metin değil, sayılabilir kategori.
@@ -213,7 +263,8 @@ def main(argv=None):
                 return 0  # sıradan komut; gürültü yazma
             event["kind"] = "test"
             event["cmd"] = cmd
-            event["ok"] = test_gecti(data.get("tool_response"))
+            tr = data.get("tool_response")
+            event["ok"], event["src"] = bash_sonucu(tr)
         elif args.kind == "skipped":
             # Zorunlu skill yüklenmediyse gerekçe KAYDA girer. Bu bir kanıt
             # değil, denetlenebilir beyandır (Codex hükmü 2026-07-26):
