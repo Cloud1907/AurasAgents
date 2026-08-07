@@ -5,6 +5,8 @@ import os
 import tempfile
 import unittest
 
+from ortam import pyyaml_gerekir
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 _spec = importlib.util.spec_from_file_location(
@@ -13,6 +15,10 @@ route = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(route)
 
 
+# Sınıfın TAMAMI yönlendirme tablosunu okur; tablo yaml'dır. PyYAML yoksa
+# setUpClass çökerdi ve sınıfın tüm testleri süitten YOK OLURDU (tek hata
+# satırı, sayıda 26 test eksik). Atlama sayıyı korur, gerekçeyi gösterir.
+@pyyaml_gerekir
 class RouteTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

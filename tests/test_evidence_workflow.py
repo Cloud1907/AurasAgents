@@ -11,7 +11,7 @@ import os
 import re
 import unittest
 
-import yaml
+from ortam import pyyaml_gerekir, yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WF = os.path.join(ROOT, ".github", "workflows", "evidence.yml")
@@ -30,6 +30,9 @@ def tetikleyiciler():
 
 
 class EvidenceWorkflowTest(unittest.TestCase):
+    # Yalnız yaml AYRIŞTIRAN testler atlanır; kalanlar metin üstünde çalışır
+    # ve PyYAML'sız yorumlayıcıda da koşmaya devam eder.
+    @pyyaml_gerekir
     def test_uc_tetikleyici_de_tanimli(self):
         on = tetikleyiciler()
         for t in ("pull_request", "push", "workflow_dispatch"):
@@ -42,6 +45,7 @@ class EvidenceWorkflowTest(unittest.TestCase):
         self.assertIn("workflow_dispatch", metin,
                       "validate.py workflow_dispatch bekçisini kaybetmiş")
 
+    @pyyaml_gerekir
     def test_workflow_yaml_gecerli(self):
         d = yaml.safe_load(oku(WF))
         self.assertIn("jobs", d, "evidence.yml 'jobs' taşımıyor")

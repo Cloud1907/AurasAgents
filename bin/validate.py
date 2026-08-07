@@ -611,6 +611,74 @@ def test_tasinan_testin_ihtiyaclari_da_tasinir(kd):
             f"kanonik-özel yap")
 
 
+# Testleri KOŞMADAN yalnız keşfeder: hangi modül kaç test üretti, hangisi
+# import'ta çöktü. Ayrı süreç, çünkü keşif her test modülünü import eder.
+# Sonuç SENTINEL'li tek satırda döner: keşif import sırasında modüllerin
+# kendi çıktısını da stdout'a alır ve tüm akışı JSON sanmak, ilgisiz bir
+# `print` yüzünden bekçiyi sahte kırmızıya düşürürdü (Codex bulgusu, PR #26).
+_KESIF_ISARET = "AURAS_KESIF:"
+_KESIF_KODU = """\
+import json, unittest
+sayim, hatali = {}, []
+def gez(s):
+    for t in s:
+        if isinstance(t, unittest.TestSuite):
+            gez(t)
+        elif type(t).__module__ == "unittest.loader":
+            hatali.append(t.id().rsplit(".", 1)[-1])
+        else:
+            m = type(t).__module__
+            sayim[m] = sayim.get(m, 0) + 1
+gez(unittest.TestLoader().discover("tests"))
+print("%s" + json.dumps({"sayim": sayim, "hatali": hatali}))
+""" % _KESIF_ISARET
+
+
+def test_test_kapsami_daralmaz():
+    """Her test dosyası keşfe girmeli — eksilen test sessiz kapsam kaybıdır.
+
+    2026-08-07 ölçümü: PyYAML'sız yorumlayıcıda üç modül import'ta çöktü.
+    Süit "Ran 186 / 3 hata" dedi; PyYAML'lı yorumlayıcıda "Ran 220 / OK".
+    Çıktının hiçbir satırı 34 testin HİÇ KOŞMADIĞINI söylemiyordu — sayının
+    kendisi yanıltıcıydı. Kırmızı test bağırır; yok olan test bağırmaz.
+
+    Bu bekçi iki sessizliği kapar: (1) import'ta çöküp süitten düşen modül,
+    (2) keşif desenine uymadığı için hiç toplanmayan dosya — ikincisinde
+    çıkış kodu 0'dır, yani mevcut `returncode == 0` kontrolü onu göremez.
+
+    Bekçinin SINIRI: dosya bazında çalışır. Bir modülün İÇİNDEN silinen tek
+    testi göremez; onu ancak kanıt-tarafı bir sayaç yakalayabilir.
+    """
+    kd = _kernel_dosyalari()
+    if kd is None or not os.path.isdir(os.path.join(ROOT, "tests")):
+        return
+    proc = subprocess.run([sys.executable, "-c", _KESIF_KODU],
+                          capture_output=True, text=True, cwd=ROOT)
+    if proc.returncode != 0:
+        err(f"test keşfi koşamadı (exit {proc.returncode}): "
+            f"{(proc.stderr or proc.stdout)[-300:]}")
+        return
+    satir = next((s for s in reversed(proc.stdout.splitlines())
+                  if s.startswith(_KESIF_ISARET)), None)
+    try:
+        veri = json.loads(satir[len(_KESIF_ISARET):])
+    except (TypeError, ValueError):
+        err("test keşfi çıktısı ayrıştırılamadı — 'okunamadı' ile 'temiz' "
+            "aynı şey değildir (fail-closed)")
+        return
+    for ad in veri["hatali"]:
+        err(f"tests/{ad}.py import'ta çöktü — içindeki testler süitten yok "
+            f"oldu ve 'Ran N' sessizce daraldı. Ortam bağımlılığıysa "
+            f"tests/ortam.py üstünden koşullu atlamaya çevir")
+    # Çöken modül keşif tarafından GÖRÜLDÜ; sorunu import'tur, adı değil —
+    # ikinci kez ve yanlış çareyle raporlanmasın.
+    gorulen = set(veri["sayim"]) | set(veri["hatali"])
+    for f in kd.toplanmayan_testler(ROOT, gorulen):
+        err(f"tests/{f} TestCase tanımlıyor ama keşfe hiç girmiyor — testleri "
+            f"koşmuyor ve çıkış kodu 0 kalıyor (görünmez kapsam kaybı). "
+            f"Adını 'test_*.py' yap")
+
+
 def test_gitleaks_manifest_muafiyeti():
     """gitleaks kullanan projede kernel manifest'i muaf tutulmuş mu.
 
@@ -776,6 +844,7 @@ def main():
     test_skill_validators_wired()
     test_visibility()
     test_onboarding_parity()
+    test_test_kapsami_daralmaz()
     test_gitleaks_manifest_muafiyeti()
     test_quality_gate()
     test_project_gate_hook()

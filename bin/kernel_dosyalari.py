@@ -53,6 +53,14 @@ URETILEN = (".agents/kalite-baseline.json",)
 
 # tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
+# Test taşıyan dosyanın iki bağımsız imzası. Yalnız birincisine bakmak KÖR
+# BEKÇİ üretir: taban sınıf takma adla gelirse (`Taban = unittest.TestCase;
+# class X(Taban)`) `class` satırında `TestCase` sözcüğü hiç geçmez. İkinci
+# imza (unittest + `def test_*(self`) o boşluğu kapatır; `tests/ortam.py`
+# gibi test metodu OLMAYAN yardımcılar ikisine de uymaz.
+_TESTCASE = re.compile(r"^class\s+\w+\s*\([^)]*\bTestCase\b", re.M)
+_UNITTEST = re.compile(r"^\s*(?:import\s+unittest|from\s+unittest\b)", re.M)
+_TEST_METODU = re.compile(r"^\s+(?:async\s+)?def\s+test\w*\s*\(\s*self\b", re.M)
 
 
 def kurulumda_bulunur(rel):
@@ -99,6 +107,34 @@ def eksik_test_bagimliliklari(kok):
                 continue
             if not kurulumda_bulunur(rel):
                 eksik.append((f, rel))
+    return eksik
+
+
+def toplanmayan_testler(kok, toplanan):
+    """[dosya_adi] — TestCase tanımlayan ama keşfe HİÇ girmeyen tests/*.py.
+
+    Neden bekçi: eksilen test, kırmızı testten daha tehlikelidir. Kırmızı test
+    bağırır; keşfe girmeyen test hiç sayılmaz, çıkış kodu 0 kalır ve "Ran N"
+    daralmasını hiçbir satır söylemez. 2026-08-07 ölçümü: PyYAML'sız
+    yorumlayıcıda üç modül import'ta çöktü, süite 220 yerine 186 test saydı —
+    34 test yok olmuştu ama çıktıda yalnız "3 hata" yazıyordu.
+
+    `toplanan`: keşfin GERÇEKTEN test ürettiği modül adları (uzantısız).
+    TestCase taşımayan yardımcı dosyalar (ör. tests/ortam.py) denetim dışıdır.
+    """
+    tests_dir = os.path.join(kok, "tests")
+    if not os.path.isdir(tests_dir):
+        return []
+    eksik = []
+    for f in sorted(os.listdir(tests_dir)):
+        if not f.endswith(".py") or f[:-3] in toplanan:
+            continue
+        with open(os.path.join(tests_dir, f), encoding="utf-8",
+                  errors="replace") as fh:
+            metin = fh.read()
+        if _TESTCASE.search(metin) or (_UNITTEST.search(metin) and
+                                       _TEST_METODU.search(metin)):
+            eksik.append(f)
     return eksik
 
 
