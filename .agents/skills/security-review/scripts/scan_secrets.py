@@ -69,13 +69,36 @@ def is_placeholder(text):
     return bool(PLACEHOLDER.search(text))
 
 
+# Sır OLAMAYACAK değer biçimleri. Kural yanlış yakalıyorsa düzeltilecek yer
+# KURALDIR, muafiyet listesi değil — muafiyet "bilinen sırrı affet" demektir,
+# oysa burada ortada sır YOK. (4Flow kurulumu 2026-08-07: 6 dosya yalnız rota
+# yolu ve değişken referansı yüzünden kapıya takıldı; her repoya muafiyet
+# yazmak sorunu N kez taşımak olurdu.)
+DEGER_DEGIL = (
+    # Rota/URL yolu: "api/auth/change-password", "/account/reset-password"
+    re.compile(r"^[./]*([\w.-]+/)+[\w.-]+$"),
+    re.compile(r"^https?://"),
+    # Değişken/şablon referansı: $Var, ${VAR}, {{ vault }}, %s, {0}, <VALUE>
+    re.compile(r"^[$%]"),
+    re.compile(r"^\$?\{[^}]*\}$"),
+    re.compile(r"^\{\{.*\}\}$"),
+    re.compile(r"^<[^>]+>$"),
+)
+
+
+def deger_degil(text):
+    """Eşleşen metin bir SIR olamayacak biçimde mi (yol, değişken, şablon)."""
+    t = text.strip()
+    return any(rx.search(t) for rx in DEGER_DEGIL)
+
+
 def scan_line(line):
     """Bir satırda bulunan (kural, eşleşme) listesini döndür."""
     hits = []
     for name, rx in RULES:
         for m in rx.finditer(line):
             value = m.group(1) if m.groups() else m.group(0)
-            if value and is_placeholder(value):
+            if value and (is_placeholder(value) or deger_degil(value)):
                 continue
             hits.append((name, value))
     return hits
