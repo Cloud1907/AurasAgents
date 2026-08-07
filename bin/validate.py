@@ -218,8 +218,10 @@ def test_kapsam_siniri_yazili():
     Bekçinin SINIRI: belgenin varlığını ve referansını doğrular, içeriğinin
     güncelliğini doğrulayamaz. Belge bunu kendisi de yazıyor.
     """
-    belge = os.path.join(ROOT, "docs", "yasam-dongusu-kapsami.md")
-    check(os.path.isfile(belge),
+    kd = _kernel_dosyalari()
+    belge = (kd.yol_coz(ROOT, "docs/yasam-dongusu-kapsami.md") if kd
+             else os.path.join(ROOT, "docs", "yasam-dongusu-kapsami.md"))
+    check(belge is not None and os.path.isfile(belge),
           "docs/yasam-dongusu-kapsami.md yok — sistemin neyi zorlamadığı "
           "yazılı değil; kullanıcı korunduğunu sanır")
     agents = os.path.join(ROOT, "AGENTS.md")
