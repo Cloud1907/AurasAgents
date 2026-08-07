@@ -231,6 +231,36 @@ def test_kapsam_siniri_yazili():
               "kalır ve okunmaz")
 
 
+def test_bagimsiz_inceleme():
+    """Merge öncesi bağımsız inceleme mekanizması var ve belgeli mi.
+
+    2026-08-07 ölçümü: `bin/codex-review.sh` kurulu ve `codex` CLI çalışır
+    durumdaydı ama HİÇBİR yerden çağrılmıyordu — açılan 3 PR'da 0 inceleme
+    yorumu. Kullanıcı da PR'ları okumadığını söyledi. Yani "insan merge"
+    satırı en güçlü duran ama fiilen boş çalışan halkaydı: ne insan ne
+    makine incelemesi vardı.
+
+    `bin/incele.py` merge'ün tek yoludur; bekçi varlığını ve AGENTS.md'de
+    belgelendiğini zorlar. Bekçinin SINIRI: aracın çağrıldığını
+    doğrulayamaz — merge komutunu doğrudan `gh` ile atmak hâlâ mümkün.
+    Bu bir süreç kuralıdır, mekanik kilit değil; öyleymiş gibi sunulmuyor.
+    """
+    arac = os.path.join(ROOT, "bin", "incele.py")
+    check(os.path.isfile(arac),
+          "bin/incele.py yok — merge öncesi bağımsız inceleme mekanizması "
+          "yok; agent kendi işini onaylıyor demektir")
+    kd = _kernel_dosyalari()
+    if kd is not None and os.path.isfile(arac):
+        check("bin/incele.py" in kd.MOTOR,
+              "incele.py motor listesinde değil — bağlı projelere gitmez")
+    agents = os.path.join(ROOT, "AGENTS.md")
+    if os.path.isfile(agents):
+        with open(agents, encoding="utf-8") as fh:
+            check("incele.py" in fh.read(),
+                  "AGENTS.md merge yolunu belgelemiyor — kural yazılı değilse "
+                  "bir sonraki oturumda unutulur")
+
+
 def test_agents_md():
     path = os.path.join(ROOT, "AGENTS.md")
     check(os.path.isfile(path), "AGENTS.md yok")
@@ -666,6 +696,9 @@ def main():
     test_workflow()
     test_evidence_roundtrip()
     test_kapsam_siniri_yazili()
+
+
+    test_bagimsiz_inceleme()
     test_agents_md()
     test_rules()
     test_memory_tool()
