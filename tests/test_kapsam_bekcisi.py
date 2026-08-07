@@ -188,6 +188,29 @@ class TestKapsamiTest(unittest.TestCase):
                 "        return test_ic\n")
             self.assertEqual(kd.toplanmayan_testler(td, set()), [])
 
+    def test_match_ve_except_star_altindaki_test_de_yakalanir(self):
+        # Codex bulgusu (PR #32): `_BLOK` `match/case`i kapsamıyordu.
+        # `except*` (TryStar) aynı ailedendir ve bir sonraki tura kalmasın
+        # diye birlikte kapatıldı — gövde taşıyan her ifade aynı kural.
+        for ad, govde in (
+            ("match_test.py",
+             "import sys\n"
+             "Taban = __import__('unittest').TestCase\n"
+             "class X(Taban):\n"
+             "    match sys.platform:\n"
+             "        case _:\n"
+             "            def test_a(self):\n                pass\n"),
+            ("star_test.py",
+             "Taban = __import__('unittest').TestCase\n"
+             "class X(Taban):\n"
+             "    try:\n        pass\n"
+             "    except* ValueError:\n"
+             "        def test_a(self):\n            pass\n"),
+        ):
+            with self.subTest(dosya=ad), tempfile.TemporaryDirectory() as td:
+                yaz(td, "tests/" + ad, govde)
+                self.assertEqual(kd.toplanmayan_testler(td, set()), [ad])
+
     def test_gerekcesiz_toplanmaz_isareti_muaf_tutmaz(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "tests/ortak.py",

@@ -55,8 +55,19 @@ def _beyan_yorumlari(metin):
 
 # Gövdesi başka gövdeler taşıyan ifadeler. Metot tanımı bilerek DIŞARIDA:
 # içine inmek, bir metodun yerel `def test_*` yardımcısını metot sanardı.
-_BLOK = (ast.If, ast.Try, ast.For, ast.AsyncFor, ast.While, ast.With,
-         ast.AsyncWith, ast.ExceptHandler)
+#
+# Liste tek tek sayılıyor çünkü kural "gövde taşıyan her ifade" — eksik kalan
+# her üye bir kaçaktır. `Match` (3.10+) ve `TryStar` (3.11+) `getattr` ile
+# alınır: eski yorumlayıcıda AttributeError yerine sessizce listeden düşerler,
+# çünkü o sürümde o sözdizimi zaten yazılamaz.
+_BLOK = tuple(t for t in (
+    ast.If, ast.Try, ast.For, ast.AsyncFor, ast.While, ast.With,
+    ast.AsyncWith, ast.ExceptHandler,
+    getattr(ast, "Match", None), getattr(ast, "match_case", None),
+    getattr(ast, "TryStar", None),
+) if t is not None)
+# Gövde taşıyan alan adları. `cases` match/case'e, `handlers` except'e ait.
+_GOVDE_ALANI = ("body", "orelse", "finalbody", "handlers", "cases")
 
 
 def _metot_adlari(govde):
@@ -71,7 +82,7 @@ def _metot_adlari(govde):
         if isinstance(dugum, (ast.FunctionDef, ast.AsyncFunctionDef)):
             yield dugum.name
         elif isinstance(dugum, _BLOK):
-            for alan in ("body", "orelse", "finalbody", "handlers"):
+            for alan in _GOVDE_ALANI:
                 yield from _metot_adlari(getattr(dugum, alan, []))
 
 
