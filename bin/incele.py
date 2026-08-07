@@ -264,8 +264,9 @@ def zaman_asimi_notu(butce):
     return (
         f"İnceleme {butce}s bütçesinde bitmedi. Karar ENGEL — 'okunamadı' "
         "'temiz' demek değildir. Sırayla dene:\n"
-        "1. Asılı süreç var mı: `pgrep -fl 'codex exec'` — varsa öldür. "
-        "Sızan inceleme sonrakini yavaşlatır (ölçüm: 155.8s → 45.5s).\n"
+        "1. Asılı süreç: `ps -eo etime,pid,command | grep 'codex exec'` — "
+        "YAŞI bu incelemeden eskiyse yetimdir, öldür (eşzamanlı meşru "
+        "incelemeyi öldürme). Sızan süreç sonrakini yavaşlatır: 155.8s→45.5s.\n"
         f"2. Bütçeyi yükseltip tekrar koş: "
         f"`INCELE_BUTCE={butce * 2} python3 bin/incele.py <pr>`\n"
         "3. PR'ı böl — tek amaçlı küçük diff hem hızlı hem doğru incelenir "
