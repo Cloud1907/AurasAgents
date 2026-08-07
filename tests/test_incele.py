@@ -231,6 +231,22 @@ class CiKarariTest(unittest.TestCase):
         self.assertFalse(yesil)
 
 
+
+class ZamanAsimiFailClosedTest(unittest.TestCase):
+    """Zaman aşımı SESSİZCE fail-open'a dönmesin (kalıcı bekçi).
+
+    Bu sınıf davranışı kilitler: inceleme koşulamadıysa karar ENGEL'dir ve
+    gerekçe TEŞHİS EDİLEBİLİR olmalıdır. Teşhis edilemeyen kırmızı, kapalı
+    kapıdan farksızdır — kullanıcı `gh pr merge` ile etrafından dolaşır.
+    """
+
+    def test_zaman_asimi_asla_merge_uretmez(self):
+        for risk in ("auto", "approval", "deny"):
+            with self.subTest(risk=risk):
+                k, _g = incele.karar(risk, TEMIZ, True, okunabildi=False)
+                self.assertEqual(k, "engel")
+
+
 if __name__ == "__main__":
     unittest.main()
 

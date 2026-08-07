@@ -7,10 +7,9 @@ yorumu. Kullanıcı da PR'ları okumadığını söyledi. Sonuç: "insan merge"
 satırı en güçlü duran ama fiilen boş çalışan halkaydı — ne insan ne makine
 incelemesi vardı. Bu araç o boşluğu kapatır.
 
-Neden Codex: farklı SATICI, farklı kör nokta. İkinci bir Claude aynı hataları
-yapardı; bağımsızlık modelin farklı olmasından gelir, sayısından değil.
-İnceleme yine de RİSK SİNYALİDİR, makine kanıtı değildir (AGENTS.md) —
-bu yüzden CI yeşili ayrıca aranır.
+Neden Codex: farklı SATICI, farklı kör nokta. Bağımsızlık modelin farklı
+olmasından gelir, sayısından değil. İnceleme yine de RİSK SİNYALİDİR, makine
+kanıtı değildir (AGENTS.md) — bu yüzden CI yeşili ayrıca aranır.
 
 Karar tablosu:
   inceleme okunamadı      → ENGEL (fail-closed: sessiz "temiz" yok)
@@ -30,11 +29,14 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import surec  # noqa: E402
+from surec import INCELEME_BUTCESI, zaman_asimi_notu  # noqa: E402,F401
+
 
 # --- Risk sınıflandırma (AGENTS.md risk politikası, path kuralı) -----------
 # Eskalasyon YALNIZ yukarı: bilinmeyen yol `approval` sayılır, `auto` değil.
@@ -193,13 +195,8 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
 
 
 # --- Dış dünya -------------------------------------------------------------
-def _kos(*arg, girdi=None, timeout=600):
-    try:
-        p = subprocess.run(arg, capture_output=True, text=True,
-                           input=girdi, timeout=timeout, cwd=ROOT)
-        return p.returncode, p.stdout, p.stderr
-    except (OSError, subprocess.SubprocessError) as e:
-        return 1, "", str(e)
+_kos = surec.kos
+
 
 
 def pr_dosyalari(pr):
@@ -228,18 +225,21 @@ def ci_durumu(pr):
     return ci_karari(satirlar)
 
 
-def codex_incele(pr):
+
+def codex_incele(pr, butce=None):
     """(ham_cikti, hata_notu) — hata notu boşsa çağrı sorunsuz.
 
-    Neden ayrı dönüyor: kapı "ayrıştıramadım" dediğinde SEBEBİ görünmeli.
-    Önce yalnız "çıktı ayrıştırılamadı" yazıyordu; zaman aşımı mı, boş yanıt
-    mı, bozuk biçim mi ayırt edilemiyordu — teşhis edilemeyen kırmızı,
-    kapalı kapıdan farksızdır (gitleaks "leaks found: 8" dersi).
+    Neden ayrı dönüyor: kapı "ayrıştıramadım" dediğinde SEBEBİ görünmeli —
+    teşhis edilemeyen kırmızı, kapalı kapıdan farksızdır.
     """
+    butce = INCELEME_BUTCESI if butce is None else butce
     kod, out, err = _kos("bash", os.path.join(HERE, "codex-review.sh"),
-                         str(pr), "--dry-run")
+                         str(pr), "--dry-run", timeout=butce)
     if kod != 0:
-        return out, f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+        hata = f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+        if "timed out" in (err or "").lower():
+            hata = f"zaman aşımı ({butce}s)\n\n{zaman_asimi_notu(butce)}"
+        return out, hata
     if not (out or "").strip():
         return "", "codex boş yanıt döndürdü"
     return out, ""
