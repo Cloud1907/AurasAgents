@@ -27,13 +27,39 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INCELEME_BUTCESI = int(os.environ.get("INCELE_BUTCE", "900"))
 
 
+TERM_SURESI = 3  # kabuğun EXIT tuzağını koşturmasına verilen süre (saniye)
+
+
 def agaci_oldur(p):
-    """Süreç GRUBUNU öldürür. `p.kill()` yalnız doğrudan çocuğu (bash) alır;
-    altındaki ask-codex.sh ve `codex exec` yaşar ve PPID 1'e düşer."""
+    """Süreç GRUBUNU öldürür — önce nazikçe, sonra kesin.
+
+    `p.kill()` yalnız doğrudan çocuğu (bash) alır; altındaki ask-codex.sh ve
+    `codex exec` yaşar ve PPID 1'e düşer. Bu yüzden GRUBA sinyal gider.
+
+    Neden iki aşama: doğrudan SIGKILL yakalanamaz, kabuğun `EXIT` tuzağı hiç
+    koşmaz — `codex-review.sh` prompt'unu `mktemp` ile yazıp tuzakla siliyor,
+    tek SIGKILL her zaman aşımında /tmp'ye bir dosya bırakırdı. Önce SIGTERM
+    (tuzak koşsun), sonra hâlâ yaşayana SIGKILL: temizlik şansı verilir ama
+    ölüm garantisi bırakılmaz.
+    """
     try:
-        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+        pgid = os.getpgid(p.pid)
     except OSError:
         p.kill()
+        pgid = None
+    if pgid is not None:
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except OSError:
+            pass
+        try:  # tuzağın koşması için bekle; kendi çıkarsa erken döner
+            p.wait(timeout=TERM_SURESI)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except OSError:
+            pass
     try:
         p.communicate(timeout=10)
     except (OSError, subprocess.SubprocessError):

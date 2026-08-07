@@ -139,6 +139,31 @@ class NormalDonusTest(SurecSizintisiTest):
             self._torun_olmus_mu(pid_dosya, "normal dönüşten")
 
 
+class TuzakTest(unittest.TestCase):
+    """P1 · SIGKILL kabuk `EXIT` tuzağını koşturmuyordu (kapının 4. bulgusu).
+
+    `codex-review.sh` prompt'u `mktemp` ile yazar ve
+    `trap 'rm -f "$PROMPT_FILE"' EXIT` ile siler. SIGKILL yakalanamaz —
+    zaman aşımında tuzak hiç koşmaz, geçici dosya /tmp'de kalır.
+
+    Çözüm önce SIGTERM (tuzak koşsun), kısa bekleme, sonra hâlâ yaşayana
+    SIGKILL. Ölüm garantisi bozulmaz; temizlik şansı verilir.
+    """
+
+    def test_zaman_asiminda_exit_tuzagi_kosar(self):
+        with tempfile.TemporaryDirectory() as td:
+            iz = os.path.join(td, "tuzak-kosti")
+            # codex-review.sh'nin şekli: EXIT tuzağı + uzun iş
+            komut = f"trap 'touch {iz}' EXIT; sleep 120 >/dev/null 2>&1"
+            kod, _o, _e = surec.kos("bash", "-c", komut, timeout=2)
+            self.assertEqual(kod, 1, "zaman aşımı hata kodu döndürmeli")
+            time.sleep(0.5)
+            self.assertTrue(
+                os.path.exists(iz),
+                "EXIT tuzağı koşmadı — SIGKILL yakalanamaz, kabuk geçici "
+                "dosyalarını temizleyemez (codex-review.sh mktemp sızdırır)")
+
+
 class IncelemeButcesiTest(unittest.TestCase):
     """P1 · İnceleme bütçesi `gh` çağrılarıyla aynı sabitti — `gh pr view`
     (saniyeler) ile Codex incelemesi (dakikalar) tek sayıya bağlıydı."""
