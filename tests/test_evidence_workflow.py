@@ -8,6 +8,7 @@ olamaz — aksi hâlde kesinti boyunca hiçbir PR bağımsız makine kanıtı
 üretemez ve merge kararı yerel çıktıya kalır.
 """
 import os
+import re
 import unittest
 
 import yaml
@@ -53,6 +54,50 @@ class EvidenceWorkflowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkflowEnjeksiyonTest(unittest.TestCase):
+    """Güvenilmeyen girdi `run:` bloğuna DOĞRUDAN yazılamaz.
+
+    2026-08-07'de gerçekleşti: `TITLE="${{ github.event.pull_request.title }}"`
+    satırında PR başlığı tırnak içeriyordu, dizeyi kapattı ve kalanı komut
+    olarak çalıştı (exit 127). Kazaydı — ama PR başlığı yazabilen herkesin
+    CI runner'ında komut çalıştırabileceği anlamına geliyordu.
+
+    Doğrusu `env:` ile geçirmek: kabuk değeri VERİ olarak görür, KOD olarak
+    değil. GitHub'ın kendi güvenli-kullanım dokümanı da bunu söylüyor.
+    """
+
+    WF_DIR = os.path.join(ROOT, ".github", "workflows")
+    # PR/issue/branch metni — saldırganın yazabildiği alanlar.
+    GUVENILMEYEN = re.compile(
+        r"\$\{\{\s*github\.(event\.(pull_request|issue|comment)\.|head_ref)")
+
+    def workflow_dosyalari(self):
+        if not os.path.isdir(self.WF_DIR):
+            return []
+        return [os.path.join(self.WF_DIR, f)
+                for f in sorted(os.listdir(self.WF_DIR))
+                if f.endswith((".yml", ".yaml"))]
+
+    def test_run_blogunda_guvenilmeyen_interpolasyon_yok(self):
+        for yol in self.workflow_dosyalari():
+            with open(yol, encoding="utf-8") as fh:
+                satirlar = fh.readlines()
+            icinde_run, girinti = False, 0
+            for no, satir in enumerate(satirlar, 1):
+                sivri = len(satir) - len(satir.lstrip())
+                if re.match(r"\s*run:\s*\|?\s*$", satir) or \
+                        re.match(r"\s*run:\s+\S", satir):
+                    icinde_run, girinti = True, sivri
+                    continue
+                if icinde_run and satir.strip() and sivri <= girinti:
+                    icinde_run = False
+                if icinde_run and self.GUVENILMEYEN.search(satir):
+                    self.fail(
+                        f"{os.path.basename(yol)}:{no} — güvenilmeyen girdi "
+                        f"run: bloğuna doğrudan yazılmış (komut enjeksiyonu). "
+                        f"env: ile geçir.\n    {satir.strip()}")
 
 
 class KapsamSiniriTest(unittest.TestCase):

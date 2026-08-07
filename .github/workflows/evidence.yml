@@ -62,9 +62,19 @@ jobs:
 
       - name: Contract ID çıkar
         id: contract
+        # PR başlığı GÜVENİLMEYEN girdidir ve `run:` içine DOĞRUDAN
+        # yazılamaz. Eskiden `TITLE="${{ github.event.pull_request.title }}"`
+        # idi: başlık tırnak içeriyorsa dizeyi kapatır ve kalanı KOMUT olarak
+        # çalışır. 2026-08-07'de gerçekleşti — başlıktaki `"adı test_"`
+        # yüzünden `test_ fixture demek değil: command not found`, exit 127.
+        # Kazara oldu ama kasıtlı da olabilirdi: PR başlığı yazabilen herkes
+        # CI runner'ında komut çalıştırabilirdi (GitHub'ın kendi uyarısı:
+        # untrusted input asla run: içine interpolate edilmez).
+        # Doğrusu env ile geçirmek: kabuk onu veri olarak görür, kod olarak değil.
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
         run: |
-          TITLE="${{ github.event.pull_request.title }}"
-          ID=$(echo "$TITLE" | grep -oE '#[0-9]+' | head -1 || true)
+          ID=$(printf '%s' "$TITLE" | grep -oE '#[0-9]+' | head -1 || true)
           echo "id=${ID:-micro}" >> "$GITHUB_OUTPUT"
 
       - name: Evidence üret
