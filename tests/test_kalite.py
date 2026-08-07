@@ -111,11 +111,20 @@ class OlcumTest(unittest.TestCase):
                          "araç kendi desenini bulgu sayıyor")
 
     def test_repoda_fixture_kaynakli_sahte_borc_yok(self):
-        # Test fixture'ları gerçek borç gibi sayaca girmemeli
+        """Tarayıcı KENDİ fixture'ını gerçek borç sanmamalı.
+
+        Kapsam kasten `tests/` ile sınırlı. Önceden ölçüt `"test_" in dosya`
+        idi ve bu, adı test_* olan HER dosyayı fixture sayıyordu — 4Flow'da
+        `frontend/test_task_update_flow.js` gerçek bir betikti ve 14 gerçek
+        console.log taşıyordu; test bağlı projede haksız yere kırmızı yandı
+        (2026-08-07). Testin niyeti "bu deponun kendi fixture'ları" idi;
+        ölçüt artık niyeti söylüyor.
+        """
         r = kalite.olc(ROOT)
         sahte = [b for b in r["bulgular"]
-                 if b["tur"] == "debug_artigi" and "test_" in b["dosya"]]
-        self.assertEqual(sahte, [], "test fixture'ı gerçek borç sayılıyor")
+                 if b["tur"] == "debug_artigi"
+                 and b["dosya"].replace(os.sep, "/").startswith("tests/")]
+        self.assertEqual(sahte, [], "kendi test fixture'ı gerçek borç sayılıyor")
 
 
 class RatchetTest(unittest.TestCase):
