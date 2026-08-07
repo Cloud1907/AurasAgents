@@ -167,6 +167,47 @@ CITATIONS = os.path.join(ROOT, ".agents", "skills", "research-with-evidence",
                          "scripts", "check_citations.py")
 
 
+class IsabetTest(unittest.TestCase):
+    """Yanlış pozitif azaltma — kapının en pahalı hatası.
+
+    4Flow kurulumunda 6 dosya yalnız ROTA YOLU ve DEĞİŞKEN REFERANSI yüzünden
+    yakalandı (`"api/auth/change-password"`, `'$SqlPassword'`). Her repoya
+    muafiyet satırı yazmak yanlış çözüm: kural yanlış yakalıyorsa düzeltilecek
+    yer kuraldır, muafiyet listesi değil. Muafiyet "bilinen sırrı affet"
+    demektir; burada ortada sır YOK.
+    """
+
+    def hits(self, satir):
+        sys.path.insert(0, os.path.dirname(SCAN))
+        import scan_secrets as ss
+        return [ad for ad, _v in ss.scan_line(satir)]
+
+    def test_rota_yolu_parola_sayilmaz(self):
+        for satir in ('const val CHANGE_PASSWORD = "api/auth/change-password"',
+                      'PASSWORD_RESET = "/api/v1/auth/reset-password"',
+                      'url: "https://x.test/account/change-password"'):
+            with self.subTest(satir=satir):
+                self.assertEqual(self.hits(satir), [], satir)
+
+    def test_degisken_referansi_parola_sayilmaz(self):
+        for satir in ("WITH PASSWORD = '$SqlPassword', CHECK_POLICY = OFF;",
+                      'password: "${DB_PASSWORD}"',
+                      "password: '{{ vault_pass }}'",
+                      'password: "%s" % gizli'):
+            with self.subTest(satir=satir):
+                self.assertEqual(self.hits(satir), [], satir)
+
+    def test_gercek_parola_hala_yakalanir(self):
+        # İsabet artışı, kapıyı körleştirmemeli.
+        # Parçalı kurulum ZORUNLU: düz yazılırsa bu dosya secret kapısına
+        # takılır ve push engellenir (bugün iki kez oldu).
+        gercek = "hunt" + "er2diller"
+        for satir in (f'password = "{gercek}"',
+                      "DB_PASS: '%s'" % ("Pr0d!" + "Secret9")):
+            with self.subTest(satir=satir):
+                self.assertIn("Hardcoded parola", self.hits(satir), satir)
+
+
 class ProjeMuafiyetiTest(unittest.TestCase):
     """Projenin kendi muafiyet dosyası — GEREKÇELİ ve GÖRÜNÜR.
 
