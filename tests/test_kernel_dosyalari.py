@@ -111,6 +111,44 @@ class KurulumBagimliligiTest(unittest.TestCase):
             self.assertEqual(kd.eksik_test_bagimliliklari(td), [])
 
 
+class TestKapsamiTest(unittest.TestCase):
+    """Keşfe hiç girmeyen test dosyası sessizce kapsam kaybıdır.
+
+    2026-08-07 bulgusu: PyYAML'sız yorumlayıcıda üç modül import'ta çöktü;
+    süite `Ran 186` yazdı, PyYAML'lı yorumlayıcıda `Ran 220`. Eksilen 34 test
+    "koşmadı" diye DEĞİL, hiç sayılmadığı için görünmedi. Aynı sessizlik
+    yanlış adlandırılmış (`route_test.py`) ya da hiç test üretmeyen dosyada da
+    olur — ve orada çıkış kodu bile 0'dır.
+    """
+
+    def test_kesfe_girmeyen_dosya_yakalanir(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/route_test.py",       # `test*.py` desenine uymaz
+                "import unittest\n"
+                "class X(unittest.TestCase):\n    pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, {"test_a"}),
+                             ["route_test.py"])
+
+    def test_toplanan_dosya_sorun_degil(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/test_a.py",
+                "import unittest\n"
+                "class X(unittest.TestCase):\n    pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, {"test_a"}), [])
+
+    def test_testcase_tasimayan_yardimci_denetlenmez(self):
+        # tests/ortam.py gibi paylaşılan yardımcılar test üretmez; keşfe
+        # girmemeleri normaldir, kapsam kaybı değildir.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/ortam.py", "YAML = None\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()), [])
+
+    def test_bu_reponun_her_test_dosyasi_toplaniyor(self):
+        toplanan = {f[:-3] for f in os.listdir(os.path.join(ROOT, "tests"))
+                    if f.startswith("test_") and f.endswith(".py")}
+        self.assertEqual(kd.toplanmayan_testler(ROOT, toplanan), [])
+
+
 class SiniflaTest(unittest.TestCase):
     def kur(self, td):
         """Kanonik: v1 commit'li, sonra v2. Hedef: boş dizin."""

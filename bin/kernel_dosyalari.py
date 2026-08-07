@@ -52,6 +52,8 @@ URETILEN = (".agents/kalite-baseline.json",)
 
 # tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
+# `class X(unittest.TestCase)` / `class X(TestCase, Mixin)` — test taşıyan dosya
+_TESTCASE = re.compile(r"^class\s+\w+\s*\([^)]*\bTestCase\b", re.M)
 
 
 def kurulumda_bulunur(rel):
@@ -98,6 +100,32 @@ def eksik_test_bagimliliklari(kok):
                 continue
             if not kurulumda_bulunur(rel):
                 eksik.append((f, rel))
+    return eksik
+
+
+def toplanmayan_testler(kok, toplanan):
+    """[dosya_adi] — TestCase tanımlayan ama keşfe HİÇ girmeyen tests/*.py.
+
+    Neden bekçi: eksilen test, kırmızı testten daha tehlikelidir. Kırmızı test
+    bağırır; keşfe girmeyen test hiç sayılmaz, çıkış kodu 0 kalır ve "Ran N"
+    daralmasını hiçbir satır söylemez. 2026-08-07 ölçümü: PyYAML'sız
+    yorumlayıcıda üç modül import'ta çöktü, süite 220 yerine 186 test saydı —
+    34 test yok olmuştu ama çıktıda yalnız "3 hata" yazıyordu.
+
+    `toplanan`: keşfin GERÇEKTEN test ürettiği modül adları (uzantısız).
+    TestCase taşımayan yardımcı dosyalar (ör. tests/ortam.py) denetim dışıdır.
+    """
+    tests_dir = os.path.join(kok, "tests")
+    if not os.path.isdir(tests_dir):
+        return []
+    eksik = []
+    for f in sorted(os.listdir(tests_dir)):
+        if not f.endswith(".py") or f[:-3] in toplanan:
+            continue
+        with open(os.path.join(tests_dir, f), encoding="utf-8",
+                  errors="replace") as fh:
+            if _TESTCASE.search(fh.read()):
+                eksik.append(f)
     return eksik
 
 

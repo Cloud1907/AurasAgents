@@ -114,6 +114,13 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   hatasıdır (exit 2), "temiz" değildir. Bastırılan bulgu çıktıda `muaf:`
   etiketiyle GÖRÜNÜR kalır — sessiz susturma, kapının olduğu ama korumadığı
   hâldir. Dosya projenindir, motor ezmez.
+- Test kapsamı daralmaz: `validate.py` testleri koşmadan önce KEŞFEDER; bir
+  test dosyası import'ta çökerse ya da keşif desenine uymuyorsa kesilir.
+  Gerekçe: eksilen test kırmızı testten tehlikelidir — kırmızı bağırır, yok
+  olan test yalnız "Ran N"i sessizce küçültür (ölçüm 2026-08-07: PyYAML'sız
+  yorumlayıcıda 220 yerine 186). Ortam bağımlılığı `tests/ortam.py` üstünden
+  GÖRÜNÜR atlamaya çevrilir ve `tests/test_ortam.py` eksik ortamı tek bir
+  yüksek sesli hataya bağlar: atlanan test "geçti" diye okunamaz.
 - Skill doğrulayıcı sözleşmesi (ADR-0003): `check_*` / `scan_*` önekli skill
   script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
   (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı

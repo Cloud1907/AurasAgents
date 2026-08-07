@@ -13,6 +13,8 @@ import sys
 import tempfile
 import unittest
 
+from ortam import pyyaml_gerekir
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -336,6 +338,9 @@ class TurTablosuTest(unittest.TestCase):
         self.assertIn("kernel-work", out)
         self.assertIn("YÜKLENEN", out)
 
+    # route.py yönlendirme tablosunu (yaml) okuyamazsa sessizce exit 0 verir
+    # ve hiç olay yazmaz; bu test o boş kaydı FileNotFoundError olarak görürdü.
+    @pyyaml_gerekir
     def test_env_override_izolasyon_saglar(self):
         # validate/test koşumları kullanıcının aktivite kaydını kirletmemeli
         with tempfile.TemporaryDirectory() as td:
