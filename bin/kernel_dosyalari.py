@@ -199,9 +199,16 @@ GITLEAKS_CFG = ".gitleaks.toml"
 # ÜRETTİĞİ için sorun bağlı HER projede tekrarlanır — kurulumda çözülmeli.
 MUAFIYET_BLOGU = """
 [allowlist]
-description = "AurasAgents kernel manifest'i — yalnız sha256 özeti taşır, kimlik bilgisi değil"
+description = "AurasAgents kernel dosyalari — sir degil, kapinin kendi malzemesi"
 paths = [
+  # Manifest yalniz sha256 OZETI tasir; generic-api-key kurali uzun hex'i
+  # anahtar saniyor (4cast: 7 yanlis pozitif, CI bir haftadan uzun kirmizi).
   '''\\.agents/\\.kernel-manifest\\.json''',
+  # Skill eval fixture'lari KASITLI sahte anahtar tasir — tarayicinin kendi
+  # kabul vakalari. Bizim tarayicimiz `--exclude */eval/*` ile diliyor ama
+  # gitleaks bunu bilmiyordu ve her projede ayni yanlis pozitifi uretiyordu
+  # (4Flow: stripe-access-token @ security-review/eval/cases.md, 2026-08-07).
+  '''\\.agents/skills/.*/eval/.*''',
 ]
 """
 
@@ -233,7 +240,10 @@ def manifest_muaf_mi(kok):
     """
     try:
         with open(os.path.join(kok, GITLEAKS_CFG), encoding="utf-8") as fh:
-            return "kernel-manifest" in fh.read()
+            metin = fh.read()
+        # Eval fixture muafiyeti sonradan eklendi; ikisi de olmalı yoksa
+        # kurulum "muaf" sanıp CI'ı yanlış pozitifle kırmızı bırakır.
+        return "kernel-manifest" in metin and "skills/.*/eval" in metin
     except OSError:
         return False
 

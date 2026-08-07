@@ -42,9 +42,11 @@ class MotorListesiTest(unittest.TestCase):
         self.assertEqual(len(hepsi), len(set(hepsi)), "listede tekrar var")
 
     def test_listedeki_her_giris_repoda_var(self):
+        # yol_coz: proje dizini `Docs/` olabilir, motor `docs/` yazar.
+        # Düz os.path.exists Linux'ta yanlış negatif verir (4cast, 2026-08-07).
         for rel in kd.MOTOR + kd.MOTOR_DIZIN:
-            self.assertTrue(os.path.exists(os.path.join(ROOT, rel)),
-                            f"listede ama repoda yok: {rel}")
+            self.assertIsNotNone(kd.yol_coz(ROOT, rel),
+                                 f"listede ama repoda yok: {rel}")
 
     def test_kendi_araclarini_tasir(self):
         # Geri taşıma yolu bağlı projeye de gitmeli, yoksa orada kullanılamaz
