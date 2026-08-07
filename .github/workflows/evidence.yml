@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Elle tetikleme — kanıtın tek yolu otomatik olay OLMAMALI.
+  # 2026-08-06 GitHub Actions kesintisinde webhook teslimatı bozuldu:
+  # push/pull_request hiç run üretmedi, workflow_dispatch çalıştı. Bu
+  # tetikleyici olmadan kesinti boyunca hiçbir PR bağımsız makine kanıtı
+  # üretemez ve merge kararı yerel çıktıya kalır.
+  workflow_dispatch:
 
 jobs:
   kernel:
