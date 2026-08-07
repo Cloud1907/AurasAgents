@@ -182,6 +182,28 @@ class IsabetTest(unittest.TestCase):
         import scan_secrets as ss
         return [ad for ad, _v in ss.scan_line(satir)]
 
+    def test_sablon_dosyasi_taranmaz(self):
+        """`.env.example` gibi şablonlar örnek değer TAŞIMAK içindir.
+
+        Placeholder filtresi yalnız İngilizce kalıpları tanıyor; 4Flow'un
+        `.env.example`'ındaki "yerel-parolasi" kaçtı ve kapı bloklandı.
+        Şablonlar her repoda var — dosya adına bakmak doğru çözüm.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, ".env.example"), "w") as fh:
+                # Parçalı: düz yazılırsa bu test dosyası kapıya takılır.
+                fh.write('DB_PASSWORD="%s"\n' % ("buraya-kendi-" + "parolani-yaz"))
+            with open(os.path.join(td, "temiz.py"), "w") as fh:
+                fh.write("x = 1\n")
+            self.assertEqual(kos(SCAN, td)[0], 0, "şablon dosyası bloklamamalı")
+
+    def test_gercek_env_hala_taranir(self):
+        # Şablon muafiyeti `.env`in kendisine SIZMAMALI.
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "app.env"), "w") as fh:
+                fh.write(f'KEY = "{ORNEK_ANAHTAR}"\n')
+            self.assertEqual(kos(SCAN, td)[0], 1, ".env taranmaya devam etmeli")
+
     def test_rota_yolu_parola_sayilmaz(self):
         for satir in ('const val CHANGE_PASSWORD = "api/auth/change-password"',
                       'PASSWORD_RESET = "/api/v1/auth/reset-password"',

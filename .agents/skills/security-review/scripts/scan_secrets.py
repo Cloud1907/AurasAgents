@@ -86,6 +86,18 @@ DEGER_DEGIL = (
 )
 
 
+# Şablon dosyaları: adı gereği ÖRNEK değer taşırlar ve commit edilmeleri
+# beklenir (.env.example standart konvansiyondur). Placeholder filtresi
+# yalnız İngilizce kalıpları tanıyor; "yerel-parolasi" gibi yerelleştirilmiş
+# doldurma metinleri kaçıyordu. Dosya adına bakmak daha güvenilir.
+SABLON_DOSYA = re.compile(r"\.(example|sample|template|dist)$"
+                          r"|\.(example|sample|template)\.[\w]+$", re.I)
+
+
+def sablon_dosyasi(yol):
+    return bool(SABLON_DOSYA.search(os.path.basename(yol)))
+
+
 def deger_degil(text):
     """Eşleşen metin bir SIR olamayacak biçimde mi (yol, değişken, şablon)."""
     t = text.strip()
@@ -140,6 +152,7 @@ def git_izlenen(kok):
 
 def _atlanir(tam, exclude):
     return (os.path.splitext(tam)[1].lower() in SKIP_EXT
+            or sablon_dosyasi(tam)
             or is_excluded(tam, exclude))
 
 
