@@ -8,6 +8,7 @@ Kapı üç şeyi zorlar: kernel doğrulaması, secret taraması, proje kapısı.
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -16,11 +17,12 @@ SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 
 
 def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
-        validate_kod=0):
+        validate_kod=0, ortam=None):
     """İzole bir depoda kapıyı kurar; pre-push'un çıkış kodunu döndürür.
 
     validate_kod: sahte kernel doğrulayıcısının çıkış kodu.
       0 geçti · 1 kural ihlali · 2 araç hatası (doğrulama koşamadı).
+    ortam: alt sürece verilecek ortam (AURAS_PYTHON denemeleri için).
     """
     os.makedirs(os.path.join(td, "bin", "hooks"))
     shutil.copy2(os.path.join(ROOT, "bin", "hooks", "pre-push"),
@@ -53,7 +55,7 @@ def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
     # stdin miras alınırsa test süresiz asılır.
     p = subprocess.run(["sh", os.path.join(td, "bin", "hooks", "pre-push")],
                        capture_output=True, text=True, cwd=td, timeout=60,
-                       input="")
+                       input="", env=ortam)
     return p.returncode, p.stdout + p.stderr
 
 
@@ -82,6 +84,29 @@ class PrePushTest(unittest.TestCase):
             self.assertEqual(kod, 1, "araç hatası da bloklamalı (fail-closed)")
             self.assertIn("KOSAMADI", cikti)
             self.assertNotIn("dogrulamasi basarisiz", cikti)
+
+    def test_sahte_yorumlayici_kapiyi_sessizce_gecemez(self):
+        """AURAS_PYTHON kapıyı köreltemez.
+
+        Denetim bulgusu 2026-08-07 (security-review, bu PR'ın kendi diff'i):
+        `AURAS_PYTHON=/usr/bin/true git push` ile secret'lı push kapıyı
+        SESSİZCE geçti — exit 0, sıfır satır çıktı. `true` argümanları yok
+        sayıp 0 döndüğü için kapı "doğrulama geçti" sandı. Çıkış kodu,
+        süreç kendi hakkında yalan söyleyebiliyorsa kanıt değildir.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            ortam = dict(os.environ, AURAS_PYTHON="/usr/bin/true")
+            kod, cikti = kur(td, ortam=ortam)
+            self.assertEqual(kod, 1, "sahte yorumlayıcı push'u geçirmemeli")
+            self.assertIn("AURAS_PYTHON gecerli bir python3 degil", cikti)
+
+    def test_gecerli_override_gorunur_olur(self):
+        """Meşru override çalışır ama SESSİZ olmaz — kapı kör kalmasın."""
+        with tempfile.TemporaryDirectory() as td:
+            ortam = dict(os.environ, AURAS_PYTHON=sys.executable)
+            kod, cikti = kur(td, ortam=ortam)
+            self.assertEqual(kod, 0)
+            self.assertIn("AURAS_PYTHON ile kosuyor", cikti)
 
     def test_tarayici_yoksa_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
