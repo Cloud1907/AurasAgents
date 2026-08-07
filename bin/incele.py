@@ -30,11 +30,18 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+
+# İnceleme bütçesi `gh` çağrılarınınkinden AYRIDIR (önce ikisi de `_kos`'un
+# genel varsayılanına bağlıydı). Ölçüm (2026-08-07): 4.4KB→147s, 9.0KB→156s —
+# boyut baskın değil, ~140s sabit taban var. Bu yüzden diff boyutuna göre
+# ÖLÇEKLENMİYOR: ölçeklenecek değişken sürücü değil.
+INCELEME_BUTCESI = int(os.environ.get("INCELE_BUTCE", "900"))
 
 # --- Risk sınıflandırma (AGENTS.md risk politikası, path kuralı) -----------
 # Eskalasyon YALNIZ yukarı: bilinmeyen yol `approval` sayılır, `auto` değil.
@@ -193,12 +200,35 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
 
 
 # --- Dış dünya -------------------------------------------------------------
-def _kos(*arg, girdi=None, timeout=600):
+def _agaci_oldur(p):
+    """Süreç GRUBUNU öldürür. `p.kill()` yalnız doğrudan çocuğu (bash) alır;
+    altındaki ask-codex.sh ve `codex exec` yaşar ve PPID 1'e düşer."""
     try:
-        p = subprocess.run(arg, capture_output=True, text=True,
-                           input=girdi, timeout=timeout, cwd=ROOT)
-        return p.returncode, p.stdout, p.stderr
+        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+    except OSError:
+        p.kill()
+    try:
+        p.communicate(timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _kos(*arg, girdi=None, timeout=600):
+    """Alt süreci KENDİ oturumunda başlatır; zaman aşımında tüm ağacı öldürür.
+    `subprocess.run(timeout=)` yalnız beklemeyi sınırlar, ağacı öldürmez.
+    Gerekçe ve ölçüm: tests/test_incele.py · SurecSizintisiTest."""
+    try:
+        p = subprocess.Popen(
+            arg, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE if girdi is not None else None,
+            text=True, cwd=ROOT, start_new_session=True)
+    except OSError as e:
+        return 1, "", str(e)
+    try:
+        out, err = p.communicate(girdi, timeout=timeout)
+        return p.returncode, out, err
     except (OSError, subprocess.SubprocessError) as e:
+        _agaci_oldur(p)  # TimeoutExpired dahil: ağacı bırakma
         return 1, "", str(e)
 
 
@@ -228,18 +258,34 @@ def ci_durumu(pr):
     return ci_karari(satirlar)
 
 
-def codex_incele(pr):
+def zaman_asimi_notu(butce):
+    """Zaman aşımında kullanıcının önüne EYLEM koyar — önünde yol olmayan
+    kapı `gh pr merge` ile atlanır, kural belgede kalır sistemde kalmaz."""
+    return (
+        f"İnceleme {butce}s bütçesinde bitmedi. Karar ENGEL — 'okunamadı' "
+        "'temiz' demek değildir. Sırayla dene:\n"
+        "1. Asılı süreç var mı: `pgrep -fl 'codex exec'` — varsa öldür. "
+        "Sızan inceleme sonrakini yavaşlatır (ölçüm: 155.8s → 45.5s).\n"
+        f"2. Bütçeyi yükseltip tekrar koş: "
+        f"`INCELE_BUTCE={butce * 2} python3 bin/incele.py <pr>`\n"
+        "3. PR'ı böl — tek amaçlı küçük diff hem hızlı hem doğru incelenir "
+        "(AGENTS.md: ilgisiz işleri tek PR'da toplama).")
+
+
+def codex_incele(pr, butce=None):
     """(ham_cikti, hata_notu) — hata notu boşsa çağrı sorunsuz.
 
-    Neden ayrı dönüyor: kapı "ayrıştıramadım" dediğinde SEBEBİ görünmeli.
-    Önce yalnız "çıktı ayrıştırılamadı" yazıyordu; zaman aşımı mı, boş yanıt
-    mı, bozuk biçim mi ayırt edilemiyordu — teşhis edilemeyen kırmızı,
-    kapalı kapıdan farksızdır (gitleaks "leaks found: 8" dersi).
+    Neden ayrı dönüyor: kapı "ayrıştıramadım" dediğinde SEBEBİ görünmeli —
+    teşhis edilemeyen kırmızı, kapalı kapıdan farksızdır.
     """
+    butce = INCELEME_BUTCESI if butce is None else butce
     kod, out, err = _kos("bash", os.path.join(HERE, "codex-review.sh"),
-                         str(pr), "--dry-run")
+                         str(pr), "--dry-run", timeout=butce)
     if kod != 0:
-        return out, f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+        hata = f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+        if "timed out" in (err or "").lower():
+            hata = f"zaman aşımı ({butce}s)\n\n{zaman_asimi_notu(butce)}"
+        return out, hata
     if not (out or "").strip():
         return "", "codex boş yanıt döndürdü"
     return out, ""

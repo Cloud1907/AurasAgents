@@ -7,6 +7,9 @@ test edilir; Codex çağrısı ve gh komutları testte KOŞMAZ.
 """
 import importlib.util
 import os
+import subprocess
+import tempfile
+import time
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -229,6 +232,114 @@ class CiKarariTest(unittest.TestCase):
         yesil, _o = incele.ci_karari(["kernel\tpass\t1s\tu",
                                       "e2e\tfail\t2s\tu"])
         self.assertFalse(yesil)
+
+
+def _yasiyor(pid):
+    """PID hâlâ canlı mı (sinyal göndermeden yoklar)."""
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+class SurecSizintisiTest(unittest.TestCase):
+    """P0 · Zaman aşımı süreç ağacını sızdırıyordu (2026-08-07 ölçümü).
+
+    Gözlem: `codex-review.sh 14 --dry-run` süreç ağacı, onu başlatan
+    incele.py öldükten sonra **2 saat 43 dakika** yaşamaya devam etti
+    (PPID 1'e düşmüş, altında `codex exec` hâlâ çalışıyor). Oysa aynı iş
+    ölçümde ~150 saniye sürüyor.
+
+    Sebep: `subprocess.run(timeout=)` yalnız Python'un BEKLEMESİNİ sınırlar;
+    başlattığı süreç AĞACINI öldürmez. Doğrudan çocuk öldürülse bile torunlar
+    (bash → ask-codex.sh → codex) hayatta kalır.
+
+    Bu bir kaynak sızıntısından ibaret değildir: sızan codex süreci aynı
+    hesabın oturumunu meşgul eder → sonraki inceleme yavaşlar → o da zaman
+    aşımına uğrayıp bir süreç daha sızdırır. Her zaman aşımı bir sonrakini
+    daha olası kılar; "üçüncü kez oluyor" tam olarak bu döngüdür.
+
+    NOT: torunun çıktısı bilinçli olarak /dev/null'a yönlendirildi. Boru hattını
+    açık tutan bir torun `subprocess.run`'ı timeout'tan SONRA `communicate()`
+    içinde süresiz bloklar — ayrı ve daha ağır bir kusur; testin kendisini
+    asmamak için burada tetiklenmiyor, `_kos` sözleşmesinde çözülüyor.
+    """
+
+    def test_zaman_asimi_torun_sureci_de_oldurur(self):
+        with tempfile.TemporaryDirectory() as td:
+            pid_dosya = os.path.join(td, "torun.pid")
+            # codex-review.sh → ask-codex.sh → codex zincirinin aynısı:
+            # kabuk bir TORUN doğurur, PID'ini yazar, sonra kendi bekler.
+            komut = (f"sleep 120 >/dev/null 2>&1 & echo $! > {pid_dosya}; "
+                     "sleep 120 >/dev/null 2>&1")
+            kod, _o, _e = incele._kos("bash", "-c", komut, timeout=2)
+            self.assertEqual(kod, 1, "zaman aşımı hata kodu döndürmeli")
+
+            with open(pid_dosya, encoding="utf-8") as fh:
+                torun = int(fh.read().strip())
+            time.sleep(0.5)
+            yasiyor = _yasiyor(torun)
+            if yasiyor:  # test kendisi sızdırmasın
+                try:
+                    os.kill(torun, 9)
+                except OSError:
+                    pass
+            self.assertFalse(
+                yasiyor,
+                f"torun süreç {torun} zaman aşımından sonra hâlâ yaşıyor — "
+                "sızan codex süreci sonraki incelemeyi yavaşlatır")
+
+
+class IncelemeButcesiTest(unittest.TestCase):
+    """P1 · İnceleme çağrısının bütçesi `gh` çağrılarıyla aynı sabitti.
+
+    `codex_incele` bütçesini `_kos`'un genel `timeout=600` varsayılanından
+    sessizce miras alıyordu — yani `gh pr view` (saniyeler) ile Codex
+    incelemesi (dakikalar) aynı sayıya bağlıydı. Birini ayarlamak diğerini
+    farkında olmadan değiştirir. İnceleme bütçesi AÇIK ve ayrı olmalı.
+    """
+
+    def test_inceleme_butcesi_ayri_ve_acik(self):
+        self.assertTrue(
+            hasattr(incele, "INCELEME_BUTCESI"),
+            "INCELEME_BUTCESI yok — inceleme bütçesi genel varsayılana "
+            "gizlice bağlı")
+        self.assertGreater(incele.INCELEME_BUTCESI, 600,
+                           "ölçüm: temiz makinede ~150s, çekişme altında "
+                           "600s'i aşıyor — bütçe 600'ün üstünde olmalı")
+
+    def test_butce_disaridan_ayarlanabilir(self):
+        # Kullanıcının önünde eyleme dönük yol olmalı: bütçeyi yükseltip
+        # tekrar koşabilmeli.
+        with open(os.path.join(ROOT, "bin", "incele.py"),
+                  encoding="utf-8") as fh:
+            kaynak = fh.read()
+        self.assertIn("INCELE_BUTCE", kaynak,
+                      "bütçe ortam değişkeniyle ayarlanamıyor — zaman "
+                      "aşımında kullanıcının elinde eyleme dönük seçenek "
+                      "kalmaz")
+
+
+class ZamanAsimiFailClosedTest(unittest.TestCase):
+    """Zaman aşımı SESSİZCE fail-open'a dönmesin (kalıcı bekçi).
+
+    Bu sınıf davranışı kilitler: inceleme koşulamadıysa karar ENGEL'dir ve
+    gerekçe TEŞHİS EDİLEBİLİR olmalıdır. Teşhis edilemeyen kırmızı, kapalı
+    kapıdan farksızdır — kullanıcı `gh pr merge` ile etrafından dolaşır.
+    """
+
+    def test_zaman_asimi_asla_merge_uretmez(self):
+        for risk in ("auto", "approval", "deny"):
+            with self.subTest(risk=risk):
+                k, _g = incele.karar(risk, TEMIZ, True, okunabildi=False)
+                self.assertEqual(k, "engel")
+
+    def test_zaman_asimi_gerekcesi_eyleme_donuk(self):
+        metin = incele.zaman_asimi_notu(900)
+        self.assertIn("900", metin, "bütçe sayısı görünmeli")
+        self.assertIn("INCELE_BUTCE", metin,
+                      "kullanıcıya bütçeyi yükseltme yolu gösterilmeli")
 
 
 if __name__ == "__main__":

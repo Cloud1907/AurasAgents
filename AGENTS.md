@@ -99,6 +99,10 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   ENGEL (fail-closed) — "okunamadı" ile "temiz" aynı şey değildir.
   Not: bu bir süreç kuralıdır; `gh pr merge` ile doğrudan birleştirmek
   mekanik olarak hâlâ mümkündür.
+  Bütçe `INCELE_BUTCE` (varsayılan 900s) — diff boyutuna göre ölçeklenmez,
+  çünkü ölçüm boyutun sürücü olmadığını gösterdi (4.4KB→147s, 9.0KB→156s).
+  Zaman aşımı ENGEL'dir ve ne yapılacağını yazar; ilk bakılacak yer asılı
+  `codex exec` sürecidir — sızan inceleme sonrakini yavaşlatır.
 - Kod kalitesi ratchet'i (ADR-0004): `bin/kalite.py` dosya/fonksiyon boyutu,
   karmaşıklık ve borç işaretlerini deterministik sayar; CI `--check` ile
   koşar. Mevcut borç kabul edilir, **büyümesi bloklanır**. Taban
