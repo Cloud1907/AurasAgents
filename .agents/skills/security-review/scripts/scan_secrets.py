@@ -24,7 +24,12 @@ SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__",
              "dist", "build", ".mypy_cache", ".pytest_cache"}
 # İkili/irrelevant uzantılar.
 SKIP_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip",
-            ".gz", ".tar", ".woff", ".woff2", ".ttf", ".mp4", ".lock"}
+            ".gz", ".tar", ".woff", ".woff2", ".ttf", ".mp4", ".lock",
+            # Derlenmiş çıktı: kaynağın ikili kopyası. Kaynağı zaten
+            # tarıyoruz; ikilisini taramak AYNI bulguyu iki kez üretir ve
+            # düzeltilemez bir konum gösterir (.pyc'yi düzeltemezsin).
+            # 4cast'te commit'lenmiş tests/__pycache__/*.pyc push'u blokladı.
+            ".pyc", ".pyo", ".class", ".dll", ".exe", ".so", ".dylib"}
 MAX_BYTES = 2_000_000  # >2MB dosyayı atla (üretilmiş/ikili olasılığı)
 
 # Placeholder / örnek işaretçileri: bunları içeren değer bulgu sayılmaz.

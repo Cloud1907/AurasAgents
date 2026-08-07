@@ -182,6 +182,19 @@ class IsabetTest(unittest.TestCase):
         import scan_secrets as ss
         return [ad for ad, _v in ss.scan_line(satir)]
 
+    def test_derlenmis_dosya_taranmaz(self):
+        """`.pyc` kaynağın ikili kopyasıdır — aynı bulguyu iki kez üretir.
+
+        4cast'te commit'lenmiş `tests/__pycache__/*.pyc` push'u blokladı;
+        gösterdiği konum düzeltilebilir bir yer bile değildi.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "derlenmis.pyc"), "w") as fh:
+                fh.write(f'KEY = "{ORNEK_ANAHTAR}"\n')
+            with open(os.path.join(td, "temiz.py"), "w") as fh:
+                fh.write("x = 1\n")
+            self.assertEqual(kos(SCAN, td)[0], 0, ".pyc taranmamalı")
+
     def test_sablon_dosyasi_taranmaz(self):
         """`.env.example` gibi şablonlar örnek değer TAŞIMAK içindir.
 
