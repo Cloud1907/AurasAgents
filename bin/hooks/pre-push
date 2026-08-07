@@ -4,7 +4,64 @@
 
 ROOT=$(git rev-parse --show-toplevel)
 
-if ! python3 "$ROOT/bin/validate.py"; then
+# Yorumlayici secimi: PATH'teki ilk python3 dogru olan olmayabilir.
+# 2026-08-07'de yasandi — Homebrew python3'u 3.13'ten 3.14'e tasidi, yeni
+# yorumlayicida PyYAML yoktu ve kapi "dogrulama BASARISIZ" dedi. Oysa
+# dogrulama basarisiz olmadi, hic KOSAMADI. Ikisi ayni sey degil: biri
+# "kural ihlal edildi", digeri "kural kontrol edilemedi". Kapi ikisini de
+# bloklar (fail-closed dogru davranis) ama dogru olani soylemek zorunda.
+py_uygun() {
+  # Aday GERCEKTEN python mu ve PyYAML tasiyor mu?
+  #
+  # Yalnizca cikis koduna bakmak YETMEZ. Denetim bulgusu 2026-08-07:
+  # `AURAS_PYTHON=/usr/bin/true git push` ile secret'li push kapiyi
+  # SESSIZCE gecti (exit 0, sifir satir cikti) — cunku `true` argumanlari
+  # yok sayip 0 doner ve kapi bunu "dogrulama gecti" diye okur. Cikis kodu,
+  # surec kendi hakkinda yalan soyleyebiliyorsa kanit degildir.
+  # Bu yuzden yetenek CIKTIYLA kanitlanir.
+  [ -n "$1" ] || return 1
+  command -v "$1" >/dev/null 2>&1 || return 1
+  [ "$("$1" -c 'import yaml,sys; sys.stdout.write("AURAS_PY_OK")' 2>/dev/null)" \
+    = "AURAS_PY_OK" ]
+}
+
+PY=""
+if [ -n "${AURAS_PYTHON:-}" ]; then
+  if py_uygun "$AURAS_PYTHON"; then
+    # Override SESSIZ OLAMAZ: kapinin hangi yorumlayiciyla kostugu gorunur
+    # olmali, yoksa .zshrc'ye bir kez yazilip unutulur ve kapi kor kalir.
+    echo "NOT: kernel kapisi AURAS_PYTHON ile kosuyor: $AURAS_PYTHON"
+    PY=$AURAS_PYTHON
+  else
+    echo "PUSH ENGELLENDI: AURAS_PYTHON gecerli bir python3 degil."
+    echo "  verilen: $AURAS_PYTHON"
+    echo "PyYAML tasiyan bir yorumlayici ver ya da degiskeni kaldir."
+    exit 1
+  fi
+fi
+if [ -z "$PY" ]; then
+  for c in python3 python3.13 python3.12 python3.11 /opt/homebrew/bin/python3.13; do
+    if py_uygun "$c"; then
+      PY=$c
+      break
+    fi
+  done
+fi
+if [ -z "$PY" ]; then
+  echo "PUSH ENGELLENDI: kernel dogrulamasi KOSAMADI (arac hatasi)."
+  echo "PyYAML tasiyan python3 bulunamadi — kural ihlali yok, kapi kor."
+  echo "Duzelt: pip3 install pyyaml   ya da: AURAS_PYTHON=<yorumlayici> git push"
+  exit 1
+fi
+
+"$PY" "$ROOT/bin/validate.py"
+KOD=$?
+if [ $KOD -eq 2 ]; then
+  echo ""
+  echo "PUSH ENGELLENDI: kernel dogrulamasi KOSAMADI (arac hatasi, cikis 2)."
+  echo "Kural ihlali tespit edilmedi — dogrulama yapilamadi. Once araci duzelt."
+  exit 1
+elif [ $KOD -ne 0 ]; then
   echo ""
   echo "PUSH ENGELLENDI: kernel dogrulamasi basarisiz."
   echo "Duzeltip tekrar dene; bilincli atlamak icin: git push --no-verify"
@@ -34,7 +91,7 @@ fi
 # edilir ama index temiz gorunur → kapi gecer, secret uzaga gider. Bu sinir
 # eski tam-agac taramasinda da vardi (dosya silinmis olurdu). Kalici cozum
 # aralik taramasidir (git diff <uzak_sha>..<yerel_sha>) — ayri is.
-if ! python3 "$SCAN" --git --exclude '*/eval/*' "$ROOT"; then
+if ! "$PY" "$SCAN" --git --exclude '*/eval/*' "$ROOT"; then
   echo ""
   echo "PUSH ENGELLENDI: secret kapisi gecilemedi (bkz. yukaridaki cikti)."
   echo "Temizle ve gecmisi de kontrol et; yanlis pozitifse --no-verify."

@@ -121,6 +121,30 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   yerel kanca + CI ile sağlanır. Repo public olur veya Pro alınırsa
   `kernel` check'i required status check yapılmalıdır.
 
+## Kapıların gerçek sınıfı
+
+Bir kapının gücünü olduğundan büyük yazmak, olmayan korumaya güvendirir.
+Bu tablo her kapının NE OLDUĞUNU söyler; abartma yasaktır.
+
+| Kapı | Sınıf | Neyi engelleyemez |
+|---|---|---|
+| `bin/kapi.py` (tur/Stop) | yerel workflow guard | Agent olay kaydını silebilir/yazabilir, doğrulayıcıyı değiştirebilir; kayıt yoksa kapı sessizce geçer |
+| `bin/hooks/pre-push` | yerel workflow guard | `git push --no-verify` ile atlanır; kanca kurulu değilse hiç koşmaz |
+| `bin/incele.py` (merge) | süreç kuralı | `gh pr merge` ile doğrudan birleştirmeyi engellemez |
+| CI `evidence` job'ı | bağımsız makine kanıtı | Required check olmadığından merge'ü durduramaz |
+
+Yerel kapılar **güvenlik sınırı değildir**: hepsi agent'ın yazabildiği aynı
+dosya sisteminde, aynı kullanıcı yetkisiyle çalışır — ortak güven kökü
+agent'ın kendisidir. İşlevleri hatayı ucuzken yakalamaktır, kötü niyeti
+durdurmak değil. Gerçek bütünlük sınırı yalnız remote'ta, agent'ın
+değiştiremediği zorunlu check ile kurulur; o kurulana kadar bu sistem
+dürüstçe **yerel workflow guard** setidir.
+
+Sonuç: kapı çıktısı "doğrulandı" değil "bu turda şu kanıt görüldü" demektir.
+Kanıtın kaynağı kayda yazılır (`src`: `exit` = gerçek çıkış kodu, `event` =
+hook olay türü). Çıkış kodu maskeleyen komut (`pytest || true`,
+`pytest | tail`) "geçti" sayılmaz — kabuğun kodu testin kodu değildir.
+
 ## Kimlik ve erişim
 
 - GitHub işleri `gh` CLI ile; kimlik kısa ömürlü GitHub App installation

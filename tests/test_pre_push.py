@@ -8,6 +8,7 @@ Kapı üç şeyi zorlar: kernel doğrulaması, secret taraması, proje kapısı.
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -15,13 +16,20 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 
 
-def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True):
-    """İzole bir depoda kapıyı kurar; pre-push'un çıkış kodunu döndürür."""
+def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
+        validate_kod=0, ortam=None):
+    """İzole bir depoda kapıyı kurar; pre-push'un çıkış kodunu döndürür.
+
+    validate_kod: sahte kernel doğrulayıcısının çıkış kodu.
+      0 geçti · 1 kural ihlali · 2 araç hatası (doğrulama koşamadı).
+    ortam: alt sürece verilecek ortam (AURAS_PYTHON denemeleri için).
+    """
     os.makedirs(os.path.join(td, "bin", "hooks"))
     shutil.copy2(os.path.join(ROOT, "bin", "hooks", "pre-push"),
                  os.path.join(td, "bin", "hooks", "pre-push"))
     with open(os.path.join(td, "bin", "validate.py"), "w") as fh:
-        fh.write('#!/usr/bin/env python3\nprint("ok")\n')
+        fh.write("#!/usr/bin/env python3\nimport sys\n"
+                 f'print("ok")\nsys.exit({validate_kod})\n')
     if tarayici:
         hedef = os.path.join(td, SCAN_REL)
         os.makedirs(os.path.dirname(hedef))
@@ -47,7 +55,7 @@ def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True):
     # stdin miras alınırsa test süresiz asılır.
     p = subprocess.run(["sh", os.path.join(td, "bin", "hooks", "pre-push")],
                        capture_output=True, text=True, cwd=td, timeout=60,
-                       input="")
+                       input="", env=ortam)
     return p.returncode, p.stdout + p.stderr
 
 
@@ -55,6 +63,50 @@ class PrePushTest(unittest.TestCase):
     def test_temiz_depo_gecer(self):
         with tempfile.TemporaryDirectory() as td:
             self.assertEqual(kur(td)[0], 0)
+
+    def test_kural_ihlali_bloklar(self):
+        with tempfile.TemporaryDirectory() as td:
+            kod, cikti = kur(td, validate_kod=1)
+            self.assertEqual(kod, 1)
+            self.assertIn("dogrulamasi basarisiz", cikti)
+
+    def test_arac_hatasi_ihlalden_ayrilir(self):
+        """"Koşamadı" ile "kaldı" aynı mesajı almaz.
+
+        2026-08-07: Homebrew python3'u 3.14'e taşıdı, PyYAML yeni
+        yorumlayıcıda yoktu; validate.py 2 ile çıktı, kapı "dogrulama
+        BASARISIZ" dedi. Kullanıcı olmayan bir kural ihlalini aramaya
+        başlar. İkisi de bloklar (fail-closed doğru), ama sebep doğru
+        söylenmeli — yanlış teşhis --no-verify alışkanlığı üretir.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            kod, cikti = kur(td, validate_kod=2)
+            self.assertEqual(kod, 1, "araç hatası da bloklamalı (fail-closed)")
+            self.assertIn("KOSAMADI", cikti)
+            self.assertNotIn("dogrulamasi basarisiz", cikti)
+
+    def test_sahte_yorumlayici_kapiyi_sessizce_gecemez(self):
+        """AURAS_PYTHON kapıyı köreltemez.
+
+        Denetim bulgusu 2026-08-07 (security-review, bu PR'ın kendi diff'i):
+        `AURAS_PYTHON=/usr/bin/true git push` ile secret'lı push kapıyı
+        SESSİZCE geçti — exit 0, sıfır satır çıktı. `true` argümanları yok
+        sayıp 0 döndüğü için kapı "doğrulama geçti" sandı. Çıkış kodu,
+        süreç kendi hakkında yalan söyleyebiliyorsa kanıt değildir.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            ortam = dict(os.environ, AURAS_PYTHON="/usr/bin/true")
+            kod, cikti = kur(td, ortam=ortam)
+            self.assertEqual(kod, 1, "sahte yorumlayıcı push'u geçirmemeli")
+            self.assertIn("AURAS_PYTHON gecerli bir python3 degil", cikti)
+
+    def test_gecerli_override_gorunur_olur(self):
+        """Meşru override çalışır ama SESSİZ olmaz — kapı kör kalmasın."""
+        with tempfile.TemporaryDirectory() as td:
+            ortam = dict(os.environ, AURAS_PYTHON=sys.executable)
+            kod, cikti = kur(td, ortam=ortam)
+            self.assertEqual(kod, 0)
+            self.assertIn("AURAS_PYTHON ile kosuyor", cikti)
 
     def test_tarayici_yoksa_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:

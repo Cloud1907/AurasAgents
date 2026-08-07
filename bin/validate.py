@@ -515,6 +515,15 @@ def test_visibility():
                   for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
               "settings.json: düzenlemeler kayda geçmiyor — kapı neyin "
               "değiştiğini bilemez")
+        # PostToolUseFailure OLMADAN kapı yalnız BAŞARILARI görür: çöken
+        # test kayda hiç girmez, "testler kırmızı" dalı ölü kod olur.
+        # (Codex bulgusu, PR #15 — ölçümle doğrulandı: Claude Code 2.1.220'de
+        # başarısız araç çağrısı PostToolUse'u değil bu olayı tetikliyor.)
+        check(any("run_event.py" in h.get("command", "")
+                  for e in hooks.get("PostToolUseFailure", [])
+                  for h in e.get("hooks", [])),
+              "settings.json: PostToolUseFailure hook'u yok — başarısız "
+              "komutlar kayda girmez, kapı yalnız başarıları görür")
 
     # Kayıt disposable ve gitignore'lu olmalı (auto-memory kuralı: hiçbir iş
     # buna bağımlı olamaz, repoya sızmamalı).
@@ -689,6 +698,51 @@ def test_mechanisms():
               "pre-push kancası kurulu değil (bash bin/install-hooks.sh)")
 
 
+def test_kapi_siniflari_durust():
+    """Her kapı NE OLDUĞUNU yazmak zorunda — güvenlik sınırı taklidi yasak.
+
+    Neden bekçi: bir kapının gücünü belgede abartmak, olmayan korumaya
+    güvenmeye yol açar. Tur kapısı agent'ın kendi makinesinde, agent'ın
+    yazabildiği dosyalarla çalışır; agent kaydı silebilir, doğrulayıcıyı
+    değiştirebilir, `--no-verify` ile push edebilir. Bu bir iş akışı
+    yardımcısıdır, bütünlük sınırı değildir. Bu bölüm silinirse ya da
+    'güvenlik sınırı' iddiasına dönerse kernel doğrulaması düşer.
+    """
+    path = os.path.join(ROOT, "AGENTS.md")
+    if not os.path.isfile(path):
+        return
+    metin = open(path, encoding="utf-8").read()
+    check("## Kapıların gerçek sınıfı" in metin,
+          "AGENTS.md: 'Kapıların gerçek sınıfı' bölümü yok — her kapının "
+          "ne olduğu (yerel guard mı, bütünlük sınırı mı) yazılmalı")
+    check("yerel workflow guard" in metin,
+          "AGENTS.md: tur/push kapıları 'yerel workflow guard' olarak "
+          "adlandırılmamış (Codex hükmü 2026-08-07: yetki ayrımı yoksa "
+          "güvenlik sınırı deme)")
+    check("güvenlik sınırı değildir" in metin,
+          "AGENTS.md: yerel kapıların güvenlik sınırı OLMADIĞI açıkça "
+          "yazılmamış")
+    for kapi in ("bin/kapi.py", "bin/hooks/pre-push", "bin/incele.py"):
+        check(kapi in metin, f"AGENTS.md: '{kapi}' sınıflandırılmamış")
+
+
+def test_test_oracle_exit_koduna_bagli():
+    """Test sonucu çıktı sözcüğünden değil çıkış kodundan okunmalı.
+
+    2026-08-07 ölçümü: `exit 1; echo passed` eski oracle'da GEÇTİ sayıldı.
+    Bu bekçi sözcük-eşleşmeli oracle'ın geri gelmesini engeller.
+    """
+    path = os.path.join(ROOT, "bin", "run_event.py")
+    if not os.path.isfile(path):
+        return
+    metin = open(path, encoding="utf-8").read()
+    check("BASARILI_RE" not in metin,
+          "run_event.py: çıktı sözcüğüne bakan 'geçti' deseni geri gelmiş — "
+          "test sonucu yalnız çıkış kodundan/platform sinyalinden okunur")
+    check("exit_code" in metin,
+          "run_event.py: test oracle'ı çıkış kodunu okumuyor")
+
+
 def main():
     skill_names = test_skills()
     profil_skills = test_profiles(skill_names)
@@ -711,6 +765,8 @@ def main():
     test_quality_gate()
     test_project_gate_hook()
     test_mechanisms()
+    test_kapi_siniflari_durust()
+    test_test_oracle_exit_koduna_bagli()
     if ERRORS:
         print(f"KERNEL DOĞRULAMA: {len(ERRORS)} hata")
         for e in ERRORS:

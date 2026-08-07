@@ -172,6 +172,101 @@ class AppendTest(unittest.TestCase):
                 self.assertIn("security-review", fh.read())
 
 
+class TestOracleTest(unittest.TestCase):
+    """Testin geçtiği ÇIKIŞ KODUNDAN bilinir, çıktı sözcüğünden değil.
+
+    2026-08-07 ölçümü (bu repoda, canlı hook üstünde): `exit 1` ile dönen ama
+    çıktısında "passed" geçen komut eski oracle'a göre GEÇTİ sayılıyordu.
+    Kapı bu sinyale dayandığı için "test kanıtı var" demek, "çıktıda 'OK'
+    sözcüğü geçti" demekten ibaretti.
+    """
+
+    def test_yaniltici_cikti_geciyor_sayilmaz(self):
+        # Komut çöktü ama çıktısında 'passed' var → geçti DEĞİL.
+        self.assertIsNot(
+            run_event.test_gecti({"stdout": "3 tests passed", "exit_code": 1}),
+            True)
+
+    def test_cikis_kodu_sifir_gecti(self):
+        self.assertIs(
+            run_event.test_gecti({"stdout": "her şey yolunda", "exit_code": 0}),
+            True)
+
+    def test_cikis_kodu_sifirdan_farkli_kaldi(self):
+        self.assertIs(
+            run_event.test_gecti({"stdout": "OK OK OK", "exit_code": 2}), False)
+
+    def test_iptal_edilen_komut_gecti_sayilmaz(self):
+        # Kullanıcı iptal etti: sonuç bilinmiyor, "geçti" değil.
+        self.assertIsNot(
+            run_event.test_gecti({"stdout": "passed", "interrupted": True}),
+            True)
+
+    def test_kanit_yoksa_belirsiz_doner(self):
+        # Ne çıkış kodu ne platform sinyali → None. ASLA True.
+        self.assertIsNone(run_event.test_gecti({}))
+        self.assertIsNone(run_event.test_gecti("dict degil"))
+
+    def test_basarisizlik_olayi_kirmizi_yazar(self):
+        """PostToolUseFailure = komut çöktü. Kayda 'kaldı' diye girmeli.
+
+        Bulgu (Codex, PR #15 incelemesi): Claude Code başarısız araç
+        çağrısında PostToolUse'u DEĞİL PostToolUseFailure'ı tetikliyor.
+        Yalnız PostToolUse dinlendiği için başarısızlık kayda hiç
+        girmiyordu — kapının 'testler kırmızı' dalı ölü koddu.
+        """
+        ok, src = run_event.bash_sonucu(
+            {"stdout": "12 failed"},
+            olay="PostToolUseFailure")
+        self.assertIs(ok, False)
+        self.assertEqual(src, "event")
+
+    def test_cikis_kodu_maskeleyen_komut_gecti_sayilmaz(self):
+        """`pytest || true` kabuktan 0 döner ama testler kalmıştır.
+
+        Çıkış kodu oracle'ı ancak çıkış kodu TESTİN kodu ise geçerlidir.
+        Test çağrısından sonra gelen `||`, `|`, `;` onu kabuğun koduyla
+        değiştirir — bu durumda cevap 'geçti' değil 'bilinmiyor'dur.
+        """
+        for cmd in ("pytest || true",
+                    "python3 -m unittest 2>&1 | tail -5",
+                    "pytest; echo bitti",
+                    "npm test || echo 'sorun yok'"):
+            with self.subTest(cmd=cmd):
+                self.assertTrue(run_event.kod_maskelendi(cmd), cmd)
+                ok, src = run_event.bash_sonucu({"stdout": "OK"}, cmd=cmd)
+                self.assertIsNone(ok, f"{cmd} → geçti sayılmamalı")
+
+    def test_maskelemeyen_komut_normal_degerlendirilir(self):
+        for cmd in ("pytest tests/",
+                    "cd repo && python3 -m unittest discover",
+                    "set -o pipefail; pytest | tail -3",
+                    "dotnet test --no-build"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(run_event.kod_maskelendi(cmd), cmd)
+
+    def test_sonuc_kaynagi_kayda_girer(self):
+        """'ok' değerinin nereden geldiği denetlenebilir olmalı.
+
+        Platform davranışına dayanan çıkarım ile gerçek exit code aynı
+        güvende değildir; kayıt hangisi olduğunu söylemezse ayırt edilemez.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            log = os.path.join(td, "events.jsonl")
+            subprocess.run(
+                [sys.executable, os.path.join(ROOT, "bin", "run_event.py"),
+                 "--kind", "bash", "--log", log],
+                input=json.dumps({
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "python3 -m unittest"},
+                    "tool_response": {"stdout": "OK", "exit_code": 0}}),
+                capture_output=True, text=True, cwd=ROOT)
+            with open(log, encoding="utf-8") as fh:
+                kayit = json.loads(fh.read().strip())
+            self.assertIs(kayit["ok"], True)
+            self.assertEqual(kayit["src"], "exit")
+
+
 class TurTablosuTest(unittest.TestCase):
     def turlar(self, olaylar):
         with tempfile.TemporaryDirectory() as td:
