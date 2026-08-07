@@ -53,3 +53,34 @@ class EvidenceWorkflowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KapsamSiniriTest(unittest.TestCase):
+    """Sistem neyi zorlamadığını açıkça söylemeli (2026-08-07).
+
+    Kapsam sınırını gizleyen sistem, kapsamı dar olandan tehlikelidir:
+    kullanıcı korunduğunu sanır. Ölçüm: 10 aşamanın 4'ünde hiç kapı yok.
+    """
+
+    BELGE = os.path.join(ROOT, "docs", "yasam-dongusu-kapsami.md")
+    AGENTS = os.path.join(ROOT, "AGENTS.md")
+
+    def test_kapsam_belgesi_var(self):
+        self.assertTrue(os.path.isfile(self.BELGE),
+                        "yaşam döngüsü kapsam haritası kaybolmuş")
+
+    def test_agents_md_referans_veriyor(self):
+        # Referans yoksa belge yetim kalır ve okunmaz
+        self.assertIn("yasam-dongusu-kapsami", oku(self.AGENTS))
+
+    def test_belge_kapsanmayan_asamalari_adiyla_sayiyor(self):
+        # Genel "bazı eksikler var" cümlesi yeterli değil; hangi aşama?
+        metin = oku(self.BELGE).lower()
+        for asama in ("keşif", "tasarım", "operasyon", "ölçme"):
+            self.assertIn(asama, metin, f"'{asama}' aşaması belgede yok")
+
+    def test_belge_olculemez_alani_ayirt_ediyor(self):
+        # Ölçülemeyeni kapıya bağlamaya çalışmak sahte kesinlik üretir
+        metin = oku(self.BELGE).lower()
+        self.assertIn("ölçülemez", metin)
+        self.assertIn("sahte kesinlik", metin)

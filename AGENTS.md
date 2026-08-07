@@ -10,6 +10,17 @@ AurasAgents, tek kişilik kurucu için kanıt-temelli agent çalışma sistemidi
 Tasarım sözleşmesi: `VIBE_CODING_TASARIM_TEMMUZ_2026.md` (Codex mutabakatlı).
 Mimari kararlar: `docs/decisions/` (ADR).
 
+## Kapsam sınırı — sistem neyi zorlamaz
+
+Bu sistem **doğruluk ve güvenliği** deterministik olarak zorlar. Tasarım,
+operasyon ve ürün ölçümü aşamalarında **kapı yoktur** — oralarda skill'ler
+tavsiye verir, hiçbir mekanizma uyulduğunu denetlemez. "Kanıt > beyan" ilkesi
+yalnız kapı olan aşamalarda geçerlidir.
+
+Aşama aşama ölçülmüş kapsam: `docs/yasam-dongusu-kapsami.md`. Bir aşamaya kapı
+eklenirse o belge güncellenir; güncellenmemesi belgeyi yanlış-güven kaynağına
+çevirir.
+
 ## Çalışma ilkeleri
 
 1. Kanıt > beyan. "Bitti" demek kanıt değildir; kanıt CI'dan `evidence.json`
