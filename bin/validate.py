@@ -515,6 +515,15 @@ def test_visibility():
                   for e in hooks.get("PostToolUse", []) for h in e.get("hooks", [])),
               "settings.json: düzenlemeler kayda geçmiyor — kapı neyin "
               "değiştiğini bilemez")
+        # PostToolUseFailure OLMADAN kapı yalnız BAŞARILARI görür: çöken
+        # test kayda hiç girmez, "testler kırmızı" dalı ölü kod olur.
+        # (Codex bulgusu, PR #15 — ölçümle doğrulandı: Claude Code 2.1.220'de
+        # başarısız araç çağrısı PostToolUse'u değil bu olayı tetikliyor.)
+        check(any("run_event.py" in h.get("command", "")
+                  for e in hooks.get("PostToolUseFailure", [])
+                  for h in e.get("hooks", [])),
+              "settings.json: PostToolUseFailure hook'u yok — başarısız "
+              "komutlar kayda girmez, kapı yalnız başarıları görür")
 
     # Kayıt disposable ve gitignore'lu olmalı (auto-memory kuralı: hiçbir iş
     # buna bağımlı olamaz, repoya sızmamalı).

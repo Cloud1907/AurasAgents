@@ -141,9 +141,9 @@ değiştiremediği zorunlu check ile kurulur; o kurulana kadar bu sistem
 dürüstçe **yerel workflow guard** setidir.
 
 Sonuç: kapı çıktısı "doğrulandı" değil "bu turda şu kanıt görüldü" demektir.
-Kanıtın kaynağı kayda yazılır (`src`: `exit` = gerçek çıkış kodu,
-`platform` = ölçülmüş platform davranışına dayanan çıkarım) — ikisi aynı
-güvende değildir.
+Kanıtın kaynağı kayda yazılır (`src`: `exit` = gerçek çıkış kodu, `event` =
+hook olay türü). Çıkış kodu maskeleyen komut (`pytest || true`,
+`pytest | tail`) "geçti" sayılmaz — kabuğun kodu testin kodu değildir.
 
 ## Kimlik ve erişim
 

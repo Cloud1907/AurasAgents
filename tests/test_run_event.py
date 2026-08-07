@@ -207,6 +207,44 @@ class TestOracleTest(unittest.TestCase):
         self.assertIsNone(run_event.test_gecti({}))
         self.assertIsNone(run_event.test_gecti("dict degil"))
 
+    def test_basarisizlik_olayi_kirmizi_yazar(self):
+        """PostToolUseFailure = komut çöktü. Kayda 'kaldı' diye girmeli.
+
+        Bulgu (Codex, PR #15 incelemesi): Claude Code başarısız araç
+        çağrısında PostToolUse'u DEĞİL PostToolUseFailure'ı tetikliyor.
+        Yalnız PostToolUse dinlendiği için başarısızlık kayda hiç
+        girmiyordu — kapının 'testler kırmızı' dalı ölü koddu.
+        """
+        ok, src = run_event.bash_sonucu(
+            {"stdout": "12 failed"},
+            olay="PostToolUseFailure")
+        self.assertIs(ok, False)
+        self.assertEqual(src, "event")
+
+    def test_cikis_kodu_maskeleyen_komut_gecti_sayilmaz(self):
+        """`pytest || true` kabuktan 0 döner ama testler kalmıştır.
+
+        Çıkış kodu oracle'ı ancak çıkış kodu TESTİN kodu ise geçerlidir.
+        Test çağrısından sonra gelen `||`, `|`, `;` onu kabuğun koduyla
+        değiştirir — bu durumda cevap 'geçti' değil 'bilinmiyor'dur.
+        """
+        for cmd in ("pytest || true",
+                    "python3 -m unittest 2>&1 | tail -5",
+                    "pytest; echo bitti",
+                    "npm test || echo 'sorun yok'"):
+            with self.subTest(cmd=cmd):
+                self.assertTrue(run_event.kod_maskelendi(cmd), cmd)
+                ok, src = run_event.bash_sonucu({"stdout": "OK"}, cmd=cmd)
+                self.assertIsNone(ok, f"{cmd} → geçti sayılmamalı")
+
+    def test_maskelemeyen_komut_normal_degerlendirilir(self):
+        for cmd in ("pytest tests/",
+                    "cd repo && python3 -m unittest discover",
+                    "set -o pipefail; pytest | tail -3",
+                    "dotnet test --no-build"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(run_event.kod_maskelendi(cmd), cmd)
+
     def test_sonuc_kaynagi_kayda_girer(self):
         """'ok' değerinin nereden geldiği denetlenebilir olmalı.
 

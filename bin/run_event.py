@@ -172,30 +172,61 @@ def test_gecti(tool_response):
     return None if kod is None else kod == 0
 
 
-def bash_sonucu(tool_response):
-    """Canlı PostToolUse hook'undan (ok, kaynak). Kaynak kayda girer.
+# Test çağrısından SONRA gelirse çıkış kodunu TESTİN kodu olmaktan çıkaran
+# kabuk yapıları. `&&` kasıtlı olarak yok: `a && b` a başarısızsa a'nın
+# kodunu döndürür, yani başarısızlığı gizlemez.
+MASKE_RE = re.compile(r"\|\||;|\|(?!\|)")
 
-    İki farklı güven seviyesi vardır ve karıştırılmamalıdır:
 
-    "exit"     — payload gerçek çıkış kodunu taşıdı. Kesin.
-    "platform" — taşımadı; ÖLÇÜLMÜŞ platform davranışına dayanan çıkarım:
-                 2026-08-07'de bu repoda doğrulandı, Claude Code'un Bash
-                 aracı sıfırdan farklı çıkışla dönerse PostToolUse hook'u
-                 hiç koşmuyor. Yani bu satır yazıldıysa komut sıfırla
-                 çıkmıştır. Bu bir platform davranışıdır, sözleşme değil —
-                 sürüm değişirse sessizce yanlışa döner. Bu yüzden gerçek
-                 çıkış kodu geldiğinde DAİMA o kazanır ve kaynak kayda
-                 yazılır: "platform" ile "exit" aynı kanıt değildir.
-    None       — komut kesildi ya da payload okunamadı: bilinmiyor.
+def kod_maskelendi(cmd):
+    """Komutun çıkış kodu testin sonucunu temsil etmiyor mu?
+
+    Bulgu (Codex, PR #15): çıkış kodu oracle'ı ancak çıkış kodu TESTİN
+    kodu ise geçerlidir. `pytest || true` kabuktan 0 döner, testler
+    kalmıştır. `pytest | tail` boruda son halkanın kodunu döndürür.
+    Bu durumda doğru cevap "geçti" değil "bilinmiyor"dur.
     """
+    if not cmd:
+        return False
+    son = None
+    for son in TEST_CMD_RE.finditer(cmd):
+        pass
+    if son is None:
+        return False
+    kuyruk = cmd[son.end():]
+    if "pipefail" in cmd:
+        # pipefail açıkken boru başarısızlığı gizlemez; `||` ve `;` hâlâ gizler.
+        return bool(re.search(r"\|\||;", kuyruk))
+    return bool(MASKE_RE.search(kuyruk))
+
+
+def bash_sonucu(tool_response, cmd=None, olay=None):
+    """Canlı hook'tan (ok, kaynak). Kaynak kayda girer.
+
+    Farklı güven seviyeleri karıştırılmamalıdır:
+
+    "exit"  — payload gerçek çıkış kodunu taşıdı. En güçlü kanıt.
+    "event" — hook OLAY TÜRÜ sonucu söylüyor: PostToolUseFailure = komut
+              çöktü, PostToolUse = sıfırla çıktı. Claude Code sözleşmesi
+              (2.1.220'de her iki olay da tanımlı).
+    None    — komut kesildi, payload okunamadı ya da çıkış kodu
+              maskelenmiş: bilinmiyor. "Geçti" ASLA varsayılan değildir.
+    """
+    # SIRA ÖNEMLİ: başarısızlık olayında payload `tool_response` yerine
+    # `tool_error` taşıyabilir. Olayın kendisi zaten kanıt — önce ona bak,
+    # yoksa kırmızı sonuç "payload okunamadı" diye sessizce kaybolur.
+    if olay == "PostToolUseFailure":
+        return False, "event"
     if not isinstance(tool_response, dict):
+        return None, None
+    if kod_maskelendi(cmd):
         return None, None
     ok = test_gecti(tool_response)
     if ok is not None:
         return ok, "exit"
     if tool_response.get("interrupted"):
         return None, None
-    return True, "platform"
+    return True, "event"
 
 
 # Atlama gerekçesi kodları — serbest metin değil, sayılabilir kategori.
@@ -262,9 +293,11 @@ def main(argv=None):
             if not TEST_CMD_RE.search(cmd):
                 return 0  # sıradan komut; gürültü yazma
             event["kind"] = "test"
+            tam = ti.get("command") or ""      # maskeleme TAM komutta aranır
             event["cmd"] = cmd
-            tr = data.get("tool_response")
-            event["ok"], event["src"] = bash_sonucu(tr)
+            event["ok"], event["src"] = bash_sonucu(
+                data.get("tool_response"), cmd=tam,
+                olay=data.get("hook_event_name"))
         elif args.kind == "skipped":
             # Zorunlu skill yüklenmediyse gerekçe KAYDA girer. Bu bir kanıt
             # değil, denetlenebilir beyandır (Codex hükmü 2026-07-26):
