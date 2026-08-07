@@ -171,6 +171,33 @@ if ! grep -q "^\.agents/runtime" "$TARGET/.gitignore" 2>/dev/null; then
   echo "  .gitignore: .agents/runtime/ eklendi"
 fi
 
+# gitleaks kullanan projede kernel manifest'ini muaf tut. Manifest yalniz
+# sha256 ozeti tasir ama generic-api-key kurali uzun hex'i anahtar sanar;
+# 4cast'te bu 7 yanlis pozitif uretip CI'i bir haftadan uzun kirmizida
+# tuttu. Dosyayi kernel URETTIGI icin sorun her projede tekrarlanir.
+python3 - "$SOURCE" "$TARGET" <<'PYGL'
+import os
+import sys
+kaynak, hedef = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(kaynak, "bin"))
+import kernel_dosyalari as kd
+
+if kd.gitleaks_kullaniyor(hedef) and not kd.manifest_muaf_mi(hedef):
+    yol = os.path.join(hedef, kd.GITLEAKS_CFG)
+    try:
+        mevcut = open(yol, encoding="utf-8").read() if os.path.isfile(yol) else ""
+    except OSError:
+        mevcut = ""
+    if "[allowlist]" in mevcut:
+        print("  UYARI: .gitleaks.toml zaten [allowlist] tasiyor — kernel "
+              "manifest muafiyetini ELLE ekle (tek [allowlist] tablosu olur)")
+    else:
+        with open(yol, "a", encoding="utf-8") as fh:
+            fh.write(mevcut and "\n" or "")
+            fh.write(kd.MUAFIYET_BLOGU)
+        print("  .gitleaks.toml: kernel manifest muafiyeti eklendi")
+PYGL
+
 echo ""
 echo "Dogrulama:"
 python3 bin/validate.py

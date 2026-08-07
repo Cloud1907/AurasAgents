@@ -66,6 +66,53 @@ def motor_dosyalari(kok):
     return sorted(bulunan)
 
 
+MANIFEST_REL = ".agents/.kernel-manifest.json"
+GITLEAKS_CFG = ".gitleaks.toml"
+# Manifest yalnız sha256 özeti taşır; gitleaks'in generic-api-key kuralı
+# uzun hex bloklarını anahtar sanar. 4cast'te bu 7 yanlış pozitif üretip
+# CI'ı bir haftadan uzun kırmızıda tuttu (2026-08-07). Dosyayı kernel
+# ÜRETTİĞİ için sorun bağlı HER projede tekrarlanır — kurulumda çözülmeli.
+MUAFIYET_BLOGU = """
+[allowlist]
+description = "AurasAgents kernel manifest'i — yalnız sha256 özeti taşır, kimlik bilgisi değil"
+paths = [
+  '''\\.agents/\\.kernel-manifest\\.json''',
+]
+"""
+
+
+def gitleaks_kullaniyor(kok):
+    """Proje gitleaks koşuyor mu (config'i var ya da workflow'da anılıyor)."""
+    if os.path.isfile(os.path.join(kok, GITLEAKS_CFG)):
+        return True
+    wf = os.path.join(kok, ".github", "workflows")
+    if not os.path.isdir(wf):
+        return False
+    for ad in sorted(os.listdir(wf)):
+        try:
+            with open(os.path.join(wf, ad), encoding="utf-8",
+                      errors="replace") as fh:
+                if "gitleaks" in fh.read():
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def manifest_muaf_mi(kok):
+    """Manifest gitleaks allowlist'inde mi (yoksa yanlış pozitif üretir).
+
+    'kernel-manifest' aranır, '.kernel-manifest.json' DEĞİL: gitleaks yol
+    desenleri regex'tir ve nokta kaçışlıdır (`\\.kernel-manifest\\.json`).
+    Düz nokta aramak kendi şablonumuzu bile eşleştirmiyordu (test yakaladı).
+    """
+    try:
+        with open(os.path.join(kok, GITLEAKS_CFG), encoding="utf-8") as fh:
+            return "kernel-manifest" in fh.read()
+    except OSError:
+        return False
+
+
 def _git(kok, *arg, girdi=None):
     try:
         p = subprocess.run(["git", "-C", kok, *arg], capture_output=True,

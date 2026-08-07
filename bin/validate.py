@@ -533,6 +533,26 @@ def test_onboarding_parity():
           "sapma sessizce birikir")
 
 
+def test_gitleaks_manifest_muafiyeti():
+    """gitleaks kullanan projede kernel manifest'i muaf tutulmuş mu.
+
+    `.agents/.kernel-manifest.json` yalnız sha256 özeti taşır ama gitleaks'in
+    generic-api-key kuralı uzun hex bloklarını anahtar sanıyor. 4cast'te bu
+    7 yanlış pozitif üretip CI'ı bir haftadan uzun kırmızıda tuttu
+    (2026-08-07). Dosyayı kernel ÜRETTİĞİ için sorun bağlı her projede
+    tekrarlanır — bu yüzden kurulumun sorumluluğu.
+
+    gitleaks kullanmayan projede sessiz geçer (kural uydurmaz).
+    """
+    kd = _kernel_dosyalari()
+    if kd is None or not kd.gitleaks_kullaniyor(ROOT):
+        return
+    check(kd.manifest_muaf_mi(ROOT),
+          "gitleaks kullanılıyor ama .agents/.kernel-manifest.json muaf "
+          "değil — sha256 özetleri 'generic-api-key' sanılıp CI'ı kilitler. "
+          "/auras yeniden koş ya da .gitleaks.toml'a allowlist ekle")
+
+
 def test_quality_gate():
     """Kod kalitesi ölçülüyor ve ölçüm bir kapıya bağlı mı.
 
@@ -629,6 +649,7 @@ def main():
     test_skill_validators_wired()
     test_visibility()
     test_onboarding_parity()
+    test_gitleaks_manifest_muafiyeti()
     test_quality_gate()
     test_project_gate_hook()
     test_mechanisms()
