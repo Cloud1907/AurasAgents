@@ -150,8 +150,18 @@ def test_workflow():
     if not os.path.isfile(path):
         return
     data = yaml.safe_load(open(path, encoding="utf-8"))
-    check("pull_request" in data.get(True, data.get("on", {})),
+    tetikleyiciler = data.get(True, data.get("on", {}))
+    check("pull_request" in tetikleyiciler,
           "workflow: pull_request tetikleyicisi yok")
+    # Elle tetikleme dayanıklılık gereğidir: 2026-08-06'da GitHub Actions
+    # kesintisinde (githubstatus "Incident with Actions", 15:22Z) webhook
+    # teslimatı bozuldu; otomatik olaylar hiç run üretmedi ama
+    # workflow_dispatch çalışmaya devam etti. Bu tetikleyici olmadan kesinti
+    # boyunca hiçbir PR bağımsız makine kanıtı üretemez.
+    check("workflow_dispatch" in tetikleyiciler,
+          "workflow: workflow_dispatch yok — Actions olay teslimi bozulduğunda "
+          "kanıt elle üretilemez. evidence.yml'de 'on:' altına "
+          "'workflow_dispatch:' ekle")
     text = open(path, encoding="utf-8").read()
     check("validate.py" in text, "workflow: kernel doğrulaması koşmuyor")
     check("make_evidence.py" in text, "workflow: evidence üretimi yok")
