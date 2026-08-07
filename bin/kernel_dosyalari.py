@@ -26,7 +26,7 @@ MOTOR = [
     "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
     "bin/kalite.py",
-    "bin/auras_geri.py", "bin/codex-review.sh",
+    "bin/auras_geri.py", "bin/incele.py", "bin/codex-review.sh",
     "bin/install-hooks.sh", "bin/hooks/pre-push",
     "schemas/evidence.schema.json",
     ".github/workflows/evidence.yml",

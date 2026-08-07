@@ -91,6 +91,14 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
 - `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
   sinyalidir, makine kanıtı değildir.
+- Bağımsız inceleme (merge yolu): `python3 bin/incele.py <pr>` — diff'i
+  Codex'e (farklı satıcı, farklı kör nokta) inceletir, bulguyu P0/P1/P2
+  ayırır, PR'a karar biçiminde yorum düşer. P0/P1 varsa merge REDDEDİLİR;
+  `deny` sınıfı her zaman insana gider. `auto` risk + temiz inceleme + CI
+  yeşil ise `--merge` ile birleştirir. İnceleme çıktısı ayrıştırılamazsa
+  ENGEL (fail-closed) — "okunamadı" ile "temiz" aynı şey değildir.
+  Not: bu bir süreç kuralıdır; `gh pr merge` ile doğrudan birleştirmek
+  mekanik olarak hâlâ mümkündür.
 - Kod kalitesi ratchet'i (ADR-0004): `bin/kalite.py` dosya/fonksiyon boyutu,
   karmaşıklık ve borç işaretlerini deterministik sayar; CI `--check` ile
   koşar. Mevcut borç kabul edilir, **büyümesi bloklanır**. Taban
