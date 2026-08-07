@@ -613,6 +613,10 @@ def test_tasinan_testin_ihtiyaclari_da_tasinir(kd):
 
 # Testleri KOŞMADAN yalnız keşfeder: hangi modül kaç test üretti, hangisi
 # import'ta çöktü. Ayrı süreç, çünkü keşif her test modülünü import eder.
+# Sonuç SENTINEL'li tek satırda döner: keşif import sırasında modüllerin
+# kendi çıktısını da stdout'a alır ve tüm akışı JSON sanmak, ilgisiz bir
+# `print` yüzünden bekçiyi sahte kırmızıya düşürürdü (Codex bulgusu, PR #26).
+_KESIF_ISARET = "AURAS_KESIF:"
 _KESIF_KODU = """\
 import json, unittest
 sayim, hatali = {}, []
@@ -626,8 +630,8 @@ def gez(s):
             m = type(t).__module__
             sayim[m] = sayim.get(m, 0) + 1
 gez(unittest.TestLoader().discover("tests"))
-print(json.dumps({"sayim": sayim, "hatali": hatali}))
-"""
+print("%s" + json.dumps({"sayim": sayim, "hatali": hatali}))
+""" % _KESIF_ISARET
 
 
 def test_test_kapsami_daralmaz():
@@ -654,9 +658,11 @@ def test_test_kapsami_daralmaz():
         err(f"test keşfi koşamadı (exit {proc.returncode}): "
             f"{(proc.stderr or proc.stdout)[-300:]}")
         return
+    satir = next((s for s in reversed(proc.stdout.splitlines())
+                  if s.startswith(_KESIF_ISARET)), None)
     try:
-        veri = json.loads(proc.stdout)
-    except ValueError:
+        veri = json.loads(satir[len(_KESIF_ISARET):])
+    except (TypeError, ValueError):
         err("test keşfi çıktısı ayrıştırılamadı — 'okunamadı' ile 'temiz' "
             "aynı şey değildir (fail-closed)")
         return

@@ -129,6 +129,19 @@ class TestKapsamiTest(unittest.TestCase):
             self.assertEqual(kd.toplanmayan_testler(td, {"test_a"}),
                              ["route_test.py"])
 
+    def test_dolayli_taban_sinifi_da_yakalanir(self):
+        # Codex bulgusu (PR #26): taban sınıf takma adla gelirse `TestCase`
+        # sözcüğü `class` satırında GEÇMEZ. Sözcüğe bakan bekçi burada kör
+        # kalırdı — ve kör bekçi, olmayan korumaya güvendirir.
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "tests/route_test.py",
+                "import unittest\n"
+                "Taban = unittest.TestCase\n"
+                "class X(Taban):\n"
+                "    def test_a(self):\n        pass\n")
+            self.assertEqual(kd.toplanmayan_testler(td, set()),
+                             ["route_test.py"])
+
     def test_toplanan_dosya_sorun_degil(self):
         with tempfile.TemporaryDirectory() as td:
             yaz(td, "tests/test_a.py",
