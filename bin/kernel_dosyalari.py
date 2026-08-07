@@ -18,6 +18,7 @@ Kullanım (kütüphane):
 """
 import hashlib
 import os
+import re
 import subprocess
 
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
@@ -32,12 +33,72 @@ MOTOR = [
     ".github/workflows/evidence.yml",
     ".github/ISSUE_TEMPLATE/work-contract.yml",
     ".agents/routing.yml",
+    # Motorun kendi kapsamı hakkındaki beyanı. Her projeye gitmeli: kullanıcı
+    # hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır. Ayrıca
+    # tests/test_evidence_workflow.py bu belgeyi şart koşuyor ve o test her
+    # projeye taşınıyor — belge gitmezse kurulum kırmızı başlar (4Flow, 2026-08-07).
+    "docs/yasam-dongusu-kapsami.md",
 ]
 # Dizin olarak senkronlananlar (içerik tamamen motorun)
 MOTOR_DIZIN = [".agents/skills", ".agents/capability-profiles", "tests",
                ".claude/rules"]
 
 SINIFLAR = ("yok", "ayni", "geride", "yerel")
+
+# Motorla senkronlanmaz ama kurulumdan SONRA projede bulunur:
+# bir kez yazılan proje dosyaları (copy_new) ve kurucunun ürettikleri.
+PROJE_DOSYASI = ("AGENTS.md", "CLAUDE.md")
+URETILEN = (".agents/kalite-baseline.json",)
+
+# tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
+_ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
+
+
+def kurulumda_bulunur(rel):
+    """Bu göreli yol, taze bir kurulumdan sonra projede bulunur mu?"""
+    if rel in MOTOR or rel in PROJE_DOSYASI or rel in URETILEN:
+        return True
+    return any(rel == d or rel.startswith(d + "/") for d in MOTOR_DIZIN)
+
+
+def eksik_test_bagimliliklari(kok):
+    """[(test_dosyasi, rel)] — taşınan testin istediği ama taşınmayan yollar.
+
+    Neden: `tests/` bir motor dizinidir, yani her test her projeye gider.
+    Test ROOT'a göre bir dosya şart koşuyorsa o dosya da gitmeli. 2026-08-07'de
+    4Flow kurulumunda bizzat oldu: KapsamSiniriTest her projeye taşındı ama
+    şart koştuğu `docs/yasam-dongusu-kapsami.md` motor listesinde yoktu —
+    yeni proje kurulumdan KIRMIZI çıktı. Kutudan kırmızı çıkan kurulum,
+    insana kapıyı baştan yok saymayı öğretir.
+
+    Yalnız kanonikte GERÇEKTEN var olan ve dosya olan yollar denetlenir:
+    üretilen/geçici yollar ile yol kökü olarak kullanılan dizinler (ör. "bin")
+    bir kurulum bağımlılığı değildir.
+
+    Çıkış yolu: dosyanın başına `# kanonik-özel: <sebep>` yazan test denetim
+    dışıdır. Bazı testlerin bağlı projede karşılığı YOKTUR (ör. kurucunun
+    kendisi projeye taşınmaz) — o testler bağlı projede atlanmalı, kırmızı
+    vermemeli. İşaret gerekçesiyle birlikte GÖRÜNÜR olsun diye zorunlu.
+    """
+    tests_dir = os.path.join(kok, "tests")
+    if not os.path.isdir(tests_dir):
+        return []
+    eksik = []
+    for f in sorted(os.listdir(tests_dir)):
+        if not f.endswith(".py"):
+            continue
+        with open(os.path.join(tests_dir, f), encoding="utf-8") as fh:
+            icerik = fh.read()
+        if "kanonik-özel:" in icerik:
+            continue
+        for m in _ROOT_YOLU.finditer(icerik):
+            rel = "/".join(re.findall(r"\"([^\"]+)\"", m.group(1)))
+            tam = os.path.join(kok, rel)
+            if not os.path.isfile(tam):
+                continue
+            if not kurulumda_bulunur(rel):
+                eksik.append((f, rel))
+    return eksik
 
 
 def sha(yol):

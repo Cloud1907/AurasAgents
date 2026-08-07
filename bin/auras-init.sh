@@ -17,6 +17,34 @@ echo "Kaynak: $SOURCE"
 echo "Hedef : $TARGET"
 echo ""
 
+# Yorumlayici secimi — pre-push kancasiyla ayni sozlesme.
+# PATH'teki ilk python3 dogru olan olmayabilir (2026-08-07: Homebrew python3'u
+# 3.14'e tasidi, PyYAML orada yoktu, kurulum dogrulamasi kosamadi). Yetenek
+# CIKTIYLA kanitlanir: yalniz cikis koduna bakmak yetmez, `/usr/bin/true -c ...`
+# argumanlari yok sayip 0 doner.
+py_uygun() {
+  [ -n "$1" ] || return 1
+  command -v "$1" >/dev/null 2>&1 || return 1
+  [ "$("$1" -c 'import yaml,sys; sys.stdout.write("AURAS_PY_OK")' 2>/dev/null)" \
+    = "AURAS_PY_OK" ]
+}
+PY=""
+if [ -n "${AURAS_PYTHON:-}" ] && py_uygun "$AURAS_PYTHON"; then
+  PY=$AURAS_PYTHON
+  echo "NOT: AURAS_PYTHON kullaniliyor: $PY"
+fi
+if [ -z "$PY" ]; then
+  for c in python3 python3.13 python3.12 python3.11; do
+    if py_uygun "$c"; then PY=$c; break; fi
+  done
+fi
+if [ -z "$PY" ]; then
+  echo "HATA: PyYAML tasiyan python3 bulunamadi — kurulum dogrulanamaz." >&2
+  echo "Duzelt: pip3 install pyyaml   ya da: AURAS_PYTHON=<yorumlayici> ..." >&2
+  exit 1
+fi
+echo ""
+
 # Proje dosyalari: bir kez yazilir, ASLA ezilmez (AGENTS.md, CLAUDE.md...)
 copy_new() {  # kaynak_rel hedef_rel — hedefte varsa dokunmaz
   local src="$SOURCE/$1" dst="$TARGET/$2"
@@ -44,7 +72,7 @@ chmod +x "$TARGET"/bin/*.sh "$TARGET"/bin/hooks/* 2>/dev/null || true
 # içeriğini "el değmemiş" sanıp yerel düzeltmeyi ezmek üzereydi).
 echo ""
 echo "Motor dosyalari (guncelleme):"
-python3 - "$SOURCE" "$TARGET" <<'PYSYNC'
+"$PY" - "$SOURCE" "$TARGET" <<'PYSYNC'
 import json
 import os
 import shutil
@@ -127,7 +155,7 @@ bash bin/install-hooks.sh
 
 echo ""
 echo "Hook'lar (.claude/settings.json — kaynaktan birlestirilir):"
-python3 - "$SOURCE" "$TARGET" <<'PYHOOK'
+"$PY" - "$SOURCE" "$TARGET" <<'PYHOOK'
 import json
 import os
 import sys
@@ -175,7 +203,7 @@ fi
 # sha256 ozeti tasir ama generic-api-key kurali uzun hex'i anahtar sanar;
 # 4cast'te bu 7 yanlis pozitif uretip CI'i bir haftadan uzun kirmizida
 # tuttu. Dosyayi kernel URETTIGI icin sorun her projede tekrarlanir.
-python3 - "$SOURCE" "$TARGET" <<'PYGL'
+"$PY" - "$SOURCE" "$TARGET" <<'PYGL'
 import os
 import sys
 kaynak, hedef = sys.argv[1], sys.argv[2]
@@ -198,6 +226,17 @@ if kd.gitleaks_kullaniyor(hedef) and not kd.manifest_muaf_mi(hedef):
         print("  .gitleaks.toml: kernel manifest muafiyeti eklendi")
 PYGL
 
+# Kalite tabani PROJENIN dosyasidir, motorun degil: her repo kendi mevcut
+# borcuyla baslar, ratchet o noktadan itibaren buyumeyi engeller. Kurucu
+# uretmezse yeni proje kurulumdan KIRMIZI cikar (4Flow, 2026-08-07) ve
+# kutudan kirmizi cikan kurulum insana kapiyi bastan yok saymayi ogretir.
+# VAR OLANI EZMEZ — taban yukseltmek bilincli karardir (ADR-0004).
+if [ -f bin/kalite.py ] && [ ! -f .agents/kalite-baseline.json ]; then
+  echo ""
+  echo "Kalite tabani (mevcut borc donduruluyor):"
+  "$PY" bin/kalite.py --baseline 2>&1 | tail -3
+fi
+
 echo ""
 echo "Dogrulama:"
-python3 bin/validate.py
+"$PY" bin/validate.py

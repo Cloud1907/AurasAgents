@@ -594,6 +594,21 @@ def test_onboarding_parity():
     check("auras_geri.py" in text,
           "auras-init.sh korunan yerel işi geri-taşımaya yönlendirmiyor — "
           "sapma sessizce birikir")
+    if kd is not None:
+        test_tasinan_testin_ihtiyaclari_da_tasinir(kd)
+
+
+def test_tasinan_testin_ihtiyaclari_da_tasinir(kd):
+    """Taşınan bir test, taşınmayan bir dosyayı şart koşamaz.
+
+    Mantık `kernel_dosyalari.eksik_test_bagimliliklari()` içinde yaşıyor
+    (saf fonksiyon, birim testi var); burada yalnız kapıya bağlanır.
+    """
+    for test_dosya, rel in kd.eksik_test_bagimliliklari(ROOT):
+        err(f"tests/{test_dosya} '{rel}' dosyasını şart koşuyor ama o dosya "
+            f"kurulumdan sonra projede bulunmaz — bağlı proje kurulumdan "
+            f"kırmızı çıkar. kernel_dosyalari.MOTOR'a ekle ya da testi "
+            f"kanonik-özel yap")
 
 
 def test_gitleaks_manifest_muafiyeti():
