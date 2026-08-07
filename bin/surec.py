@@ -30,7 +30,20 @@ INCELEME_BUTCESI = int(os.environ.get("INCELE_BUTCE", "900"))
 TERM_SURESI = 3  # kabuğun EXIT tuzağını koşturmasına verilen süre (saniye)
 
 
-def agaci_oldur(p):
+def _sessiz(fn, *a):
+    """Temizlik adımı — HİÇBİR şey yarıda kesmesin, ikinci Ctrl-C dahil.
+
+    Temizlik yolu kesilebilir olursa ağaç diri kalır: kullanıcı Ctrl-C'ye
+    iki kez basınca ikincisi tam buraya düşer. Yutulan istisna yalnız
+    temizliğin kendisine ait; asıl kesinti `kos`'tan yine yükselir.
+    """
+    try:
+        fn(*a)
+    except BaseException:
+        pass
+
+
+def agaci_oldur(p, pgid=None):
     """Süreç GRUBUNU öldürür — önce nazikçe, sonra kesin.
 
     `p.kill()` yalnız doğrudan çocuğu (bash) alır; altındaki ask-codex.sh ve
@@ -38,32 +51,24 @@ def agaci_oldur(p):
 
     Neden iki aşama: doğrudan SIGKILL yakalanamaz, kabuğun `EXIT` tuzağı hiç
     koşmaz — `codex-review.sh` prompt'unu `mktemp` ile yazıp tuzakla siliyor,
-    tek SIGKILL her zaman aşımında /tmp'ye bir dosya bırakırdı. Önce SIGTERM
-    (tuzak koşsun), sonra hâlâ yaşayana SIGKILL: temizlik şansı verilir ama
-    ölüm garantisi bırakılmaz.
+    tek SIGKILL her zaman aşımında /tmp'ye bir dosya bırakırdı.
+
+    `pgid` DIŞARIDAN gelir: lider çıkıp torun boruyu açık tuttuğunda
+    `getpgid` başarısız olur ve grup elde kalmazdı. Spawn anında yakalanan
+    değer bu yüzden tercih edilir.
     """
-    try:
-        pgid = os.getpgid(p.pid)
-    except OSError:
-        p.kill()
-        pgid = None
-    if pgid is not None:
+    if pgid is None:
         try:
-            os.killpg(pgid, signal.SIGTERM)
+            pgid = os.getpgid(p.pid)
         except OSError:
-            pass
-        try:  # tuzağın koşması için bekle; kendi çıkarsa erken döner
-            p.wait(timeout=TERM_SURESI)
-        except (OSError, subprocess.SubprocessError):
-            pass
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-        except OSError:
-            pass
-    try:
-        p.communicate(timeout=10)
-    except (OSError, subprocess.SubprocessError):
-        pass
+            pgid = None
+    if pgid is None:
+        _sessiz(p.kill)
+    else:
+        _sessiz(os.killpg, pgid, signal.SIGTERM)
+        _sessiz(p.wait, TERM_SURESI)  # tuzak koşsun; kendi çıkarsa erken döner
+        _sessiz(os.killpg, pgid, signal.SIGKILL)
+    _sessiz(p.communicate, None, 10)
 
 
 def _grubu_supur(pgid):
@@ -75,10 +80,7 @@ def _grubu_supur(pgid):
     süpürme `communicate()` döner dönmez yapılıyor; sızan `codex exec`
     ağacının saatlerce yaşamasına karşı kabul edilmiş takas.
     """
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except OSError:
-        pass
+    _sessiz(os.killpg, pgid, signal.SIGKILL)
 
 
 def kos(*arg, girdi=None, timeout=600):
@@ -104,7 +106,7 @@ def kos(*arg, girdi=None, timeout=600):
         _grubu_supur(pgid)
         return p.returncode, out, err
     except BaseException as e:  # Ctrl-C/SystemExit dahil: ağacı ASLA bırakma
-        agaci_oldur(p)
+        agaci_oldur(p, pgid)
         _grubu_supur(pgid)
         if isinstance(e, (OSError, subprocess.SubprocessError)):
             return 1, "", str(e)

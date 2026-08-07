@@ -139,6 +139,40 @@ class NormalDonusTest(SurecSizintisiTest):
             self._torun_olmus_mu(pid_dosya, "normal dönüşten")
 
 
+class IkinciKesintiTest(SurecSizintisiTest):
+    """P1 · Temizlik yolu ikinci Ctrl-C'ye karşı korumasızdı (5. bulgu).
+
+    Kullanıcı Ctrl-C'ye iki kez basarsa ikincisi tam temizliğin içine düşer:
+    `wait`/`communicate` kesilir, `agaci_oldur` yarıda kalır, ağaç yaşar.
+    Temizlik kesilemez olmalı — asıl kesinti yine de yukarı yükselir.
+    """
+
+    def test_zaman_asimi_torun_sureci_de_oldurur(self):
+        pass  # üst sınıfta koşuyor; burada ikinci kesinti sınanıyor
+
+    def test_temizlik_ikinci_kesintiyle_yarim_kalmaz(self):
+        with tempfile.TemporaryDirectory() as td:
+            pid_dosya = os.path.join(td, "torun.pid")
+            # Torun SIGTERM'i YOK SAYAR. Aksi hâlde ilk (nazik) sinyalde
+            # ölür ve test kesintinin etkisini ölçemez — yanlış sebepten
+            # yeşile döner. Yalnız SIGKILL adımı onu öldürebilir.
+            komut = ("bash -c 'trap \"\" TERM; sleep 120' >/dev/null 2>&1 & "
+                     f"echo $! > {pid_dosya}; sleep 120 >/dev/null 2>&1")
+            gercek_wait = subprocess.Popen.wait
+
+            def kesintili_wait(self_p, *a, **kw):
+                # Temizlik sırasındaki İKİNCİ Ctrl-C
+                raise KeyboardInterrupt
+
+            subprocess.Popen.wait = kesintili_wait
+            try:
+                kod, _o, _e = surec.kos("bash", "-c", komut, timeout=2)
+                self.assertEqual(kod, 1)
+            finally:
+                subprocess.Popen.wait = gercek_wait
+            self._torun_olmus_mu(pid_dosya, "ikinci Ctrl-C'den")
+
+
 class TuzakTest(unittest.TestCase):
     """P1 · SIGKILL kabuk `EXIT` tuzağını koşturmuyordu (kapının 4. bulgusu).
 
