@@ -16,10 +16,13 @@ Kullanım (kütüphane):
     import kernel_dosyalari as kd
     for rel, sinif in kd.karsilastir(kanonik, hedef): ...
 """
+import ast
 import hashlib
+import io
 import os
 import re
 import subprocess
+import tokenize
 
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
@@ -55,26 +58,62 @@ URETILEN = (".agents/kalite-baseline.json",)
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
 # Test taşıyan dosyanın imzası — VARSAYILAN "topla", istisna yazılır.
 #
-# Bu desen üç turda üç kez sızdı (Codex incelemesi, PR #26): takma adlı taban
-# (`Taban = unittest.TestCase`), `async def test_*`, sonra dış dosyadan gelen
-# taban (`from ortak_taban import Taban`). Her seferinde çare deseni biraz
-# daha genişletmekti — ve her genişletmenin bir sonraki kaçağı vardı. Statik
-# sezginin kapatılamayacağı bu boşluk, VARSAYILAN ters olduğu için vardı:
-# "test gibi görünmüyorsa serbest". Doğrusu fail-closed olmaktır — tests/
-# altında test metodu olan her dosya toplanmak ZORUNDADIR; kasıtlı yardımcı
-# `# toplanmaz: <gerekçe>` yazarak muaf olur. Gerekçe zorunludur: susturma
-# görünür bir karar olmalı (secret-allowlist ile aynı sözleşme).
-_TESTCASE = re.compile(r"^class\s+\w+\s*\([^)]*\bTestCase\b", re.M)
-_TEST_METODU = re.compile(r"^\s+(?:async\s+)?def\s+test\w*\s*\(\s*self\b", re.M)
-# Muafiyet işareti SATIR BAŞINDA gerçek bir yorum olmalı ve gerekçesi AYNI
-# satırda gelmeli. İki tuzak da ölçüldü:
-#   `\s*` satır sonunu yiyordu → gerekçesiz işaret bir sonraki satırın kodunu
-#   gerekçe sanıp sessizce muafiyet veriyordu.
-#   Ham metinde serbest arama → bu bekçinin KENDİ test dosyası, fixture'ında
-#   işareti bir string literal olarak taşıdığı için kendini muaf tutuyordu
-#   (Codex bulgusu, PR #30). Tarayıcının kendi testine kör kalması, kapının
-#   olduğu ama korumadığı hâlin en pahalı biçimidir.
-_TOPLANMAZ = re.compile(r"^[ \t]*#[ \t]*toplanmaz:[ \t]*\S[^\n]*", re.M)
+# Bu kural beş inceleme turunda beş kez sızdı (Codex, PR #26 ve #30): takma
+# adlı taban (`Taban = unittest.TestCase`), `async def test_*`, dış dosyadan
+# gelen taban, fixture string'i içindeki muafiyet işareti, `self` olmayan ilk
+# parametre. Hepsinin tek bir kök nedeni vardı: METİN DESENİ, kodu koddan
+# ayırt edemez. Her tur deseni biraz daha genişletmek yeni bir kaçak bıraktı.
+#
+# Çözüm deseni büyütmek değil, dili DİLİN KENDİ ARACIYLA okumaktır: yapı
+# `ast`ten, yorumlar `tokenize`dan gelir. Bu sınıf kaçak böylece kapanır —
+# string içeriği asla yorum, yorum asla kod sayılmaz.
+#
+# Varsayılan fail-closed: tests/ altında test metodu olan her dosya toplanmak
+# ZORUNDADIR; kasıtlı yardımcı `# toplanmaz: <gerekçe>` yorumuyla muaf olur.
+# Gerekçe zorunludur — susturma görünür bir karar olmalı (secret-allowlist
+# ile aynı sözleşme).
+_TOPLANMAZ = re.compile(r"^#[ \t]*toplanmaz:[ \t]*\S")
+
+
+def _yorumlar(metin):
+    """Dosyadaki GERÇEK yorum token'ları — string içeriği buraya giremez."""
+    try:
+        akis = tokenize.generate_tokens(io.StringIO(metin).readline)
+        return [t.string for t in akis if t.type == tokenize.COMMENT]
+    except (tokenize.TokenError, SyntaxError, IndentationError):
+        return []
+
+
+def _testcase_tabanli(dugum):
+    """Sınıfın tabanlarından biri `...TestCase` mi (nokta ya da düz ad)."""
+    for taban in dugum.bases:
+        ad = taban.attr if isinstance(taban, ast.Attribute) else \
+            getattr(taban, "id", "")
+        if "TestCase" in ad:
+            return True
+    return False
+
+
+def _test_tasiyor(metin):
+    """Dosya bir sınıf içinde test tanımlıyor mu (yapıdan, desenden değil).
+
+    Ayrıştırılamayan dosya `True` sayılır: tests/ altındaki bozuk dosya zaten
+    toplanamaz ve sessiz geçmemelidir (fail-closed).
+    """
+    try:
+        agac = ast.parse(metin)
+    except (SyntaxError, ValueError):
+        return True
+    for dugum in ast.walk(agac):
+        if not isinstance(dugum, ast.ClassDef):
+            continue
+        if _testcase_tabanli(dugum):
+            return True
+        for govde in dugum.body:
+            if isinstance(govde, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                    and govde.name.startswith("test"):
+                return True
+    return False
 
 
 def yol_coz(kok, rel):
@@ -176,9 +215,9 @@ def toplanmayan_testler(kok, toplanan):
         with open(os.path.join(tests_dir, f), encoding="utf-8",
                   errors="replace") as fh:
             metin = fh.read()
-        if not (_TESTCASE.search(metin) or _TEST_METODU.search(metin)):
+        if not _test_tasiyor(metin):
             continue
-        if not _TOPLANMAZ.search(metin):
+        if not any(_TOPLANMAZ.match(y) for y in _yorumlar(metin)):
             eksik.append(f)
     return eksik
 
