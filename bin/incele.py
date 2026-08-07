@@ -7,10 +7,9 @@ yorumu. Kullanıcı da PR'ları okumadığını söyledi. Sonuç: "insan merge"
 satırı en güçlü duran ama fiilen boş çalışan halkaydı — ne insan ne makine
 incelemesi vardı. Bu araç o boşluğu kapatır.
 
-Neden Codex: farklı SATICI, farklı kör nokta. İkinci bir Claude aynı hataları
-yapardı; bağımsızlık modelin farklı olmasından gelir, sayısından değil.
-İnceleme yine de RİSK SİNYALİDİR, makine kanıtı değildir (AGENTS.md) —
-bu yüzden CI yeşili ayrıca aranır.
+Neden Codex: farklı SATICI, farklı kör nokta. Bağımsızlık modelin farklı
+olmasından gelir, sayısından değil. İnceleme yine de RİSK SİNYALİDİR, makine
+kanıtı değildir (AGENTS.md) — bu yüzden CI yeşili ayrıca aranır.
 
 Karar tablosu:
   inceleme okunamadı      → ENGEL (fail-closed: sessiz "temiz" yok)
@@ -30,18 +29,14 @@ import argparse
 import json
 import os
 import re
-import signal
-import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import surec  # noqa: E402
+from surec import INCELEME_BUTCESI, zaman_asimi_notu  # noqa: E402,F401
 
-# İnceleme bütçesi `gh` çağrılarınınkinden AYRIDIR (önce ikisi de `_kos`'un
-# genel varsayılanına bağlıydı). Ölçüm (2026-08-07): 4.4KB→147s, 9.0KB→156s —
-# boyut baskın değil, ~140s sabit taban var. Bu yüzden diff boyutuna göre
-# ÖLÇEKLENMİYOR: ölçeklenecek değişken sürücü değil.
-INCELEME_BUTCESI = int(os.environ.get("INCELE_BUTCE", "900"))
 
 # --- Risk sınıflandırma (AGENTS.md risk politikası, path kuralı) -----------
 # Eskalasyon YALNIZ yukarı: bilinmeyen yol `approval` sayılır, `auto` değil.
@@ -200,36 +195,8 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
 
 
 # --- Dış dünya -------------------------------------------------------------
-def _agaci_oldur(p):
-    """Süreç GRUBUNU öldürür. `p.kill()` yalnız doğrudan çocuğu (bash) alır;
-    altındaki ask-codex.sh ve `codex exec` yaşar ve PPID 1'e düşer."""
-    try:
-        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
-    except OSError:
-        p.kill()
-    try:
-        p.communicate(timeout=10)
-    except (OSError, subprocess.SubprocessError):
-        pass
+_kos = surec.kos
 
-
-def _kos(*arg, girdi=None, timeout=600):
-    """Alt süreci KENDİ oturumunda başlatır; zaman aşımında tüm ağacı öldürür.
-    `subprocess.run(timeout=)` yalnız beklemeyi sınırlar, ağacı öldürmez.
-    Gerekçe ve ölçüm: tests/test_incele.py · SurecSizintisiTest."""
-    try:
-        p = subprocess.Popen(
-            arg, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE if girdi is not None else None,
-            text=True, cwd=ROOT, start_new_session=True)
-    except OSError as e:
-        return 1, "", str(e)
-    try:
-        out, err = p.communicate(girdi, timeout=timeout)
-        return p.returncode, out, err
-    except (OSError, subprocess.SubprocessError) as e:
-        _agaci_oldur(p)  # TimeoutExpired dahil: ağacı bırakma
-        return 1, "", str(e)
 
 
 def pr_dosyalari(pr):
@@ -257,20 +224,6 @@ def ci_durumu(pr):
         return False, "check okunamadı"
     return ci_karari(satirlar)
 
-
-def zaman_asimi_notu(butce):
-    """Zaman aşımında kullanıcının önüne EYLEM koyar — önünde yol olmayan
-    kapı `gh pr merge` ile atlanır, kural belgede kalır sistemde kalmaz."""
-    return (
-        f"İnceleme {butce}s bütçesinde bitmedi. Karar ENGEL — 'okunamadı' "
-        "'temiz' demek değildir. Sırayla dene:\n"
-        "1. Asılı süreç: `ps -eo etime,pid,command | grep 'codex exec'` — "
-        "YAŞI bu incelemeden eskiyse yetimdir, öldür (eşzamanlı meşru "
-        "incelemeyi öldürme). Sızan süreç sonrakini yavaşlatır: 155.8s→45.5s.\n"
-        f"2. Bütçeyi yükseltip tekrar koş: "
-        f"`INCELE_BUTCE={butce * 2} python3 bin/incele.py <pr>`\n"
-        "3. PR'ı böl — tek amaçlı küçük diff hem hızlı hem doğru incelenir "
-        "(AGENTS.md: ilgisiz işleri tek PR'da toplama).")
 
 
 def codex_incele(pr, butce=None):
