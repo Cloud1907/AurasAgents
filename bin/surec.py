@@ -43,6 +43,19 @@ def _sessiz(fn, *a):
         pass
 
 
+def _temizle(p, pgid):
+    """Öldürme dizisi. Tek tek adımlar `_sessiz`, dizinin BÜTÜNÜ ise
+    `agaci_oldur`'daki yeniden deneme ile korunur: iki çağrı ARASINA düşen
+    bir kesinti diziyi yarıda bırakabilirdi."""
+    if pgid is None:
+        _sessiz(p.kill)
+    else:
+        _sessiz(os.killpg, pgid, signal.SIGTERM)
+        _sessiz(p.wait, TERM_SURESI)  # tuzak koşsun; kendi çıkarsa erken döner
+        _sessiz(os.killpg, pgid, signal.SIGKILL)
+    _sessiz(p.communicate, None, 10)
+
+
 def agaci_oldur(p, pgid=None):
     """Süreç GRUBUNU öldürür — önce nazikçe, sonra kesin.
 
@@ -62,13 +75,14 @@ def agaci_oldur(p, pgid=None):
             pgid = os.getpgid(p.pid)
         except OSError:
             pgid = None
-    if pgid is None:
-        _sessiz(p.kill)
-    else:
-        _sessiz(os.killpg, pgid, signal.SIGTERM)
-        _sessiz(p.wait, TERM_SURESI)  # tuzak koşsun; kendi çıkarsa erken döner
-        _sessiz(os.killpg, pgid, signal.SIGKILL)
-    _sessiz(p.communicate, None, 10)
+    # Sınırlı yeniden deneme: adımlar arasına düşen ikinci Ctrl-C diziyi
+    # yarıda bırakmasın. Sınırlı, çünkü sonsuz döngü kapıyı asardı.
+    for _ in range(3):
+        try:
+            _temizle(p, pgid)
+            return
+        except BaseException:
+            continue
 
 
 def _grubu_supur(pgid):

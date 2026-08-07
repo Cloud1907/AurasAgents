@@ -8,6 +8,7 @@ aşımı bir sonrakini daha olası kılar.
 """
 import importlib.util
 import os
+import signal
 import subprocess
 import tempfile
 import time
@@ -171,6 +172,30 @@ class IkinciKesintiTest(SurecSizintisiTest):
             finally:
                 subprocess.Popen.wait = gercek_wait
             self._torun_olmus_mu(pid_dosya, "ikinci Ctrl-C'den")
+
+    def test_adimlar_arasi_kesinti_diziyi_bitirir(self):
+        """`_sessiz` tek tek çağrıları sarar; iki çağrı ARASINA düşen kesinti
+        diziyi yarıda bırakabilirdi. Sınırlı yeniden deneme onu kapatır."""
+        with tempfile.TemporaryDirectory() as td:
+            pid_dosya = os.path.join(td, "torun.pid")
+            komut = ("bash -c 'trap \"\" TERM; sleep 120' >/dev/null 2>&1 & "
+                     f"echo $! > {pid_dosya}; sleep 120 >/dev/null 2>&1")
+            orij, sayac = surec._temizle, {"n": 0}
+
+            def kirilgan(p, pgid):
+                sayac["n"] += 1
+                if sayac["n"] == 1:  # SIGKILL adımına sıra gelmeden kesil
+                    surec._sessiz(os.killpg, pgid, signal.SIGTERM)
+                    raise KeyboardInterrupt
+                return orij(p, pgid)
+
+            surec._temizle = kirilgan
+            try:
+                surec.kos("bash", "-c", komut, timeout=2)
+            finally:
+                surec._temizle = orij
+            self.assertGreater(sayac["n"], 1, "yeniden deneme koşmadı")
+            self._torun_olmus_mu(pid_dosya, "adımlar arası kesintiden")
 
 
 class TuzakTest(unittest.TestCase):
