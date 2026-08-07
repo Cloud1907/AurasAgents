@@ -52,6 +52,65 @@ class MotorListesiTest(unittest.TestCase):
             self.assertIn(rel, kd.MOTOR, f"{rel} motor listesinde yok")
 
 
+class KurulumBagimliligiTest(unittest.TestCase):
+    """Taşınan test, taşınmayan dosyayı şart koşamaz.
+
+    2026-08-07 / 4Flow: `tests/` motor dizini olduğu için KapsamSiniriTest
+    her projeye taşındı, ama şart koştuğu `docs/yasam-dongusu-kapsami.md`
+    motor listesinde yoktu — taze kurulum 4 test kırmızı başladı. Kutudan
+    kırmızı çıkan kurulum, insana kapıyı baştan yok saymayı öğretir.
+    """
+
+    def test_bu_repoda_eksik_bagimlilik_yok(self):
+        eksik = kd.eksik_test_bagimliliklari(ROOT)
+        self.assertEqual(
+            eksik, [],
+            "taşınan testler taşınmayan dosya istiyor: " +
+            ", ".join(f"{t} → {r}" for t, r in eksik))
+
+    def test_kapsam_belgesi_motorla_gider(self):
+        # Kullanıcı hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır.
+        self.assertIn("docs/yasam-dongusu-kapsami.md", kd.MOTOR)
+
+    def test_eksik_bagimlilik_yakalanir(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "docs/ozel.md", "kanonik-özel belge\n")
+            yaz(td, "tests/test_x.py",
+                'import os\nROOT = "."\n'
+                'YOL = os.path.join(ROOT, "docs", "ozel.md")\n')
+            self.assertEqual(kd.eksik_test_bagimliliklari(td),
+                             [("test_x.py", "docs/ozel.md")])
+
+    def test_motordaki_dosya_bagimliligi_sorun_degil(self):
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "bin/route.py", "x = 1\n")     # MOTOR'da
+            yaz(td, "tests/test_x.py",
+                'import os\nROOT = "."\n'
+                'YOL = os.path.join(ROOT, "bin", "route.py")\n')
+            self.assertEqual(kd.eksik_test_bagimliliklari(td), [])
+
+    def test_kurucunun_urettigi_dosya_sorun_degil(self):
+        # Taban kurulumda üretilir; motor listesinde olması BEKLENMEZ.
+        self.assertTrue(kd.kurulumda_bulunur(".agents/kalite-baseline.json"))
+        self.assertTrue(kd.kurulumda_bulunur("AGENTS.md"))
+        self.assertFalse(kd.kurulumda_bulunur("docs/rastgele-belge.md"))
+
+    def test_kanonik_ozel_isaretli_test_denetim_disi(self):
+        """Bağlı projede karşılığı olmayan test kırmızı vermemeli.
+
+        Kurucunun kendisi (`bin/auras-init.sh`) projeye taşınmaz; onu
+        denetleyen test de bağlı projede atlanmalı. İşaret gerekçesiyle
+        yazılır ki "kapıyı susturmak" görünür bir karar olsun.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            yaz(td, "docs/ozel.md", "kanonik belge\n")
+            yaz(td, "tests/test_x.py",
+                "# kanonik-özel: yalnız şablon reposunda anlamlı\n"
+                'import os\nROOT = "."\n'
+                'YOL = os.path.join(ROOT, "docs", "ozel.md")\n')
+            self.assertEqual(kd.eksik_test_bagimliliklari(td), [])
+
+
 class SiniflaTest(unittest.TestCase):
     def kur(self, td):
         """Kanonik: v1 commit'li, sonra v2. Hedef: boş dizin."""
