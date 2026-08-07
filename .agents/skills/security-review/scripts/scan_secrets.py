@@ -84,7 +84,13 @@ DEGER_DEGIL = (
     re.compile(r"^[./]*([\w.-]+/)+[\w.-]+$"),
     re.compile(r"^https?://"),
     # Değişken/şablon referansı: $Var, ${VAR}, {{ vault }}, %s, {0}, <VALUE>
-    re.compile(r"^[$%]"),
+    #
+    # DİKKAT — bu desen DAR tutulmalı. İlk hâli `^[$%]` idi ve bcrypt
+    # hash'ini ($2b$12$...) sessizce atlıyordu: `$` ile başlayan her şeyi
+    # değişken sanmak, `$` ile başlayan gerçek sırları kör noktaya çevirir.
+    # Artık yalnız TAM bir değişken ADI eşleşir; içinde `$` geçen değer değil.
+    re.compile(r"^\$[A-Za-z_]\w*$"),
+    re.compile(r"^%[A-Za-z]$"),
     re.compile(r"^\$?\{[^}]*\}$"),
     re.compile(r"^\{\{.*\}\}$"),
     re.compile(r"^<[^>]+>$"),
@@ -109,10 +115,20 @@ def deger_degil(text):
     return any(rx.search(t) for rx in DEGER_DEGIL)
 
 
-def scan_line(line):
+# Şablon dosyalarında SUSTURULAN kurallar — yalnız düşük güvenli olanlar.
+# Bir `.env.example`'da "buraya-parolani-yaz" beklenir; ama oraya YANLIŞLIKLA
+# gerçek bir Stripe/AWS anahtarı yapıştırmak en sık görülen sızıntı biçimidir.
+# Dosyayı tamamen atlamak o vakayı kör noktaya çevirirdi.
+SABLONDA_SUSAN = {"Hardcoded parola", "Generic API key/token atama",
+                  "Bağlantı dizesinde parola"}
+
+
+def scan_line(line, sablon=False):
     """Bir satırda bulunan (kural, eşleşme) listesini döndür."""
     hits = []
     for name, rx in RULES:
+        if sablon and name in SABLONDA_SUSAN:
+            continue
         for m in rx.finditer(line):
             value = m.group(1) if m.groups() else m.group(0)
             if value and (is_placeholder(value) or deger_degil(value)):
@@ -157,7 +173,6 @@ def git_izlenen(kok):
 
 def _atlanir(tam, exclude):
     return (os.path.splitext(tam)[1].lower() in SKIP_EXT
-            or sablon_dosyasi(tam)
             or is_excluded(tam, exclude))
 
 
@@ -210,8 +225,9 @@ def scan(paths, exclude=(), git_only=False):
             if os.path.getsize(path) > MAX_BYTES:
                 continue
             with open(path, encoding="utf-8", errors="replace") as fh:
+                sablon = sablon_dosyasi(path)
                 for i, line in enumerate(fh, 1):
-                    for name, value in scan_line(line):
+                    for name, value in scan_line(line, sablon):
                         preview = value if len(value) <= 12 else value[:6] + "…" + value[-3:]
                         findings.append((path, i, name, preview))
         except (OSError, UnicodeError):
