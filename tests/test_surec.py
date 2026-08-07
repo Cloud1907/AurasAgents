@@ -99,9 +99,10 @@ class KesintiSizintisiTest(SurecSizintisiTest):
                 # Torun DOĞMADAN kesmek yarış koşuludur: sızıntı olmadığı
                 # için değil, sızacak süreç henüz yokken test yeşil görünür.
                 for _ in range(200):
-                    if os.path.exists(pid_dosya) and \
-                            open(pid_dosya, encoding="utf-8").read().strip():
-                        break
+                    if os.path.exists(pid_dosya):
+                        with open(pid_dosya, encoding="utf-8") as fh:
+                            if fh.read().strip():
+                                break
                     time.sleep(0.05)
                 raise KeyboardInterrupt
 
@@ -113,6 +114,29 @@ class KesintiSizintisiTest(SurecSizintisiTest):
             finally:
                 subprocess.Popen.communicate = gercek
             self._torun_olmus_mu(pid_dosya, "Ctrl-C'den")
+
+
+class NormalDonusTest(SurecSizintisiTest):
+    """P1 · Normal dönüşte grup temizlenmiyordu (kapının 3. bulgusu).
+
+    `agaci_oldur` yalnız istisna yolundaydı. Arka plana atılmış, stdio'su
+    yönlendirilmiş bir torun boruyu tutmaz — kabuk çıkar, `communicate()`
+    sorunsuz döner, `kos` başarı bildirir ve torun yaşamaya devam eder.
+    Zaman aşımı da Ctrl-C de olmadan sızıntı: PR'ın tezindeki son delik.
+    """
+
+    def test_zaman_asimi_torun_sureci_de_oldurur(self):
+        pass  # üst sınıfta koşuyor; burada normal dönüş sınanıyor
+
+    def test_normal_donuste_torun_kalmaz(self):
+        with tempfile.TemporaryDirectory() as td:
+            pid_dosya = os.path.join(td, "torun.pid")
+            # Kabuk torunu doğurup HEMEN çıkar — zaman aşımı yok, hata yok.
+            komut = (f"sleep 120 >/dev/null 2>&1 & echo $! > {pid_dosya}; "
+                     "exit 0")
+            kod, _o, _e = surec.kos("bash", "-c", komut, timeout=30)
+            self.assertEqual(kod, 0, "normal çıkış beklenir")
+            self._torun_olmus_mu(pid_dosya, "normal dönüşten")
 
 
 class IncelemeButcesiTest(unittest.TestCase):

@@ -40,13 +40,30 @@ def agaci_oldur(p):
         pass
 
 
-def kos(*arg, girdi=None, timeout=600):
-    """Alt süreci KENDİ oturumunda başlatır; her çıkış yolunda ağacı öldürür.
+def _grubu_supur(pgid):
+    """Lider çıktıktan sonra grupta kalan torunları süpürür.
 
-    `subprocess.run(timeout=)` yalnız beklemeyi sınırlar, ağacı öldürmez.
-    `KeyboardInterrupt` ise ne OSError ne SubprocessError'dır — zaman aşımını
-    yakalayan blok onu görmez, Ctrl-C aynı sızıntıyı üretirdi. Bu yüzden
-    `BaseException`. Gerekçe ve ölçüm: tests/test_surec.py.
+    Grup boşsa `killpg` ProcessLookupError verir — beklenen hâl, yutulur.
+    PID geri-dönüşümü riski: lider reap edildikten sonra aynı pgid'nin
+    başkasına düşmesi teorik olarak mümkün. Pencere mikrosaniyeler ve
+    süpürme `communicate()` döner dönmez yapılıyor; sızan `codex exec`
+    ağacının saatlerce yaşamasına karşı kabul edilmiş takas.
+    """
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def kos(*arg, girdi=None, timeout=600):
+    """Alt süreci KENDİ oturumunda başlatır; HER çıkış yolunda ağacı öldürür.
+
+    Üç sızıntı yolu da kapalı (üçü de kapının bulduğu gerçek açıklar):
+    zaman aşımı (`subprocess.run(timeout=)` ağacı öldürmez), `KeyboardInterrupt`
+    (ne OSError ne SubprocessError — dar `except` onu görmez) ve NORMAL dönüş
+    (arka plana atılmış, stdio'su yönlendirilmiş torun boruyu tutmaz; kabuk
+    çıkar, `communicate()` sorunsuz döner, torun yaşar).
+    Gerekçe ve ölçüm: tests/test_surec.py.
     """
     try:
         p = subprocess.Popen(
@@ -55,11 +72,14 @@ def kos(*arg, girdi=None, timeout=600):
             text=True, cwd=ROOT, start_new_session=True)
     except OSError as e:
         return 1, "", str(e)
+    pgid = p.pid  # start_new_session=True → çocuk grup lideri, pgid == pid
     try:
         out, err = p.communicate(girdi, timeout=timeout)
+        _grubu_supur(pgid)
         return p.returncode, out, err
     except BaseException as e:  # Ctrl-C/SystemExit dahil: ağacı ASLA bırakma
         agaci_oldur(p)
+        _grubu_supur(pgid)
         if isinstance(e, (OSError, subprocess.SubprocessError)):
             return 1, "", str(e)
         raise
