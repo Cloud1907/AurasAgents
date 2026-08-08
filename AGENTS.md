@@ -113,6 +113,11 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   dosyasını çatallamadan burada mekanizmaya bağlanır. Dosya motorun değil
   projenindir: `/auras` ezmez, geri-taşıma yukarı götürmez. Çalıştırılabilir
   değilse push engellenir — sessiz atlama yok.
+- Kişisel veri kapısı: `scan_personal_data.py` — sır taramasından AYRI bir
+  boyut. Sır tarayıcısı "bu değer bir anahtar mı", bu "bu dosya bir insan
+  listesi mi" diye sorar. Toplu döküm (≥8 benzersiz e-posta ya da TC kimlik
+  no) push'u ve CI'ı durdurur; tek kayıt ihlal değildir. `AUTHORS` gibi
+  tanımı gereği kişi listesi olan dosyalar muaftır.
 - Secret kapısı proje muafiyeti: `.agents/secret-allowlist.txt` — her satır
   `yol-deseni  # gerekçe`. **Gerekçe zorunludur**; gerekçesiz satır kullanım
   hatasıdır (exit 2), "temiz" değildir. Bastırılan bulgu çıktıda `muaf:`

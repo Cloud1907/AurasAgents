@@ -34,6 +34,14 @@ jobs:
           python3 .agents/skills/security-review/scripts/scan_secrets.py \
             --exclude '*/eval/*' .
 
+      # AYRI bir boyut: sır taraması "bu değer bir anahtar mı" der, bu
+      # "bu dosya bir insan listesi mi" der. 4Flow'da 20 kişilik bir kullanıcı
+      # dökümü sır taramasından temiz geçmişti (2026-08-07).
+      - name: Kişisel veri taraması
+        run: |
+          python3 .agents/skills/security-review/scripts/scan_personal_data.py \
+            --exclude '*/eval/*' .
+
       - name: Test-önce disiplini
         id: testfirst
         run: |

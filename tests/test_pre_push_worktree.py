@@ -32,6 +32,10 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
+PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
+# Kişisel veri kapısı da fail-closed: tarayıcı yoksa push engellenir.
+# İkisi de kurulmalı, yoksa bu testler kapının doğru davranışına takılır.
+TARAYICILAR = (SCAN_REL, PII_REL)
 
 # git'in kancaya miras bıraktığı, depo çözümlemesini YÖNLENDİREN değişkenler.
 # Kapı bunları temizlemezse hem kendi kökünü hem alt süreçlerininkini
@@ -79,9 +83,10 @@ def depo_kur(kok, validate_kod=0, sizinti=None):
     with open(os.path.join(kok, "bin", "validate.py"), "w") as fh:
         fh.write(VALIDATE_KAYNAK.format(yonlendirme=list(GIT_YONLENDIRME),
                                         kod=validate_kod))
-    hedef = os.path.join(kok, SCAN_REL)
-    os.makedirs(os.path.dirname(hedef), exist_ok=True)
-    shutil.copy2(os.path.join(ROOT, SCAN_REL), hedef)
+    for rel in TARAYICILAR:
+        hedef = os.path.join(kok, rel)
+        os.makedirs(os.path.dirname(hedef), exist_ok=True)
+        shutil.copy2(os.path.join(ROOT, rel), hedef)
     with open(os.path.join(kok, "temiz.py"), "w") as fh:
         fh.write("x = 1\n")
     if sizinti:
