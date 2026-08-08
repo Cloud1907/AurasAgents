@@ -60,23 +60,50 @@ def _run_git(args):
     return proc.stdout
 
 
+def _durumlu(cikti):
+    """`--name-status` çıktısını {yol: durum} sözlüğüne çevirir."""
+    esleme = {}
+    for satir in cikti.splitlines():
+        if not satir.strip():
+            continue
+        parca = satir.split("\t")
+        if len(parca) < 2:
+            continue
+        # Yeniden adlandırma (R100 eski yeni) → YENİ yol dikkate alınır.
+        esleme[parca[-1].replace(os.sep, "/")] = parca[0][0]
+    return esleme
+
+
 def changed_files(base):
-    """Değişen dosya yollarını döndür (posix, repo köküne göre)."""
-    files = set()
+    """Değişen dosya yolları — SİLİNENLER HARİÇ (posix, repo köküne göre).
+
+    Neden silme dışarıda: bu kural TDD'yi zorlamak için var — yeni davranışın
+    önce testi yazılsın. SİLİNEN davranışın testi olmaz; olsa da o test de
+    silinir. Ölü kod temizliğini "test yaz" diye bloklamak, temizliği pahalı
+    yapar ve borcu büyütür.
+
+    4Flow'da yaşandı (2026-08-07): kişisel veri taşıyan iki hata ayıklama
+    artığı silindi, hiçbir kod onlara bağımlı değildi, tek satır davranış
+    değişmedi — kapı yine de CI'ı kırdı. Kapı doğru şeyi yanlış vakada
+    zorluyordu.
+
+    Silme YANINDA bir değişiklik varsa o değişiklik normal kurala tabidir:
+    muafiyet yalnız SAF silmeye uygulanır, silmenin arkasına gizlenen
+    düzenlemeye değil.
+    """
+    durumlar = {}
     if base:
-        out = _run_git(["diff", "--name-only", f"{base}...HEAD"])
-        files.update(l for l in out.splitlines() if l)
+        durumlar.update(_durumlu(
+            _run_git(["diff", "--name-status", f"{base}...HEAD"])))
         # Base kıyasında bile yerel commit'lenmemiş değişiklikleri kat.
-        out2 = _run_git(["diff", "--name-only", "HEAD"])
-        files.update(l for l in out2.splitlines() if l)
+        durumlar.update(_durumlu(_run_git(["diff", "--name-status", "HEAD"])))
     else:
-        # Çalışma ağacı + index HEAD'e karşı.
-        out = _run_git(["diff", "--name-only", "HEAD"])
-        files.update(l for l in out.splitlines() if l)
-        # Henüz izlenmeyen (yeni) dosyalar.
-        out2 = _run_git(["ls-files", "--others", "--exclude-standard"])
-        files.update(l for l in out2.splitlines() if l)
-    return {f.replace(os.sep, "/") for f in files}
+        durumlar.update(_durumlu(_run_git(["diff", "--name-status", "HEAD"])))
+        # Henüz izlenmeyen (yeni) dosyalar — durum bilgisi yok, "A" sayılır.
+        for l in _run_git(["ls-files", "--others", "--exclude-standard"]).splitlines():
+            if l:
+                durumlar[l.replace(os.sep, "/")] = "A"
+    return {yol for yol, durum in durumlar.items() if durum != "D"}
 
 
 def is_test(path):
