@@ -14,6 +14,10 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
+PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
+# Kişisel veri tarayıcısı scan_secrets'ı içe aktarıyor (dosya keşfi ve
+# dışlama TEK kaynaktan gelmeli); izole depoda ikisi de bulunmalı.
+TARAYICILAR = (SCAN_REL, PII_REL)
 
 
 def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
@@ -31,9 +35,10 @@ def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
         fh.write("#!/usr/bin/env python3\nimport sys\n"
                  f'print("ok")\nsys.exit({validate_kod})\n')
     if tarayici:
-        hedef = os.path.join(td, SCAN_REL)
-        os.makedirs(os.path.dirname(hedef))
-        shutil.copy2(os.path.join(ROOT, SCAN_REL), hedef)
+        for rel in TARAYICILAR:
+            hedef = os.path.join(td, rel)
+            os.makedirs(os.path.dirname(hedef), exist_ok=True)
+            shutil.copy2(os.path.join(ROOT, rel), hedef)
     with open(os.path.join(td, "temiz.py"), "w") as fh:
         fh.write("x = 1\n")
     if proje_kapisi is not None:
@@ -114,6 +119,36 @@ class PrePushTest(unittest.TestCase):
             self.assertEqual(kod, 1, "tarayıcı yoksa sessizce geçmemeli")
             self.assertIn("tarayicisi bulunamadi", cikti)
 
+    def test_kisisel_veri_tarayicisi_yoksa_fail_closed(self):
+        """Yeni kapının "yok" hâli de "geçti" OLAMAZ.
+
+        Secret kapısıyla aynı kural: eksik kurulum görünür olmalı, sessizce
+        atlanmamalı — sessiz atlama koruma illüzyonudur.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            kur(td)                      # her şeyi kur, sonra PII'yi sil
+            os.remove(os.path.join(td, PII_REL))
+            p = subprocess.run(
+                ["sh", os.path.join(td, "bin", "hooks", "pre-push")],
+                capture_output=True, text=True, cwd=td, timeout=60, input="")
+            self.assertEqual(p.returncode, 1)
+            self.assertIn("kisisel veri tarayicisi bulunamadi",
+                          p.stdout + p.stderr)
+
+    def test_toplu_kisisel_veri_push_u_bloklar(self):
+        with tempfile.TemporaryDirectory() as td:
+            kur(td)
+            with open(os.path.join(td, "dump.json"), "w", encoding="utf-8") as fh:
+                fh.write("[" + ",".join(
+                    f'{{"email":"k{i}@sirket.com.tr"}}' for i in range(20)) + "]")
+            subprocess.run(["git", "-C", td, "add", "-A"], check=True,
+                           capture_output=True)
+            p = subprocess.run(
+                ["sh", os.path.join(td, "bin", "hooks", "pre-push")],
+                capture_output=True, text=True, cwd=td, timeout=60, input="")
+            self.assertEqual(p.returncode, 1)
+            self.assertIn("kisisel veri kapisi gecilemedi", p.stdout + p.stderr)
+
     def test_proje_kapisi_yoksa_gecer(self):
         # Uzantı noktası OPSİYONEL — yokluğu ihlal değildir
         with tempfile.TemporaryDirectory() as td:
@@ -141,9 +176,10 @@ class PrePushTest(unittest.TestCase):
                          os.path.join(td, "bin", "hooks", "pre-push"))
             with open(os.path.join(td, "bin", "validate.py"), "w") as fh:
                 fh.write('#!/usr/bin/env python3\nprint("ok")\n')
-            hedef = os.path.join(td, SCAN_REL)
-            os.makedirs(os.path.dirname(hedef))
-            shutil.copy2(os.path.join(ROOT, SCAN_REL), hedef)
+            for rel in TARAYICILAR:
+                hedef = os.path.join(td, rel)
+                os.makedirs(os.path.dirname(hedef), exist_ok=True)
+                shutil.copy2(os.path.join(ROOT, rel), hedef)
             with open(os.path.join(td, "temiz.py"), "w") as fh:
                 fh.write("x = 1\n")
             # Stdin'i sonuna kadar yiyen bir proje kapısı

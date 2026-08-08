@@ -148,6 +148,27 @@ if ! "$PY" "$SCAN" --git --exclude '*/eval/*' "$ROOT"; then
   exit 1
 fi
 
+# Kisisel veri kapisi — AYRI bir boyut, sir taramasinin yerine gecmez.
+# Sir tarayicisi "bu deger bir anahtar mi" diye sorar; bu "bu dosya bir insan
+# listesi mi" diye sorar. 4Flow'da (2026-08-07) users_list.json bulundu:
+# 20 kisinin adi + kurumsal e-postasi. scan_secrets ona "temiz" dedi ve DOGRU
+# davrandi — kapida bu boyut hic yoktu. Olmayan koruma, zayif korumadan
+# tehlikelidir: kullanici korundugunu sanir.
+PII="$ROOT/.agents/skills/security-review/scripts/scan_personal_data.py"
+if [ ! -f "$PII" ]; then
+  # FAIL-CLOSED: tarayici yoksa kapi sessizce kaybolurdu (secret kapisiyla ayni kural).
+  echo "PUSH ENGELLENDI: kisisel veri tarayicisi bulunamadi ($PII)."
+  echo "Kurulumu tamamla (/auras) ya da bilincli atla: git push --no-verify"
+  exit 1
+fi
+if ! "$PY" "$PII" --git --exclude '*/eval/*' "$ROOT"; then
+  echo ""
+  echo "PUSH ENGELLENDI: kisisel veri kapisi gecilemedi (bkz. yukaridaki cikti)."
+  echo "Kisisel veri kod deposunda saklanmaz; gercekten gerekliyse gerekcesiyle"
+  echo ".agents/secret-allowlist.txt'e yaz."
+  exit 1
+fi
+
 # Proje kapisi (opsiyonel uzanti noktasi) — projeye ozel pazarliksiz yasaklar
 # BURADA kosar. Motor yalnizca cagriyi tasir, kurali proje yazar; boylece
 # proje-ozel kural motor dosyasini CATALLAMADAN mekanizmaya baglanir
