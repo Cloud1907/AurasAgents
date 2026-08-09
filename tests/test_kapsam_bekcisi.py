@@ -37,22 +37,23 @@ class TekModulImportTest(unittest.TestCase):
     """
 
     def test_her_test_modulu_tek_basina_import_edilebilir(self):
-        moduller = sorted(
-            f[:-3] for f in os.listdir(os.path.join(ROOT, "tests"))
-            if f.startswith("test_") and f.endswith(".py"))
-        kod = (
-            "import importlib, json\n"
-            f"hatali = []\n"
-            f"for m in {moduller!r}:\n"
-            "    try:\n"
-            "        importlib.import_module('tests.' + m)\n"
-            "    except Exception as e:\n"
-            "        hatali.append(m + ' → ' + type(e).__name__ + ': ' + str(e))\n"
-            "print(json.dumps(hatali))\n")
-        p = subprocess.run([sys.executable, "-c", kod], capture_output=True,
-                           text=True, cwd=ROOT)
-        self.assertEqual(p.returncode, 0, p.stderr[-400:])
-        hatali = __import__("json").loads(p.stdout.splitlines()[-1])
+        # HER MODÜL KENDİ SÜRECİNDE. Tek süreçte toplu import etmek bekçiyi
+        # yalancı yapar (Codex bulgusu, PR #35): önce import edilen modülün
+        # `sys.path.insert`i süreç boyunca kalır ve yolu EKSİK olan sonraki
+        # modül de import edilebilir görünür. Ölçüldü — test_route'un yol
+        # eklemesi silindiğinde modül gerçekten kırıktı ama bekçi "OK" dedi.
+        #
+        # `sys.path`i geri almak yetmez: ilk başarılı import'tan sonra `ortam`
+        # `sys.modules`ta önbelleklenir ve sonraki modül yolu hiç kullanmadan
+        # onu bulur. Tek dürüst izolasyon ayrı süreçtir.
+        hatali = []
+        for m in sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, "tests"))
+                        if f.startswith("test_") and f.endswith(".py")):
+            p = subprocess.run([sys.executable, "-c", f"import tests.{m}"],
+                               capture_output=True, text=True, cwd=ROOT)
+            if p.returncode != 0:
+                son = (p.stderr.strip().splitlines() or ["<çıktı yok>"])[-1]
+                hatali.append(f"{m} → {son}")
         self.assertEqual(
             hatali, [],
             "tek modül çağrısında import edilemeyen test dosyası var; "
