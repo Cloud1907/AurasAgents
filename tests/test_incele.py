@@ -283,6 +283,19 @@ class TutarlilikTest(unittest.TestCase):
         self.assertFalse(incele.tutarli_mi(b, "1 bulgu (en yuksek: P2)"))
         self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P0)"))
 
+    def test_nfd_biciminde_yazilan_temiz_hukmu_de_okunur(self):
+        """`İ` ayrık birleşen nokta olarak gelirse de temiz sayılmalı.
+
+        Codex bulgusu (PR #38 — P2). `TEMİZ` iki Unicode biçimde yazılabilir:
+        NFC'de tek kod noktası (U+0130), NFD'de `I` + birleşen nokta (U+0307).
+        Düz karakter değişimi yalnız birincisini görüyordu; ikincisi yine
+        "okunamadı" sayılıp sahte ENGEL üretirdi — bu PR'ın çıkış noktasıyla
+        aynı hata.
+        """
+        nfd = "TEMİZ"          # I + birleşen nokta
+        self.assertNotEqual(nfd, "TEMİZ", "vaka NFD olmalı")
+        self.assertTrue(incele.tutarli_mi(TEMIZ, nfd))
+
     def test_noktalama_tasiyan_temiz_hukmu_kabul_edilir(self):
         # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli; hoşgörü
         # yalnız anlamsız noktalama ve boşluk için.
