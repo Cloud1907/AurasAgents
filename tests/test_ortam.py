@@ -9,9 +9,13 @@ Neden ayrı bir hata: bir kapının YOKLUĞU asla "geçti" diye okunamaz. Eksik
 süit yeşil dönerse CI kanıtı yalan söyler — kapsam daraldığı hâlde
 `tests=passed` yazılır.
 """
+import os
+import sys
 import unittest
 
-from ortam import PYYAML_EKSIK, yaml
+# Keşif `tests/`i sys.path'e koyar, `python3 -m unittest tests.test_x` koymaz.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ortam import PYYAML_EKSIK, yaml  # noqa: E402
 
 
 class OrtamTest(unittest.TestCase):

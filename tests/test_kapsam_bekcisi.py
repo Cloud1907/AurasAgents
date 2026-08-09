@@ -6,6 +6,7 @@ METİN DESENİ varsayımından geldi. Buradaki her test o turlardan birini
 kilitler; hepsi düzeltmeden ÖNCE kırmızıydı.
 """
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,43 @@ def yaz(kok, rel, icerik):
     os.makedirs(os.path.dirname(yol), exist_ok=True)
     with open(yol, "w", encoding="utf-8") as fh:
         fh.write(icerik)
+
+
+class TekModulImportTest(unittest.TestCase):
+    """`python3 -m unittest tests.test_x` de çalışmalı — yalnız keşif değil.
+
+    Keşif `tests/`i sys.path'e koyar; noktalı çağrı KOYMAZ. Paylaşılan
+    yardımcıyı (`ortam.py`) yol kurmadan import eden modül yalnız keşifle
+    koşar, tek modül çağrısında `ModuleNotFoundError: No module named 'ortam'`
+    verir. Bu kapsam kaybı değildir ama aynı aileden bir yanıltmadır: okuyan
+    "test bozuk" sanar ve kırmızıya güvenmemeyi öğrenir.
+
+    Ölçüm 2026-08-09: `ortam.py` paylaşılan yardımcıya dönüştükten sonra dört
+    modül bu hâle düşmüştü ve süit yeşil olduğu için kimse görmedi.
+    """
+
+    def test_her_test_modulu_tek_basina_import_edilebilir(self):
+        moduller = sorted(
+            f[:-3] for f in os.listdir(os.path.join(ROOT, "tests"))
+            if f.startswith("test_") and f.endswith(".py"))
+        kod = (
+            "import importlib, json\n"
+            f"hatali = []\n"
+            f"for m in {moduller!r}:\n"
+            "    try:\n"
+            "        importlib.import_module('tests.' + m)\n"
+            "    except Exception as e:\n"
+            "        hatali.append(m + ' → ' + type(e).__name__ + ': ' + str(e))\n"
+            "print(json.dumps(hatali))\n")
+        p = subprocess.run([sys.executable, "-c", kod], capture_output=True,
+                           text=True, cwd=ROOT)
+        self.assertEqual(p.returncode, 0, p.stderr[-400:])
+        hatali = __import__("json").loads(p.stdout.splitlines()[-1])
+        self.assertEqual(
+            hatali, [],
+            "tek modül çağrısında import edilemeyen test dosyası var; "
+            "paylaşılan yardımcıdan önce tests/ dizinini sys.path'e ekle:\n  "
+            + "\n  ".join(hatali))
 
 
 class TestKapsamiTest(unittest.TestCase):

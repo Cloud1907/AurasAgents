@@ -15,6 +15,8 @@ Doğru davranış iki katmanlıdır ve biri diğerinin yerine geçmez:
      Atlama tek başına yetmez: exit 0 veren eksik süit CI'da "geçti" diye
      okunur, oysa "koşmadı" ile "geçti" aynı şey değildir.
 """
+import subprocess
+import sys
 import unittest
 
 try:
@@ -36,3 +38,45 @@ PYYAML_EKSIK = (
 
 #: Sınıf ya da metot üstünde: @pyyaml_gerekir
 pyyaml_gerekir = unittest.skipUnless(yaml is not None, PYYAML_SEBEP)
+
+
+# --- pre-push kapısının yorumlayıcı sözleşmesi -----------------------------
+# Kapı (`bin/hooks/pre-push`, py_uygun) adayı ÇIKTIYLA sınar, çıkış koduyla
+# değil: `/usr/bin/true` de 0 döner ve kapıyı sessizce geçerdi (denetim
+# bulgusu 2026-08-07). Buradaki sınama o sözleşmenin birebir kopyasıdır —
+# test kapının kabul edeceği yorumlayıcıyı, kapının ölçütüyle bulmalı.
+_KANIT = "AURAS_PY_OK"
+# Kapının kendi aday listesi + koşan yorumlayıcı. Sıra önemli: `sys.executable`
+# başta, çünkü PyYAML'lıysa süitle aynı yorumlayıcıda kalmak en az sürprizli.
+_ADAYLAR = (sys.executable, "python3", "python3.13", "python3.12",
+            "python3.11", "/opt/homebrew/bin/python3.13")
+
+
+def _kapiya_uygun(aday):
+    try:
+        p = subprocess.run(
+            [aday, "-c", f'import yaml,sys; sys.stdout.write("{_KANIT}")'],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return p.stdout.strip() == _KANIT
+
+
+def kapi_yorumlayicisi():
+    """pre-push kapısının KABUL EDECEĞİ bir python3 (yoksa None)."""
+    for aday in _ADAYLAR:
+        if aday and _kapiya_uygun(aday):
+            return aday
+    return None
+
+
+KAPI_PYTHON = kapi_yorumlayicisi()
+
+# Neden atlamak burada sessizlik ÜRETMEZ: `sys.executable` PyYAML taşıyorsa
+# ilk aday olarak seçilir, yani KAPI_PYTHON asla None olmaz. None ise
+# `yaml` importu da çökmüştür ve `tests/test_ortam.py` zaten yüksek sesle
+# kırmızı verir. Atlama tek sinyal olarak kalamaz.
+kapi_yorumlayicisi_gerekir = unittest.skipUnless(
+    KAPI_PYTHON is not None,
+    "kapının kabul edeceği (PyYAML'lı) python3 yok — meşru override "
+    "senaryosu bu makinede KURULAMAZ; bkz. test_ortam")
