@@ -15,6 +15,7 @@ Doğru davranış iki katmanlıdır ve biri diğerinin yerine geçmez:
      Atlama tek başına yetmez: exit 0 veren eksik süit CI'da "geçti" diye
      okunur, oysa "koşmadı" ile "geçti" aynı şey değildir.
 """
+import shutil
 import subprocess
 import sys
 import unittest
@@ -52,10 +53,10 @@ _ADAYLAR = (sys.executable, "python3", "python3.13", "python3.12",
             "python3.11", "/opt/homebrew/bin/python3.13")
 
 
-def _kapiya_uygun(aday):
+def _kapiya_uygun(yol):
     try:
         p = subprocess.run(
-            [aday, "-c", f'import yaml,sys; sys.stdout.write("{_KANIT}")'],
+            [yol, "-c", f'import yaml,sys; sys.stdout.write("{_KANIT}")'],
             capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError):
         return False
@@ -63,10 +64,17 @@ def _kapiya_uygun(aday):
 
 
 def kapi_yorumlayicisi():
-    """pre-push kapısının KABUL EDECEĞİ bir python3 (yoksa None)."""
+    """pre-push kapısının KABUL EDECEĞİ bir python3'ün TAM YOLU (yoksa None).
+
+    Çıplak ad değil tam yol döner: dönen değer yalnız kapıya verilmiyor,
+    kapının DUYURDUĞU yorumlayıcıyla da karşılaştırılıyor. `python3.13` gibi
+    kısa bir ad başka bir yolun içine alt-dize olarak düşebilir ve karşılaştırma
+    yanlışlıkla tutabilir; tam yol o gevşekliği kapatır.
+    """
     for aday in _ADAYLAR:
-        if aday and _kapiya_uygun(aday):
-            return aday
+        yol = shutil.which(aday) if aday else None
+        if yol and _kapiya_uygun(yol):
+            return yol
     return None
 
 
