@@ -209,6 +209,28 @@ class TutarlilikTest(unittest.TestCase):
         b = {"P0": ["yetki yok"], "P1": [], "P2": []}
         self.assertFalse(incele.tutarli_mi(b, "TEMİZ"))
 
+    def test_olumsuz_hukum_temiz_sayilmaz(self):
+        """`TEMİZ DEĞİL` temiz DEĞİLDİR — hüküm alt dize olarak aranamaz.
+
+        Codex bulgusu (PR #38). `"TEMIZ" in hukum` alt dize araması, olumsuz
+        hükmü olumlu sanıyordu: `TEMIZ DEGIL` + ayrıştırılamamış bulgu listesi
+        = "tutarlı ve temiz" → `auto` riskli PR otomatik birleşebilirdi.
+
+        Bu, kapının verebileceği en pahalı hatadır (sahte yeşil) ve ASCII
+        biçimde main'de ZATEN vardı; noktalı İ onu Türkçe metinde tesadüfen
+        maskeliyordu. Hüküm artık baştan sona eşleşiyor.
+        """
+        for hukum in ("TEMİZ DEĞİL", "TEMIZ DEGIL", "temiz degil",
+                      "TEMIZ OLMAYABILIR"):
+            with self.subTest(hukum=hukum):
+                self.assertFalse(incele.tutarli_mi(TEMIZ, hukum))
+
+    def test_noktalama_tasiyan_temiz_hukmu_kabul_edilir(self):
+        # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli.
+        for hukum in ("TEMIZ", "TEMİZ", "TEMIZ.", "TEMİZ ✓", " temiz "):
+            with self.subTest(hukum=hukum):
+                self.assertTrue(incele.tutarli_mi(TEMIZ, hukum))
+
     def test_uyumlu_cikti_tutarli(self):
         b = {"P0": ["x"], "P1": [], "P2": []}
         self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P0)"))

@@ -96,6 +96,14 @@ def _buyut(metin):
     return (metin or "").replace("İ", "I").replace("ı", "i").upper()
 
 
+# Hüküm BAŞTAN SONA eşleşmeli. `"TEMIZ" in hukum` alt dize araması olumsuz
+# hükmü olumlu sanıyordu: `TEMIZ DEGIL` + ayrıştırılamamış bulgu listesi =
+# "tutarlı ve temiz" → auto riskli PR otomatik birleşirdi. Kapının
+# verebileceği en pahalı hata budur (2026-08-09, Codex bulgusu PR #38).
+# Sondaki noktalama serbest — fazla katı eşleşme yeni sahte kırmızı üretir.
+_TEMIZ_HUKUM = re.compile(r"^TEMIZ\W*$")
+
+
 def tutarli_mi(bulgular, sonuc):
     """P1 · Hüküm satırı ile ayrıştırılan bulgular birbirini tutuyor mu.
 
@@ -103,7 +111,7 @@ def tutarli_mi(bulgular, sonuc):
     uydurulmuş bir hüküm sessizce kabul ediliyordu.
     """
     sayi = sum(len(v) for v in bulgular.values())
-    temiz_diyor = "TEMIZ" in _buyut(sonuc)
+    temiz_diyor = bool(_TEMIZ_HUKUM.match(_buyut(sonuc).strip()))
     if temiz_diyor:
         return sayi == 0
     m = re.search(r"(\d+)\s*bulgu", sonuc or "", re.I)
