@@ -15,6 +15,7 @@ Doğru davranış iki katmanlıdır ve biri diğerinin yerine geçmez:
      Atlama tek başına yetmez: exit 0 veren eksik süit CI'da "geçti" diye
      okunur, oysa "koşmadı" ile "geçti" aynı şey değildir.
 """
+import os
 import shutil
 import subprocess
 import sys
@@ -63,6 +64,18 @@ def _kapiya_uygun(yol):
     return p.stdout.strip() == _KANIT
 
 
+def _yol_coz(aday):
+    """Adayın MUTLAK yolu (bulunamazsa None).
+
+    `abspath` şart: `shutil.which` göreli bir PATH girdisinde göreli yol
+    döndürür (ör. `PATH=./araclar`). O yol testin çalışma dizininde çözülür
+    ama kapı GEÇİCİ DEPONUN içinde koşar — orada çözülmez ve meşru override
+    ortamın PATH biçimine bağlı olarak kırılır.
+    """
+    yol = shutil.which(aday) if aday else None
+    return os.path.abspath(yol) if yol else None
+
+
 def kapi_yorumlayicisi():
     """pre-push kapısının KABUL EDECEĞİ bir python3'ün TAM YOLU (yoksa None).
 
@@ -72,7 +85,7 @@ def kapi_yorumlayicisi():
     yanlışlıkla tutabilir; tam yol o gevşekliği kapatır.
     """
     for aday in _ADAYLAR:
-        yol = shutil.which(aday) if aday else None
+        yol = _yol_coz(aday)
         if yol and _kapiya_uygun(yol):
             return yol
     return None
