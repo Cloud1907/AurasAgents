@@ -84,6 +84,18 @@ def bulgulari_ayikla(metin):
 
 # --- Codex bulgularına yanıt (2026-08-07, kapı kendi PR'ını bloklad) -------
 
+def _buyut(metin):
+    """Türkçe noktalı İ / noktasız ı'yı ASCII'ye indirger, sonra büyütür.
+
+    Gerekçe: `"TEMİZ".upper()` yine `TEMİZ`tir — noktalı İ ASCII I'ya
+    dönüşmez. Bu yüzden `"TEMIZ" in sonuc.upper()` Türkçe yazılmış temiz
+    hükmü GÖRMÜYORDU ve kapı bulgusuz PR'a ENGEL veriyordu (2026-08-09,
+    PR #37). Sahte kırmızı sahte yeşil kadar zararlıdır: tekrarlayan
+    sebepsiz ENGEL, insana kapıyı elle atlamayı öğretir.
+    """
+    return (metin or "").replace("İ", "I").replace("ı", "i").upper()
+
+
 def tutarli_mi(bulgular, sonuc):
     """P1 · Hüküm satırı ile ayrıştırılan bulgular birbirini tutuyor mu.
 
@@ -91,7 +103,7 @@ def tutarli_mi(bulgular, sonuc):
     uydurulmuş bir hüküm sessizce kabul ediliyordu.
     """
     sayi = sum(len(v) for v in bulgular.values())
-    temiz_diyor = "TEMIZ" in (sonuc or "").upper()
+    temiz_diyor = "TEMIZ" in _buyut(sonuc)
     if temiz_diyor:
         return sayi == 0
     m = re.search(r"(\d+)\s*bulgu", sonuc or "", re.I)

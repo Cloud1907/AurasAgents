@@ -192,6 +192,23 @@ class TutarlilikTest(unittest.TestCase):
     def test_bulgu_var_diyip_hic_listelemeyen_cikti_tutarsiz(self):
         self.assertFalse(incele.tutarli_mi(TEMIZ, "2 bulgu (en yuksek: P0)"))
 
+    def test_turkce_noktali_i_ile_yazilan_hukum_de_okunur(self):
+        """`TEMİZ` ile `TEMIZ` aynı hükümdür — kapı kendi dilini okumalı.
+
+        Ölçüm 2026-08-09 (PR #37): Codex hükmü `TEMİZ` yazdı, bulgu listesi
+        boştu ve kapı yine de ENGEL verdi. Sebep tek karakter: Türkçe noktalı
+        İ, `.upper()` altında ASCII I'ya DÖNÜŞMEZ, yani `"TEMIZ" in "TEMİZ"`
+        False'tur. Hüküm okunamamış sayılıp "tutarsız" dalına düşüyordu.
+
+        Sahte kırmızı, sahte yeşil kadar zararlıdır — ikisi de kanıtı bozar
+        ve tekrarlayan sebepsiz ENGEL, kapıyı elle atlamayı öğretir.
+        """
+        self.assertTrue(incele.tutarli_mi(TEMIZ, "TEMİZ"))
+        self.assertTrue(incele.tutarli_mi(TEMIZ, "temİz"))
+        # Fail-closed tarafı korunur: İ'li hüküm bulguyu görünmez yapamaz.
+        b = {"P0": ["yetki yok"], "P1": [], "P2": []}
+        self.assertFalse(incele.tutarli_mi(b, "TEMİZ"))
+
     def test_uyumlu_cikti_tutarli(self):
         b = {"P0": ["x"], "P1": [], "P2": []}
         self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P0)"))
