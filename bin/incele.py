@@ -102,18 +102,30 @@ def _buyut(metin):
 # verebileceği en pahalı hata budur (2026-08-09, Codex bulgusu PR #38).
 # Sondaki noktalama serbest — fazla katı eşleşme yeni sahte kırmızı üretir.
 _TEMIZ_HUKUM = re.compile(r"^TEMIZ\W*$")
-# Sayı da BAŞTAN itibaren aranır. `re.search` sayıyı metnin her yerinde
-# buluyordu: `TEMIZ DEGIL — 0 bulgu` + sıfır bulgu "tutarlı" sayılıp auto
-# riskli PR otomatik birleşirdi (2026-08-09, Codex bulgusu PR #38).
-# Kural: hüküm tanınan iki biçimden biri olmalı; tanınmayan hüküm TUTARSIZDIR.
-_BULGU_HUKMU = re.compile(r"^(\d+)\s*BULGU\b")
+# Sayı hem BAŞTAN hem SONA sabitlenir; tek serbestlik parantezli açıklama
+# (`1 bulgu (en yuksek: P0)`). Gevşek her uç bir kaçak üretti: `re.search`
+# ortadaki sayıyı yakalıyordu (`TEMIZ DEGIL — 0 bulgu`), yalnız-baştan
+# sabitleme de sondaki eki (`0 BULGU DEGIL`) — ikisi de sıfır bulguyla
+# "tutarlı" sayılıp auto riskli PR'ı otomatik birleştirirdi.
+_BULGU_HUKMU = re.compile(r"^(\d+)\s*BULGU\b\s*(\([^)]*\))?\W*$")
 
 
 def tutarli_mi(bulgular, sonuc):
     """P1 · Hüküm satırı ile ayrıştırılan bulgular birbirini tutuyor mu.
 
-    Önce herhangi bir `SONUC:` metni geçerli inceleme sayılıyordu; bozuk ya da
-    uydurulmuş bir hüküm sessizce kabul ediliyordu.
+    Hüküm TANINAN İKİ BİÇİMDEN biri olmak zorundadır: baştan sona `TEMIZ`,
+    ya da baştan sona `<sayı> bulgu [(...)]`. Başka her metin OKUNAMAMIŞ
+    sayılır ve tutarsızdır.
+
+    Neden beyaz liste: bu fonksiyon dört turda dört kez sızdırdı (Codex,
+    PR #38) ve hepsi aynı kalıptı — serbest bırakılan her uç bir kaçak
+    üretti. Serbest uç bırakmayan tek tasarım, geçerli biçimleri saymak ve
+    gerisini reddetmektir. Eski `sayi > 0` fallback'i özellikle tehlikeliydi:
+    tek bir P2 bulgusu + `SONUC: TEMIZ DEGIL` "tutarlı" sayılıyor, P2 merge'i
+    durdurmadığı için auto riskli PR otomatik birleşiyordu.
+
+    Bu deponun kendi kuralı burada da geçerli: "okunamadı" ile "temiz" aynı
+    şey değildir.
     """
     sayi = sum(len(v) for v in bulgular.values())
     hukum = _buyut(sonuc).strip()
@@ -122,10 +134,7 @@ def tutarli_mi(bulgular, sonuc):
     m = _BULGU_HUKMU.match(hukum)
     if m:
         return int(m.group(1)) == sayi
-    # Tanınmayan hüküm: yalnız listelenmiş bulgu varsa "tutarlı" sayılır ve
-    # kararı bulgular verir. Bulgu da yoksa elde hiçbir şey yoktur — bu
-    # "temiz" DEĞİL, "okunamadı"dır ve fail-closed ENGEL'e gider.
-    return sayi > 0
+    return False
 
 
 # Diff, inceleyiciye TALİMAT veriyorsa hüküm güvenilmez. Yalnız EKLENEN

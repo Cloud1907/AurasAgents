@@ -240,6 +240,24 @@ class TutarlilikTest(unittest.TestCase):
             with self.subTest(hukum=hukum):
                 self.assertFalse(incele.tutarli_mi(TEMIZ, hukum))
 
+    def test_taninmayan_hukum_bulgu_varken_bile_tutarsiz(self):
+        """Okunamayan hüküm, bulgu listelense bile geçerli sayılamaz.
+
+        Codex bulgusu (PR #38, dördüncü tur — P0). Fallback `sayi > 0` idi:
+        tek bir `[P2]` bulgusu + `SONUC: TEMIZ DEGIL` "tutarlı" sayılıyordu.
+        P2 merge'i durdurmadığı için `auto` riskli PR otomatik birleşirdi —
+        hüküm açıkça "temiz değil" dediği hâlde.
+
+        Bu deponun kendi kuralı burada da geçerli: "okunamadı" ile "temiz"
+        aynı şey değildir. Tanınan iki biçim dışındaki her hüküm ENGEL'dir.
+        """
+        for bulgular in (TEMIZ, {"P0": [], "P1": [], "P2": ["ufak"]},
+                         {"P0": ["ciddi"], "P1": [], "P2": []}):
+            for hukum in ("TEMIZ DEGIL", "BELIRSIZ", "0 BULGU DEGIL",
+                          "gozden gecirilemedi"):
+                with self.subTest(hukum=hukum, n=sum(map(len, bulgular.values()))):
+                    self.assertFalse(incele.tutarli_mi(bulgular, hukum))
+
     def test_noktalama_tasiyan_temiz_hukmu_kabul_edilir(self):
         # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli.
         for hukum in ("TEMIZ", "TEMİZ", "TEMIZ.", "TEMİZ ✓", " temiz "):
