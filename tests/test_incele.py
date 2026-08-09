@@ -258,9 +258,35 @@ class TutarlilikTest(unittest.TestCase):
                 with self.subTest(hukum=hukum, n=sum(map(len, bulgular.values()))):
                     self.assertFalse(incele.tutarli_mi(bulgular, hukum))
 
+    def test_temiz_hukmunu_olumsuzlayan_simge_kabul_edilmez(self):
+        """`TEMIZ ❌` temiz değildir — `\\W*` fazla cömertti.
+
+        Codex bulgusu (PR #38, beşinci tur — P0). Sondaki noktalamayı serbest
+        bırakmak için `\\W*` yazmıştım; o desen TÜM sözcük-dışı karakterleri
+        kabul ediyor, yani anlamı TERSİNE çeviren simgeyi de. Hoşgörü yalnız
+        anlamsız noktalama için olmalı, hükmü değiştiren işaret için değil.
+        """
+        for hukum in ("TEMIZ ❌", "TEMİZ ✗", "TEMIZ —", "TEMIZ ?"):
+            with self.subTest(hukum=hukum):
+                self.assertFalse(incele.tutarli_mi(TEMIZ, hukum))
+
+    def test_sifir_bulgu_iddiasi_oncelik_belirtemez(self):
+        """`0 BULGU (en yuksek: P0)` kendi içinde çelişir.
+
+        Codex bulgusu (PR #38, beşinci tur — P0). Sayı doğrulanıyordu ama
+        parantezdeki ÖNCELİK İDDİASI hiç denetlenmiyordu. Hüküm hem "bulgu
+        yok" hem "en yükseği P0" diyebiliyor ve tutarlı sayılıyordu.
+        """
+        self.assertFalse(incele.tutarli_mi(TEMIZ, "0 bulgu (en yuksek: P0)"))
+        # Yalan öncelik iddiası da tutarsızdır (sayı tutsa bile).
+        b = {"P0": ["ciddi"], "P1": [], "P2": []}
+        self.assertFalse(incele.tutarli_mi(b, "1 bulgu (en yuksek: P2)"))
+        self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P0)"))
+
     def test_noktalama_tasiyan_temiz_hukmu_kabul_edilir(self):
-        # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli.
-        for hukum in ("TEMIZ", "TEMİZ", "TEMIZ.", "TEMİZ ✓", " temiz "):
+        # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli; hoşgörü
+        # yalnız anlamsız noktalama ve boşluk için.
+        for hukum in ("TEMIZ", "TEMİZ", "TEMIZ.", " temiz ", "temiz."):
             with self.subTest(hukum=hukum):
                 self.assertTrue(incele.tutarli_mi(TEMIZ, hukum))
 

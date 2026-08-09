@@ -100,14 +100,25 @@ def _buyut(metin):
 # hükmü olumlu sanıyordu: `TEMIZ DEGIL` + ayrıştırılamamış bulgu listesi =
 # "tutarlı ve temiz" → auto riskli PR otomatik birleşirdi. Kapının
 # verebileceği en pahalı hata budur (2026-08-09, Codex bulgusu PR #38).
-# Sondaki noktalama serbest — fazla katı eşleşme yeni sahte kırmızı üretir.
-_TEMIZ_HUKUM = re.compile(r"^TEMIZ\W*$")
-# Sayı hem BAŞTAN hem SONA sabitlenir; tek serbestlik parantezli açıklama
-# (`1 bulgu (en yuksek: P0)`). Gevşek her uç bir kaçak üretti: `re.search`
-# ortadaki sayıyı yakalıyordu (`TEMIZ DEGIL — 0 bulgu`), yalnız-baştan
-# sabitleme de sondaki eki (`0 BULGU DEGIL`) — ikisi de sıfır bulguyla
-# "tutarlı" sayılıp auto riskli PR'ı otomatik birleştirirdi.
-_BULGU_HUKMU = re.compile(r"^(\d+)\s*BULGU\b\s*(\([^)]*\))?\W*$")
+# Hoşgörü YALNIZ anlamsız noktalama ve boşluk için: `\W*` yazmak tüm
+# sözcük-dışı karakterleri kabul ediyordu, yani hükmü TERSİNE çeviren simgeyi
+# de (`TEMIZ ❌` temiz sayılıyordu — Codex bulgusu PR #38).
+_TEMIZ_HUKUM = re.compile(r"^TEMIZ[.\s]*$")
+# Sayı hem BAŞTAN hem SONA sabitlenir ve parantez SERBEST METİN DEĞİL, tam
+# olarak istemin dayattığı biçimdir (`(en yuksek: PX)`). Gevşek bırakılan her
+# uç bir kaçak üretti: ortadaki sayı (`TEMIZ DEGIL — 0 bulgu`), sondaki ek
+# (`0 BULGU DEGIL`), serbest parantez (`0 BULGU (en yuksek: P0)`) — üçü de
+# sıfır bulguyla "tutarlı" sayılıp auto riskli PR'ı otomatik birleştirirdi.
+_BULGU_HUKMU = re.compile(
+    r"^(\d+)\s*BULGU\b\s*(?:\(\s*EN\s*Y[UÜ]KSEK\s*:\s*(P[012])\s*\))?[.\s]*$")
+
+
+def _en_yuksek(bulgular):
+    """Ayrıştırılan bulguların en yüksek önceliği (hiç yoksa None)."""
+    for p in ("P0", "P1", "P2"):
+        if bulgular.get(p):
+            return p
+    return None
 
 
 def tutarli_mi(bulgular, sonuc):
@@ -133,7 +144,12 @@ def tutarli_mi(bulgular, sonuc):
         return sayi == 0
     m = _BULGU_HUKMU.match(hukum)
     if m:
-        return int(m.group(1)) == sayi
+        if int(m.group(1)) != sayi:
+            return False
+        # Parantezdeki öncelik İDDİASI da denetlenir: hüküm hem "bulgu yok"
+        # hem "en yükseği P0" diyemez, ve listelenen bulgularla çelişemez.
+        iddia = m.group(2)
+        return iddia is None or iddia == _en_yuksek(bulgular)
     return False
 
 
