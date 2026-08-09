@@ -18,7 +18,10 @@ BULGU = re.compile(r"\[\s*(P[012])\s*\]\s*(.+)")
 # Hüküm KENDİ SATIRINDA olmalı. Sabitlenmemiş desen, inceleyicinin düz
 # metin içindeki ANIŞINI ("beklenen biçim: SONUC: TEMIZ") geçerli hüküm
 # sayıyordu — inceleme tamamlanamamışken bile "temiz" üretilebiliyordu.
-SONUC = re.compile(r"^[ \t]*SONU[CÇ]\s*:\s*(.+)$", re.I | re.M)
+# Boşluk sınıfı SATIR İÇİYLE sınırlı (`[ \t]`, `\s` değil): `\s*` satır
+# sonunu da yiyor ve çok satırlı ÇELİŞKİLİ hükmü ilk parçasından
+# okuyordu — `SONUC:\nTEMIZ\nDEGIL` bulgusuz çıktıda "temiz" sayılıyordu.
+SONUC = re.compile(r"^[ \t]*SONU[CÇ][ \t]*:[ \t]*(.+)$", re.I | re.M)
 
 
 def bulgulari_ayikla(metin):

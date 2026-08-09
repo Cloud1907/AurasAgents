@@ -85,6 +85,24 @@ class HukumSatirBasindaTest(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(s.upper(), "TEMIZ")
 
+    def test_hukum_satir_atlayamaz(self):
+        """`SONUC:` ile hüküm AYNI satırda olmalı.
+
+        Codex bulgusu (PR #38, sekizinci tur — P0). Sabitleme eklenmişti ama
+        aradaki `\\s*` satır sonunu da yiyordu, yani çok satırlı ve ÇELİŞKİLİ
+        bir hüküm ilk parçasından okunuyordu:
+
+            SONUC:
+            TEMIZ
+            DEGIL
+
+        `TEMIZ` alınıp `DEGIL` yok sayılıyor, çıktı bulgusuz olduğunda tutarlı
+        ve temiz sayılıyordu. Boşluk sınıfı satır içiyle sınırlandırıldı.
+        """
+        for metin in ("SONUC:\nTEMIZ\nDEGIL", "SONUC:\nTEMIZ", "SONUC\n: TEMIZ"):
+            with self.subTest(metin=metin.replace("\n", "\\n")):
+                self.assertFalse(incele.bulgulari_ayikla(metin)[2])
+
     def test_bosluk_girintili_hukum_de_okunur(self):
         # Girinti biçimsel bir ayrıntıdır, hükmü geçersiz kılmaz.
         _b, s, ok = incele.bulgulari_ayikla("rapor\n   SONUC: TEMIZ")
