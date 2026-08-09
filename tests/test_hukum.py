@@ -249,6 +249,25 @@ class TutarlilikTest(unittest.TestCase):
         self.assertFalse(incele.tutarli_mi(b, "1 bulgu"))
         self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P2)"))
 
+    def test_devasa_sayi_kapiyi_cokertmez(self):
+        """Sınırsız basamak `int()`i patlatıp kapıyı ÇÖKERTİYORDU.
+
+        Codex bulgusu (PR #38, dokuzuncu tur — P1). Python 3.11+ 4300
+        basamaktan uzun dizeyi `int()`e çevirmeyi reddediyor (ValueError).
+        Desen `\\d*` ile sınırsızdı, yani hüküm 4301 basamak taşırsa
+        `tutarli_mi` istisna fırlatıyordu.
+
+        Çökme, fail-closed ENGEL ile AYNI ŞEY DEĞİLDİR: biri "kural
+        uygulanamadı" diye karar üretir, diğeri aracı kırar ve operatöre
+        traceback gösterir. Bu deponun kendi ayrımı — "araç hatası" ile
+        "kural ihlali" karıştırılmaz.
+        """
+        hukum = "9" * 4301 + " bulgu (en yuksek: P0)"
+        self.assertFalse(incele.tutarli_mi(TEMIZ, hukum))
+        # Makul üst sınır hâlâ çalışır.
+        b = {"P0": ["x"], "P1": [], "P2": []}
+        self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P0)"))
+
     def test_noktalama_tasiyan_temiz_hukmu_kabul_edilir(self):
         # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli; hoşgörü
         # yalnız anlamsız noktalama ve boşluk için.

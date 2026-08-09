@@ -77,11 +77,15 @@ _TEMIZ_HUKUM = re.compile(r"^TEMIZ[.\s]*$")
 # uç bir kaçak üretti: ortadaki sayı (`TEMIZ DEGIL — 0 bulgu`), sondaki ek
 # (`0 BULGU DEGIL`), serbest parantez (`0 BULGU (en yuksek: P0)`) — üçü de
 # sıfır bulguyla "tutarlı" sayılıp auto riskli PR'ı otomatik birleştirirdi.
+# Basamak sayısı SINIRLI: Python 3.11+ 4300 basamaktan uzun dizeyi
+# `int()`e çevirmeyi reddediyor, yani sınırsız `\d*` kapıyı ÇÖKERTİYORDU.
+# Çökme fail-closed ENGEL ile aynı şey değildir — biri karar üretir,
+# diğeri aracı kırar. 9999 bulgu gerçekçi üst sınırın çok üstünde.
 # Parantez ZORUNLU ve sayı en az 1: istem "bulgu yoksa TEMIZ yaz" diyor,
 # yani `0 bulgu` ve parantezsiz `N bulgu` sözleşmede YOKTUR. Opsiyonel
 # bırakmak, ilan edilen beyaz listeyi sessizce gevşetiyordu.
 _BULGU_HUKMU = re.compile(
-    r"^([1-9]\d*)\s*BULGU\b\s*\(\s*EN\s*Y[UÜ]KSEK\s*:\s*(P[012])\s*\)[.\s]*$")
+    r"^([1-9]\d{0,3})\s*BULGU\b\s*\(\s*EN\s*Y[UÜ]KSEK\s*:\s*(P[012])\s*\)[.\s]*$")
 
 
 def _en_yuksek(bulgular):
