@@ -42,6 +42,13 @@ def bulgulari_ayikla(metin):
     hukumler = SONUC.findall(metin or "")
     if len(hukumler) != 1:
         return bulgular, "", False
+    # Hüküm çıktının SONUNDA olmalı (istem: "sonuna tek satirlik hukum").
+    # Sonrasında metin varsa inceleme hükümle bitmemiştir; `İnceleme
+    # tamamlanamadı / SONUC: TEMIZ / Diff analiz edilmedi` çıktısında son
+    # satır hiç okunmuyor ve yarım kalmış inceleme "temiz" sayılıyordu.
+    dolu = [s for s in (metin or "").splitlines() if s.strip()]
+    if not dolu or not SONUC.search(dolu[-1]):
+        return bulgular, "", False
     return bulgular, hukumler[0].strip(), True
 
 

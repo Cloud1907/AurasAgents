@@ -103,6 +103,29 @@ class HukumSatirBasindaTest(unittest.TestCase):
             with self.subTest(metin=metin.replace("\n", "\\n")):
                 self.assertFalse(incele.bulgulari_ayikla(metin)[2])
 
+    def test_hukumden_sonra_metin_gelemez(self):
+        """Hüküm çıktının SONUNDA olmalı — istem "sonuna" diyor.
+
+        Codex bulgusu (PR #38, onuncu tur — P0). Hükümden sonraki metin yok
+        sayılıyordu:
+
+            İnceleme tamamlanamadı
+            SONUC: TEMIZ
+            Diff analiz edilmedi
+
+        Ortadaki satır tek ve kendi satırındaydı, yani tüm önceki kapılardan
+        geçiyordu; sonrasındaki "analiz edilmedi" ise hiç okunmuyordu.
+        """
+        metin = ("Inceleme tamamlanamadi\nSONUC: TEMIZ\n"
+                 "Diff analiz edilmedi")
+        self.assertFalse(incele.bulgulari_ayikla(metin)[2])
+
+    def test_hukumden_sonra_bos_satir_sorun_degil(self):
+        # Sondaki boşluk biçimsel; hükmü geçersiz kılmaz.
+        _b, s, ok = incele.bulgulari_ayikla("rapor\nSONUC: TEMIZ\n\n  \n")
+        self.assertTrue(ok)
+        self.assertEqual(s.upper(), "TEMIZ")
+
     def test_bosluk_girintili_hukum_de_okunur(self):
         # Girinti biçimsel bir ayrıntıdır, hükmü geçersiz kılmaz.
         _b, s, ok = incele.bulgulari_ayikla("rapor\n   SONUC: TEMIZ")
