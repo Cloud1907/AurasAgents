@@ -40,10 +40,33 @@ import scan_secrets as ss  # noqa: E402
 ESIK = 8
 
 EPOSTA_RE = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]{2,}\b")
-# TC kimlik no: 11 hane, ilk hane 0 olamaz. Doğrulama algoritması KASITEN
-# uygulanmıyor — amaç geçerli kimlik saymak değil, kimlik BİÇİMİNDE toplu
-# veri görmek. Sahte/test verisi de repoda durmamalı.
-TC_RE = re.compile(r"(?<!\d)[1-9]\d{10}(?!\d)")
+# TC kimlik no adayı: 11 hane, ilk hane 0 olamaz. Bu YALNIZ ön elemedir —
+# asıl karar tc_gecerli() sağlamasıdır.
+TC_ADAY_RE = re.compile(r"(?<!\d)[1-9]\d{10}(?!\d)")
+
+
+def tc_gecerli(no):
+    """TC kimlik numarası sağlaması tutuyor mu.
+
+    Neden gerekli (denetim bulgusu 2026-08-08): sağlama olmadan 11 haneli
+    HER sayı kimlik sayılıyordu. 30 sipariş numarası içeren sıradan bir
+    seed dosyası "30 benzersiz TC kimlik no" diye push'u durdurdu. Sipariş
+    no, barkod, hesap no — hepsi 11 hane olabilir ve hiçbiri kimlik değildir.
+    Yanlış pozitif bir kapının en pahalı hatasıdır: birkaç kez tekrarlarsa
+    insan kapıyı atlamayı öğrenir.
+
+    Algoritma rastgele 11 hanelinin ~%99'unu eler:
+      10. hane = ((1,3,5,7,9. toplamı)*7 - (2,4,6,8. toplamı)) mod 10
+      11. hane = (ilk 10 hanenin toplamı) mod 10
+    """
+    if len(no) != 11 or not no.isdigit() or no[0] == "0":
+        return False
+    d = [int(c) for c in no]
+    tek = d[0] + d[2] + d[4] + d[6] + d[8]
+    cift = d[1] + d[3] + d[5] + d[7]
+    if (tek * 7 - cift) % 10 != d[9]:
+        return False
+    return sum(d[:10]) % 10 == d[10]
 
 # Tanımı gereği kişi listesi olan dosyalar — ihlal değil, konvansiyon.
 KISI_LISTESI = re.compile(
@@ -62,7 +85,8 @@ def dokum_mu(yol, metin):
     epostalar = {m.group(0).lower() for m in EPOSTA_RE.finditer(metin)}
     if len(epostalar) >= ESIK:
         return "e-posta", len(epostalar)
-    kimlikler = {m.group(0) for m in TC_RE.finditer(metin)}
+    kimlikler = {m.group(0) for m in TC_ADAY_RE.finditer(metin)
+                 if tc_gecerli(m.group(0))}
     if len(kimlikler) >= ESIK:
         return "TC kimlik no", len(kimlikler)
     return None
@@ -96,12 +120,14 @@ def main(argv):
 
     kok = (paths[0] if os.path.isdir(paths[0])
            else os.path.dirname(paths[0])) or "."
-    desenler, muaf_hata = ss.muafiyet_yukle(kok)
+    desenler, muaf_hata = ss.muafiyet_yukle(kok, kapi="pii")
     if muaf_hata:
         print(f"HATA: {muaf_hata}", file=sys.stderr)
         return 2
-    # Muafiyet dosyası SIR kapısıyla ortak: proje "bu dosya bilinçli olarak
-    # burada" dediyse iki kapı da aynı kararı görmeli. Gerekçe yine zorunlu.
+    # Muafiyet dosyası SIR kapısıyla ortak ama KAPSAM ayrı: işaretsiz satır
+    # yalnız secret kapısına uygulanır. Buraya muaf yazmak için gerekçede
+    # açıkça `kapı: pii` (ya da `kapı: hepsi`) denmeli — bir kapının
+    # muafiyeti başka kapıyı sessizce kapatamaz (denetim bulgusu 2026-08-08).
     sahte = [(y, 0, t, str(a)) for y, t, a in bulgular]
     kalan, bastirilan = ss.muafiyet_uygula(sahte, kok, desenler)
 

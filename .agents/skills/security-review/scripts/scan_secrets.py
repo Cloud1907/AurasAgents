@@ -238,7 +238,7 @@ def scan(paths, exclude=(), git_only=False):
 MUAFIYET_DOSYA = os.path.join(".agents", "secret-allowlist.txt")
 
 
-def muafiyet_yukle(kok):
+def muafiyet_yukle(kok, kapi="secret"):
     """(desenler, hata) — projenin kendi muafiyet listesi.
 
     Neden var (4Flow, 2026-08-07): projede meşru fixture olabiliyor
@@ -270,10 +270,21 @@ def muafiyet_yukle(kok):
         desen, _, gerekce = satir.partition("#")
         if not desen.strip():
             continue                      # yalnız yorum satırı
+        # Kapı kapsamı: işaretsiz satır YALNIZ secret kapısına uygulanır.
+        # Denetim bulgusu 2026-08-08: dosya iki kapı arasında ortaktı ve
+        # "sır taraması için muaf" gerekçesiyle yazılan satır kişisel veri
+        # kapısını da susturuyordu — yazan kişi ikinci kapıyı kapattığını
+        # bilmiyordu. Bir kapının muafiyeti başka kapıyı kapatamaz.
+        m = re.match(r"\s*kapı:\s*([\w]+)\s*(?:[—-]\s*)?(.*)$", gerekce)
+        if m:
+            hedef, gerekce = m.group(1).lower(), m.group(2)
+        else:
+            hedef = "secret"
         if not gerekce.strip():
             return [], (f"{MUAFIYET_DOSYA}:{no} gerekçe boş — neden muaf "
                         f"olduğunu yaz.\n    {satir.strip()}")
-        desenler.append(desen.strip())
+        if hedef in (kapi, "hepsi"):
+            desenler.append(desen.strip())
     return desenler, None
 
 

@@ -118,11 +118,14 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   listesi mi" diye sorar. Toplu döküm (≥8 benzersiz e-posta ya da TC kimlik
   no) push'u ve CI'ı durdurur; tek kayıt ihlal değildir. `AUTHORS` gibi
   tanımı gereği kişi listesi olan dosyalar muaftır.
-- Secret kapısı proje muafiyeti: `.agents/secret-allowlist.txt` — her satır
+- Proje muafiyeti: `.agents/secret-allowlist.txt` — her satır
   `yol-deseni  # gerekçe`. **Gerekçe zorunludur**; gerekçesiz satır kullanım
   hatasıdır (exit 2), "temiz" değildir. Bastırılan bulgu çıktıda `muaf:`
   etiketiyle GÖRÜNÜR kalır — sessiz susturma, kapının olduğu ama korumadığı
-  hâldir. Dosya projenindir, motor ezmez.
+  hâldir. **Kapsam kapı bazındadır**: işaretsiz satır yalnız secret kapısına
+  uygulanır; başka kapı için gerekçe `kapı: pii` (ya da `kapı: hepsi`) ile
+  başlar. Bir kapının muafiyeti başkasını sessizce kapatamaz. Dosya
+  projenindir, motor ezmez.
 - Test kapsamı daralmaz: `validate.py` testleri koşmadan önce KEŞFEDER; bir
   test dosyası import'ta çökerse ya da keşif desenine uymuyorsa kesilir.
   Gerekçe: eksilen test kırmızı testten tehlikelidir — kırmızı bağırır, yok
