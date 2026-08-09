@@ -12,6 +12,10 @@ import sys
 import tempfile
 import unittest
 
+# Keşif `tests/`i sys.path'e koyar, `python3 -m unittest tests.test_x` koymaz.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ortam import KAPI_PYTHON, kapi_yorumlayicisi_gerekir  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
@@ -105,12 +109,20 @@ class PrePushTest(unittest.TestCase):
             self.assertEqual(kod, 1, "sahte yorumlayıcı push'u geçirmemeli")
             self.assertIn("AURAS_PYTHON gecerli bir python3 degil", cikti)
 
+    @kapi_yorumlayicisi_gerekir
     def test_gecerli_override_gorunur_olur(self):
-        """Meşru override çalışır ama SESSİZ olmaz — kapı kör kalmasın."""
+        """Meşru override çalışır ama SESSİZ olmaz — kapı kör kalmasın.
+
+        Override MEŞRU olmalı, yoksa test kendi senaryosunu kurmuyor demektir.
+        Eskiden `sys.executable` veriliyordu; süiti PyYAML'sız bir yorumlayıcı
+        koştuğunda kapı onu HAKLI OLARAK reddediyordu (exit 1) ve test kırmızı
+        yanıyordu — kusur kapıda değil, testin kabulünde. Doğrusu adayı
+        kapının kendi ölçütüyle seçmek (bkz. ortam.kapi_yorumlayicisi).
+        """
         with tempfile.TemporaryDirectory() as td:
-            ortam = dict(os.environ, AURAS_PYTHON=sys.executable)
+            ortam = dict(os.environ, AURAS_PYTHON=KAPI_PYTHON)
             kod, cikti = kur(td, ortam=ortam)
-            self.assertEqual(kod, 0)
+            self.assertEqual(kod, 0, cikti)
             self.assertIn("AURAS_PYTHON ile kosuyor", cikti)
 
     def test_tarayici_yoksa_fail_closed(self):

@@ -129,7 +129,11 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   olan test yalnız "Ran N"i sessizce küçültür (ölçüm 2026-08-07: PyYAML'sız
   yorumlayıcıda 220 yerine 186). Ortam bağımlılığı `tests/ortam.py` üstünden
   GÖRÜNÜR atlamaya çevrilir ve `tests/test_ortam.py` eksik ortamı tek bir
-  yüksek sesli hataya bağlar: atlanan test "geçti" diye okunamaz.
+  yüksek sesli hataya bağlar: atlanan test "geçti" diye okunamaz. Paylaşılan
+  yardımcıyı import eden test önce `tests/` dizinini `sys.path`'e ekler —
+  yoksa yalnız keşifle koşar, `python3 -m unittest tests.test_x` çağrısında
+  ModuleNotFoundError verir ve okuyan "test bozuk" sanar (bekçi:
+  `TekModulImportTest`).
 - Skill doğrulayıcı sözleşmesi (ADR-0003): `check_*` / `scan_*` önekli skill
   script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
   (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı

@@ -6,6 +6,7 @@ METİN DESENİ varsayımından geldi. Buradaki her test o turlardan birini
 kilitler; hepsi düzeltmeden ÖNCE kırmızıydı.
 """
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,44 @@ def yaz(kok, rel, icerik):
     os.makedirs(os.path.dirname(yol), exist_ok=True)
     with open(yol, "w", encoding="utf-8") as fh:
         fh.write(icerik)
+
+
+class TekModulImportTest(unittest.TestCase):
+    """`python3 -m unittest tests.test_x` de çalışmalı — yalnız keşif değil.
+
+    Keşif `tests/`i sys.path'e koyar; noktalı çağrı KOYMAZ. Paylaşılan
+    yardımcıyı (`ortam.py`) yol kurmadan import eden modül yalnız keşifle
+    koşar, tek modül çağrısında `ModuleNotFoundError: No module named 'ortam'`
+    verir. Bu kapsam kaybı değildir ama aynı aileden bir yanıltmadır: okuyan
+    "test bozuk" sanar ve kırmızıya güvenmemeyi öğrenir.
+
+    Ölçüm 2026-08-09: `ortam.py` paylaşılan yardımcıya dönüştükten sonra dört
+    modül bu hâle düşmüştü ve süit yeşil olduğu için kimse görmedi.
+    """
+
+    def test_her_test_modulu_tek_basina_import_edilebilir(self):
+        # HER MODÜL KENDİ SÜRECİNDE. Tek süreçte toplu import etmek bekçiyi
+        # yalancı yapar (Codex bulgusu, PR #35): önce import edilen modülün
+        # `sys.path.insert`i süreç boyunca kalır ve yolu EKSİK olan sonraki
+        # modül de import edilebilir görünür. Ölçüldü — test_route'un yol
+        # eklemesi silindiğinde modül gerçekten kırıktı ama bekçi "OK" dedi.
+        #
+        # `sys.path`i geri almak yetmez: ilk başarılı import'tan sonra `ortam`
+        # `sys.modules`ta önbelleklenir ve sonraki modül yolu hiç kullanmadan
+        # onu bulur. Tek dürüst izolasyon ayrı süreçtir.
+        hatali = []
+        for m in sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, "tests"))
+                        if f.startswith("test_") and f.endswith(".py")):
+            p = subprocess.run([sys.executable, "-c", f"import tests.{m}"],
+                               capture_output=True, text=True, cwd=ROOT)
+            if p.returncode != 0:
+                son = (p.stderr.strip().splitlines() or ["<çıktı yok>"])[-1]
+                hatali.append(f"{m} → {son}")
+        self.assertEqual(
+            hatali, [],
+            "tek modül çağrısında import edilemeyen test dosyası var; "
+            "paylaşılan yardımcıdan önce tests/ dizinini sys.path'e ekle:\n  "
+            + "\n  ".join(hatali))
 
 
 class TestKapsamiTest(unittest.TestCase):

@@ -13,7 +13,9 @@ import sys
 import tempfile
 import unittest
 
-from ortam import pyyaml_gerekir
+# Keşif `tests/`i sys.path'e koyar, `python3 -m unittest tests.test_x` koymaz.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ortam import pyyaml_gerekir  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
