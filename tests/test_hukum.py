@@ -103,22 +103,28 @@ class HukumSatirBasindaTest(unittest.TestCase):
             with self.subTest(metin=metin.replace("\n", "\\n")):
                 self.assertFalse(incele.bulgulari_ayikla(metin)[2])
 
-    def test_hukumden_sonra_metin_gelemez(self):
-        """Hüküm çıktının SONUNDA olmalı — istem "sonuna" diyor.
+    def test_gercek_sarilmis_cikti_ayristirilir(self):
+        """GERÇEK çıktı şekli — kapının canlı yolda çalıştığının kilidi.
 
-        Codex bulgusu (PR #38, onuncu tur — P0). Hükümden sonraki metin yok
-        sayılıyordu:
+        `codex-review.sh` modelin çıktısını SARAR ve hükümden sonra her zaman
+        sabit bir dipnot ekler. 2026-08-10'da "hüküm son satır olmalı" kuralını
+        koydum ve bu şekli ayrıştırılamaz yaptım: kapı HER PR'da "SONUC satırı
+        yok" diyerek kalıcı ENGEL'e düştü. Bulgu Codex'ten geldi; bu test o
+        şekli bir daha kırmamak için gerçek gövdeyi birebir taşır.
 
-            İnceleme tamamlanamadı
-            SONUC: TEMIZ
-            Diff analiz edilmedi
-
-        Ortadaki satır tek ve kendi satırındaydı, yani tüm önceki kapılardan
-        geçiyordu; sonrasındaki "analiz edilmedi" ise hiç okunmuyordu.
+        Ders: sahte kırmızı burada sahte yeşilden pahalıydı — kapı büsbütün
+        işlevsiz kalır ve insana onu atlamayı öğretir.
         """
-        metin = ("Inceleme tamamlanamadi\nSONUC: TEMIZ\n"
-                 "Diff analiz edilmedi")
-        self.assertFalse(incele.bulgulari_ayikla(metin)[2])
+        govde = ("## Codex incelemesi (risk sinyali)\n\n"
+                 "[P2] bin/x.py:1 — ufak not — etki sinirli\n"
+                 "SONUC: 1 bulgu (en yuksek: P2)\n\n"
+                 "---\n"
+                 "Bu bir capraz-vendor risk sinyalidir, makine kaniti "
+                 "degildir. Merge kosulu: CI yesil + insan karari.")
+        b, hukum, ok = incele.bulgulari_ayikla(govde)
+        self.assertTrue(ok, "gerçek sarılmış çıktı ayrıştırılamadı")
+        self.assertEqual(len(b["P2"]), 1)
+        self.assertTrue(incele.tutarli_mi(b, hukum))
 
     def test_hukumden_sonra_bos_satir_sorun_degil(self):
         # Sondaki boşluk biçimsel; hükmü geçersiz kılmaz.

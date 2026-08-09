@@ -42,13 +42,18 @@ def bulgulari_ayikla(metin):
     hukumler = SONUC.findall(metin or "")
     if len(hukumler) != 1:
         return bulgular, "", False
-    # Hüküm çıktının SONUNDA olmalı (istem: "sonuna tek satirlik hukum").
-    # Sonrasında metin varsa inceleme hükümle bitmemiştir; `İnceleme
-    # tamamlanamadı / SONUC: TEMIZ / Diff analiz edilmedi` çıktısında son
-    # satır hiç okunmuyor ve yarım kalmış inceleme "temiz" sayılıyordu.
-    dolu = [s for s in (metin or "").splitlines() if s.strip()]
-    if not dolu or not SONUC.search(dolu[-1]):
-        return bulgular, "", False
+    # BİLİNEN AÇIK — hükümden sonraki metin okunmaz. `İnceleme tamamlanamadı /
+    # SONUC: TEMIZ / Diff analiz edilmedi` çıktısında son satır görülmez.
+    #
+    # "Hüküm son satır olmalı" denemesi GERİ ALINDI (2026-08-10): bu fonksiyon
+    # modelin ham çıktısını değil, `codex-review.sh`ın sardığı GÖVDEYİ alır ve
+    # o gövde hükümden sonra her zaman sabit bir dipnot ekler. Kural konsa
+    # HİÇBİR gerçek inceleme ayrıştırılamazdı — kapı kalıcı ENGEL'e düşerdi.
+    # Sahte kırmızı burada sahte yeşilden pahalıydı: kapı büsbütün ölürdü.
+    #
+    # Doğru çözüm metni daha çok zorlamak değil, metin ayrıştırmayı bırakmak
+    # (yapılandırılmış çıktı). Alt sınır olarak `test_gercek_sarilmis_cikti_
+    # ayristirilir` bu şeklin bozulmamasını kilitler.
     return bulgular, hukumler[0].strip(), True
 
 
