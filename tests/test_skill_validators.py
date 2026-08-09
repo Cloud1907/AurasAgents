@@ -16,8 +16,6 @@ SCAN = os.path.join(ROOT, ".agents", "skills", "security-review",
                     "scripts", "scan_secrets.py")
 TESTFIRST = os.path.join(ROOT, ".agents", "skills", "implement-change",
                          "scripts", "check_test_first.py")
-PII = os.path.join(ROOT, ".agents", "skills", "security-review",
-                   "scripts", "scan_personal_data.py")
 
 # Stripe dokümanındaki örnek anahtar — gerçek hesaba ait değil. Parçalı
 # kurulur: düz yazılırsa bu dosyanın KENDİSİ secret kapısına takılır
@@ -267,64 +265,67 @@ class IsabetTest(unittest.TestCase):
                 self.assertIn("Hardcoded parola", self.hits(satir), satir)
 
 
-class KisiselVeriTest(unittest.TestCase):
-    """Toplu kişisel veri dökümü — sır değil ama repoda durmamalı.
+class SilmeTestIstemezTest(unittest.TestCase):
+    """Ölü kod SİLMEK test gerektirmez — eklemek/değiştirmek gerektirir.
 
-    4Flow'da bulundu (2026-08-07): `users_list.json`, bir üretim API
-    çıktısının dosyaya dökülmüş hâli — 20 kişinin adı, soyadı ve kurumsal
-    e-postası. Tarayıcı "temiz" dedi ve DOĞRU davrandı: parola/anahtar
-    arıyordu, kişisel veri aramıyordu. Yani kapıda bu boyut hiç yoktu.
+    4Flow'da çıktı (2026-08-07): kişisel veri taşıyan iki hata ayıklama
+    artığı silindi, hiçbir kod onlara bağımlı değildi, tek satır davranış
+    değişmedi. `check_test_first` yine de "kaynak değişti, test değişmedi"
+    dedi ve CI'ı kırdı.
 
-    Ölçüt TEK e-posta değil TOPLU dökümdür: bir yorumdaki iletişim adresi
-    ihlal değil, 20 kişilik liste dökümüdür. Tek adres eşiği yanlış pozitif
-    üretir ve kapıyı güvenilmez yapar.
+    Bu, temizliği cezalandıran bir kuraldır. Kural TDD'yi zorlamak için var:
+    yeni davranışın önce testi yazılsın. Silinen davranışın testi olmaz —
+    olsa da o test de silinir. Temizliği pahalı yapan kapı, borcu büyütür.
     """
 
-    def kur(self, td, icerik, ad="dump.json"):
-        with open(os.path.join(td, ad), "w", encoding="utf-8") as fh:
-            fh.write(icerik)
-        with open(os.path.join(td, "temiz.py"), "w") as fh:
-            fh.write("x = 1\n")
+    def depo(self, td):
+        subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
+                       capture_output=True)
+        for k, v in (("user.email", "t@t.t"), ("user.name", "t")):
+            subprocess.run(["git", "-C", td, "config", k, v], check=True,
+                           capture_output=True)
+        for ad, ic in (("src.py", "def f():\n    return 1\n"),
+                       ("tests/test_src.py", "def test_f():\n    assert 1\n"),
+                       ("olu.py", "# kimse kullanmiyor\n")):
+            yol = os.path.join(td, ad)
+            os.makedirs(os.path.dirname(yol), exist_ok=True)
+            with open(yol, "w") as fh:
+                fh.write(ic)
+        subprocess.run(["git", "-C", td, "add", "-A"], check=True,
+                       capture_output=True)
+        subprocess.run(["git", "-C", td, "commit", "-qm", "ilk"], check=True,
+                       capture_output=True)
         return td
 
-    def test_toplu_eposta_dokumu_yakalanir(self):
-        with tempfile.TemporaryDirectory() as td:
-            kisiler = ", ".join(
-                f'{{"email":"kisi{i}@sirket.com.tr","fullName":"Kisi {i}"}}'
-                for i in range(20))
-            self.kur(td, "[" + kisiler + "]")
-            kod, cikti = kos(PII, td)
-            self.assertEqual(kod, 1, cikti)
-            self.assertIn("dump.json", cikti)
-            self.assertIn("kişisel veri", cikti)
+    def kos_td(self, td):
+        p = subprocess.run([sys.executable, TESTFIRST], capture_output=True,
+                           text=True, cwd=td, timeout=60)
+        return p.returncode, p.stdout + p.stderr
 
-    def test_tek_eposta_yanlis_pozitif_uretmez(self):
-        # Bir yorumdaki iletişim adresi ihlal değildir.
+    def test_yalniz_silme_test_istemez(self):
         with tempfile.TemporaryDirectory() as td:
-            self.kur(td, "# soru olursa: destek@sirket.com\n", "not.md")
-            self.assertEqual(kos(PII, td)[0], 0)
+            self.depo(td)
+            os.remove(os.path.join(td, "olu.py"))
+            kod, cikti = self.kos_td(td)
+            self.assertEqual(kod, 0, f"silme test istememeli:\n{cikti}")
 
-    def test_bir_avuc_eposta_yanlis_pozitif_uretmez(self):
-        # Eşiğin altı: CODEOWNERS/yazar listesi gibi meşru küçük kümeler.
+    def test_degistirme_hala_test_ister(self):
+        # Silme muafiyeti, DEĞİŞTİRMEYİ kör noktaya çevirmemeli.
         with tempfile.TemporaryDirectory() as td:
-            self.kur(td, "\n".join(f"a{i}@x.com" for i in range(4)), "not.md")
-            self.assertEqual(kos(PII, td)[0], 0)
+            self.depo(td)
+            with open(os.path.join(td, "src.py"), "a") as fh:
+                fh.write("def g():\n    return 2\n")
+            self.assertEqual(self.kos_td(td)[0], 1,
+                             "kaynak değişti, test değişmedi — uyarmalı")
 
-    def test_katki_dosyalari_muaf(self):
-        # AUTHORS/CONTRIBUTORS listesi TANIMI GEREĞİ kişi listesidir.
+    def test_silme_ve_degistirme_birlikte_test_ister(self):
+        # Silme yanına gizlenmiş değişiklik muaf olmamalı.
         with tempfile.TemporaryDirectory() as td:
-            self.kur(td, "\n".join(f"Kisi {i} <k{i}@x.com>" for i in range(20)),
-                     "AUTHORS")
-            self.assertEqual(kos(PII, td)[0], 0)
-
-    def test_toplu_tc_kimlik_yakalanir(self):
-        with tempfile.TemporaryDirectory() as td:
-            # 11 haneli, birbirinden farklı sayılar
-            self.kur(td, "\n".join(str(10000000000 + i * 7919) for i in range(12)),
-                     "kimlikler.csv")
-            kod, cikti = kos(PII, td)
-            self.assertEqual(kod, 1, cikti)
-            self.assertIn("kişisel veri", cikti)
+            self.depo(td)
+            os.remove(os.path.join(td, "olu.py"))
+            with open(os.path.join(td, "src.py"), "a") as fh:
+                fh.write("def g():\n    return 2\n")
+            self.assertEqual(self.kos_td(td)[0], 1)
 
 
 class ProjeMuafiyetiTest(unittest.TestCase):
