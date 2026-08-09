@@ -29,8 +29,14 @@ def bulgulari_ayikla(metin):
         m = BULGU.search(satir)
         if m:
             bulgular[m.group(1)].append(m.group(2).strip()[:160])
-    s = SONUC.search(metin or "")
-    return bulgular, (s.group(1).strip() if s else ""), bool(s)
+    # TEK hüküm satırı şart. `search` İLK eşleşmeyi alıyordu, yani sonraki
+    # ÇELİŞEN hüküm sessizce yok sayılıyordu (`SONUC: 1 bulgu` + `SONUC:
+    # TEMIZ DEGIL`). İstem tek satır istiyor; iki hüküm varsa hangisinin
+    # geçerli olduğu belirsizdir ve belirsiz çıktı "okunamadı"dır.
+    hukumler = SONUC.findall(metin or "")
+    if len(hukumler) != 1:
+        return bulgular, "", False
+    return bulgular, hukumler[0].strip(), True
 
 
 def _buyut(metin):
@@ -62,8 +68,11 @@ _TEMIZ_HUKUM = re.compile(r"^TEMIZ[.\s]*$")
 # uç bir kaçak üretti: ortadaki sayı (`TEMIZ DEGIL — 0 bulgu`), sondaki ek
 # (`0 BULGU DEGIL`), serbest parantez (`0 BULGU (en yuksek: P0)`) — üçü de
 # sıfır bulguyla "tutarlı" sayılıp auto riskli PR'ı otomatik birleştirirdi.
+# Parantez ZORUNLU ve sayı en az 1: istem "bulgu yoksa TEMIZ yaz" diyor,
+# yani `0 bulgu` ve parantezsiz `N bulgu` sözleşmede YOKTUR. Opsiyonel
+# bırakmak, ilan edilen beyaz listeyi sessizce gevşetiyordu.
 _BULGU_HUKMU = re.compile(
-    r"^(\d+)\s*BULGU\b\s*(?:\(\s*EN\s*Y[UÜ]KSEK\s*:\s*(P[012])\s*\))?[.\s]*$")
+    r"^([1-9]\d*)\s*BULGU\b\s*\(\s*EN\s*Y[UÜ]KSEK\s*:\s*(P[012])\s*\)[.\s]*$")
 
 
 def _en_yuksek(bulgular):
@@ -97,10 +106,8 @@ def tutarli_mi(bulgular, sonuc):
         return sayi == 0
     m = _BULGU_HUKMU.match(hukum)
     if m:
-        if int(m.group(1)) != sayi:
-            return False
-        # Parantezdeki öncelik İDDİASI da denetlenir: hüküm hem "bulgu yok"
-        # hem "en yükseği P0" diyemez, ve listelenen bulgularla çelişemez.
-        iddia = m.group(2)
-        return iddia is None or iddia == _en_yuksek(bulgular)
+        # Sayı VE parantezdeki öncelik iddiası, ayrıştırılan bulgularla
+        # birlikte tutmalı; yalan iddia da tutarsızlıktır.
+        return (int(m.group(1)) == sayi
+                and m.group(2) == _en_yuksek(bulgular))
     return False
