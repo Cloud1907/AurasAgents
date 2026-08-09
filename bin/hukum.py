@@ -15,7 +15,10 @@ import unicodedata
 
 # --- Codex çıktısını ayrıştır ---------------------------------------------
 BULGU = re.compile(r"\[\s*(P[012])\s*\]\s*(.+)")
-SONUC = re.compile(r"SONU[CÇ]\s*:\s*(.+)", re.I)
+# Hüküm KENDİ SATIRINDA olmalı. Sabitlenmemiş desen, inceleyicinin düz
+# metin içindeki ANIŞINI ("beklenen biçim: SONUC: TEMIZ") geçerli hüküm
+# sayıyordu — inceleme tamamlanamamışken bile "temiz" üretilebiliyordu.
+SONUC = re.compile(r"^[ \t]*SONU[CÇ]\s*:\s*(.+)$", re.I | re.M)
 
 
 def bulgulari_ayikla(metin):
@@ -48,11 +51,14 @@ def _buyut(metin):
     PR #37). Sahte kırmızı sahte yeşil kadar zararlıdır: tekrarlayan
     sebepsiz ENGEL, insana kapıyı elle atlamayı öğretir.
     """
-    # NFC şart: `İ` iki biçimde yazılabilir — tek kod noktası (U+0130) ya
-    # da `I` + birleşen nokta (U+0307). Düz karakter değişimi yalnız
-    # birincisini görür; ikincisi "okunamadı" sayılıp sahte ENGEL üretirdi.
-    metin = unicodedata.normalize("NFC", metin or "")
-    return metin.replace("İ", "I").replace("ı", "i").upper()
+    # `İ`/`i` noktası üç biçimde gelebilir: tek kod noktası (U+0130),
+    # `I`+U+0307, ya da `i`+U+0307. NFC sonuncuyu BİRLEŞTİREMEZ (küçük i
+    # için önceden birleştirilmiş biçim yoktur), yani yalnız NFC'ye
+    # güvenmek o biçimi "okunamadı" sayıp sahte ENGEL üretirdi.
+    # Ayrıştırıp birleşen noktayı DÜŞÜRMEK üçünü de tek biçime indirir;
+    # Türkçe bağlamda U+0307 yalnız i/I üstünde bulunur.
+    metin = unicodedata.normalize("NFD", metin or "").replace("\u0307", "")
+    return metin.replace("ı", "i").upper()
 
 
 # Hüküm BAŞTAN SONA eşleşmeli. `"TEMIZ" in hukum` alt dize araması olumsuz

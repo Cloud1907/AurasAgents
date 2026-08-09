@@ -65,6 +65,33 @@ class AyiklamaTest(unittest.TestCase):
         self.assertFalse(ok, "iki hüküm varsa çıktı okunmuş sayılamaz")
 
 
+class HukumSatirBasindaTest(unittest.TestCase):
+    """Hüküm KENDİ SATIRINDA olmalı — düz metin içindeki anış hüküm değildir.
+
+    Codex bulgusu (PR #38 — P0). `SONUC` deseni satır başına sabitli değildi,
+    yani inceleyicinin "beklenen biçim şöyleydi: SONUC: TEMIZ" gibi bir
+    AÇIKLAMASI geçerli hüküm sayılıyordu. İnceleme tamamlanamamışken bile
+    "temiz" hükmü üretilebiliyordu — sahte yeşilin en sinsi biçimi.
+    """
+
+    def test_duz_metin_icindeki_anis_hukum_sayilmaz(self):
+        metin = ("Inceleme tamamlanamadi; beklenen bicim soyleydi "
+                 "SONUC: TEMIZ")
+        _b, _s, ok = incele.bulgulari_ayikla(metin)
+        self.assertFalse(ok, "cümle içindeki anış hüküm sayıldı")
+
+    def test_kendi_satirindaki_hukum_okunur(self):
+        _b, s, ok = incele.bulgulari_ayikla("Inceleme bitti.\nSONUC: TEMIZ")
+        self.assertTrue(ok)
+        self.assertEqual(s.upper(), "TEMIZ")
+
+    def test_bosluk_girintili_hukum_de_okunur(self):
+        # Girinti biçimsel bir ayrıntıdır, hükmü geçersiz kılmaz.
+        _b, s, ok = incele.bulgulari_ayikla("rapor\n   SONUC: TEMIZ")
+        self.assertTrue(ok)
+        self.assertEqual(s.upper(), "TEMIZ")
+
+
 class TutarlilikTest(unittest.TestCase):
     """P1 · incele.py:79 — herhangi bir SONUC metni geçerli sayılıyordu."""
 
@@ -178,6 +205,17 @@ class TutarlilikTest(unittest.TestCase):
         nfd = "TEMİZ"          # I + birleşen nokta
         self.assertNotEqual(nfd, "TEMİZ", "vaka NFD olmalı")
         self.assertTrue(incele.tutarli_mi(TEMIZ, nfd))
+
+    def test_kucuk_harf_ayrik_noktali_i_de_okunur(self):
+        """`temi\u0307z` — küçük `i` + birleşen nokta (Codex bulgusu, P2).
+
+        NFC bunu BİRLEŞTİREMEZ: küçük i + U+0307 için önceden birleştirilmiş
+        tek kod noktası yoktur. Yalnız NFC'ye güvenmek bu biçimi "okunamadı"
+        sayıp sahte ENGEL üretirdi. Çözüm birleşen noktayı normalizasyonda
+        DÜŞÜRMEK — Türkçe bağlamda o nokta yalnız i/I üstünde bulunur.
+        """
+        self.assertTrue(incele.tutarli_mi(TEMIZ, "temi\u0307z"))
+        self.assertTrue(incele.tutarli_mi(TEMIZ, "TEMI\u0307Z"))
 
     def test_eksik_parantez_ve_sifir_sayi_hukum_sayilmaz(self):
         """Beyaz liste ilan edildiği gibi olmalı — parantez opsiyonel değil.
