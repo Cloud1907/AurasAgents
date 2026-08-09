@@ -225,6 +225,21 @@ class TutarlilikTest(unittest.TestCase):
             with self.subTest(hukum=hukum):
                 self.assertFalse(incele.tutarli_mi(TEMIZ, hukum))
 
+    def test_olumsuz_hukum_sayi_tasisa_da_temiz_sayilmaz(self):
+        """Sayısal dal, olumsuz hükmü sayı taşıdığı için geçerli sayamaz.
+
+        Codex bulgusu (PR #38, üçüncü tur). `re.search` sayıyı METNİN HER
+        YERİNDE arıyordu: `SONUC: TEMİZ DEĞİL — 0 bulgu` + sıfır ayrıştırılmış
+        bulgu = "tutarlı" → auto risk + yeşil CI'da OTOMATİK BİRLEŞME.
+
+        Hüküm tanınan iki biçimden biri olmalı: ya baştan sona `TEMIZ`, ya da
+        BAŞTAN itibaren `<sayı> bulgu`. Tanınmayan hüküm tutarsızdır (ENGEL).
+        """
+        for hukum in ("TEMİZ DEĞİL — 0 bulgu", "temiz degil, 0 bulgu",
+                      "reddedildi 0 bulgu", "belirsiz — 0 bulgu"):
+            with self.subTest(hukum=hukum):
+                self.assertFalse(incele.tutarli_mi(TEMIZ, hukum))
+
     def test_noktalama_tasiyan_temiz_hukmu_kabul_edilir(self):
         # Fazla katı eşleşme yeni bir sahte kırmızı üretmemeli.
         for hukum in ("TEMIZ", "TEMİZ", "TEMIZ.", "TEMİZ ✓", " temiz "):

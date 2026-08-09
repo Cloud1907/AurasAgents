@@ -102,6 +102,11 @@ def _buyut(metin):
 # verebileceği en pahalı hata budur (2026-08-09, Codex bulgusu PR #38).
 # Sondaki noktalama serbest — fazla katı eşleşme yeni sahte kırmızı üretir.
 _TEMIZ_HUKUM = re.compile(r"^TEMIZ\W*$")
+# Sayı da BAŞTAN itibaren aranır. `re.search` sayıyı metnin her yerinde
+# buluyordu: `TEMIZ DEGIL — 0 bulgu` + sıfır bulgu "tutarlı" sayılıp auto
+# riskli PR otomatik birleşirdi (2026-08-09, Codex bulgusu PR #38).
+# Kural: hüküm tanınan iki biçimden biri olmalı; tanınmayan hüküm TUTARSIZDIR.
+_BULGU_HUKMU = re.compile(r"^(\d+)\s*BULGU\b")
 
 
 def tutarli_mi(bulgular, sonuc):
@@ -111,12 +116,15 @@ def tutarli_mi(bulgular, sonuc):
     uydurulmuş bir hüküm sessizce kabul ediliyordu.
     """
     sayi = sum(len(v) for v in bulgular.values())
-    temiz_diyor = bool(_TEMIZ_HUKUM.match(_buyut(sonuc).strip()))
-    if temiz_diyor:
+    hukum = _buyut(sonuc).strip()
+    if _TEMIZ_HUKUM.match(hukum):
         return sayi == 0
-    m = re.search(r"(\d+)\s*bulgu", sonuc or "", re.I)
+    m = _BULGU_HUKMU.match(hukum)
     if m:
         return int(m.group(1)) == sayi
+    # Tanınmayan hüküm: yalnız listelenmiş bulgu varsa "tutarlı" sayılır ve
+    # kararı bulgular verir. Bulgu da yoksa elde hiçbir şey yoktur — bu
+    # "temiz" DEĞİL, "okunamadı"dır ve fail-closed ENGEL'e gider.
     return sayi > 0
 
 
