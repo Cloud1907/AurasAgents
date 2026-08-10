@@ -1,7 +1,6 @@
 ---
 name: grilling
-description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı açıkça istediğinde kullan ("sorguya çek", "planımı stres testine sok", "grill", "/grilling"); kendiliğinden tetiklenmez. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
-disable-model-invocation: true
+description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı açıkça istediğinde kullan ("sorguya çek", "planımı stres testine sok", "grill", "/grilling"); açık istek yokken ASLA kendiliğinden başlatma. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
 ---
 
 # grilling — plan sorgulama (opt-in)
@@ -16,9 +15,10 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 ## Ne zaman geçerli
 
 - Kullanıcı AÇIKÇA istedi: "sorguya çek", "beni grill'le", "planımı stres
-  testine sok", "/grilling". Bu skill kendiliğinden devreye girmez —
+  testine sok", ya da doğrudan "/grilling". Açık istek tek kapıdır:
   kullanıcının "ara soru sorma" iletişim tercihi varsayılandır; bu skill'i
-  çağırmak o tercihi o oturum için bilinçli askıya almaktır.
+  istemek o tercihi o oturum için bilinçli askıya almaktır. Router bu skill'i
+  kasten yönlendirmez (not_routed) — seçim modelde, kapı açık istektedir.
 - Kapsam gerçekten belirsizken (AGENTS.md: plan mode tetiği ile aynı eşik).
 
 ## Ne zaman geçerli DEĞİL (negatif tetik)

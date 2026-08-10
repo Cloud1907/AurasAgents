@@ -225,10 +225,11 @@ always_add:
 not_routed:
   - skill: grilling
     reason: >-
-      Kasten yalnız açık çağrıyla çalışır (kaynak tasarım: mattpocock/skills,
-      disable-model-invocation). Otomatik tetik, kullanıcının "ara soru sorma"
-      iletişim tercihiyle çelişen soru yağmurunu istem dışı başlatırdı;
-      belirsiz kapsam anında kullanıcı /grilling ile kendisi çağırır.
+      Kasten yönlendirilmez: deterministik tetik ("sorgu", "stres" gibi),
+      kullanıcının "ara soru sorma" iletişim tercihiyle çelişen soru yağmurunu
+      istem dışı başlatabilirdi. Çağrı iki yolla ve ikisi de açık istektir:
+      /grilling komutu ya da açık doğal-dil isteği ("beni sorguya çek") —
+      ikincisini description kapılar, router değil.
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
