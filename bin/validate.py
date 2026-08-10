@@ -414,7 +414,9 @@ def test_routing(skill_names, profil_skills=None):
 def _routing_golden_cases(router, env):
     for prompt, expected in (("kullanıcı endpoint'i ekle", "implement-change"),
                              ("bu metrik nerede hesaplanıyor", "research-with-evidence"),
-                             ("login akışını güvenlik açısından incele", "security-review")):
+                             ("login akışını güvenlik açısından incele", "security-review"),
+                             ("beni sorguya çek, planı netleştirelim", "grilling"),
+                             ("planımı stres testine sok", "grilling")):
         proc = subprocess.run(
             [sys.executable, router],
             input=json.dumps({"prompt": prompt}), capture_output=True,

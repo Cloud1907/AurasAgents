@@ -17,8 +17,9 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 - Kullanıcı AÇIKÇA istedi: "sorguya çek", "beni grill'le", "planımı stres
   testine sok", ya da doğrudan "/grilling". Açık istek tek kapıdır:
   kullanıcının "ara soru sorma" iletişim tercihi varsayılandır; bu skill'i
-  istemek o tercihi o oturum için bilinçli askıya almaktır. Router bu skill'i
-  kasten yönlendirmez (not_routed) — seçim modelde, kapı açık istektedir.
+  istemek o tercihi o oturum için bilinçli askıya almaktır. Router yalnız bu
+  açık istek ifadelerini yönlendirir (skill seçimi takdire bırakılmaz —
+  AGENTS.md); bu ifadeler yokken kendiliğinden başlatma.
 - Kapsam gerçekten belirsizken (AGENTS.md: plan mode tetiği ile aynı eşik).
 
 ## Ne zaman geçerli DEĞİL (negatif tetik)

@@ -189,6 +189,19 @@ rules:
       - bağla
       - auras kur
 
+  # Tetikler bilinçli dar (çok-kelimeli açık istek ifadeleri): tek başına
+  # "sorgu" DB disipliniyle, "stres testi" yük testiyle çakışır — o yüzden yok.
+  # Soru yağmuru yalnız kullanıcı açıkça isteyince başlar (iletişim tercihi).
+  - skill: grilling
+    owner: software-architect
+    specificity: 2
+    task_class: research
+    risk: auto
+    triggers:
+      - sorguya çek
+      - stres testine sok
+      - grill
+
   - skill: codex-debate
     owner: software-architect
     specificity: 2
@@ -223,13 +236,6 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
-  - skill: grilling
-    reason: >-
-      Kasten yönlendirilmez: deterministik tetik ("sorgu", "stres" gibi),
-      kullanıcının "ara soru sorma" iletişim tercihiyle çelişen soru yağmurunu
-      istem dışı başlatabilirdi. Çağrı iki yolla ve ikisi de açık istektir:
-      /grilling komutu ya da açık doğal-dil isteği ("beni sorguya çek") —
-      ikincisini description kapılar, router değil.
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
