@@ -223,6 +223,12 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
+  - skill: grilling
+    reason: >-
+      Kasten yalnız açık çağrıyla çalışır (kaynak tasarım: mattpocock/skills,
+      disable-model-invocation). Otomatik tetik, kullanıcının "ara soru sorma"
+      iletişim tercihiyle çelişen soru yağmurunu istem dışı başlatırdı;
+      belirsiz kapsam anında kullanıcı /grilling ile kendisi çağırır.
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması

@@ -3,6 +3,7 @@ task_class: research
 description: "Kaynaklı araştırma/keşif — kod değişikliği yok"
 skills:
   - research-with-evidence
+  - grilling  # opt-in plan sorgusu; dosya yazmaz, read-only sınıra uyar
 tools:
   filesystem: read-only
   report_path: ".agents/reports/"
