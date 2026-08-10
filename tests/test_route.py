@@ -144,6 +144,18 @@ class RouteTest(unittest.TestCase):
             _tc, skill, _e, _x = self.pick(istem)
             self.assertNotEqual(skill, "grilling", istem)
 
+    def test_isimden_fiil_ekiyle_olumsuzlama(self):
+        # "grill" isimdir; fiil olurken -le eki alır: grill'le-me = REDDİR.
+        # Olumsuzluk eki tetiğe bitişik değil, araya yapım eki giriyor.
+        for istem in ("beni grill'leme", "beni grilleme"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+
+    def test_yapim_eki_tek_basina_olumsuz_degildir(self):
+        for istem in ("beni grill'le", "beni grilleyin"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertEqual(skill, "grilling", istem)
+
     def test_mastar_ve_gereklilik_olumsuz_degildir(self):
         # "çekmek"/"çekmeli" olumsuz DEĞİL: olumsuzluk bekçisi bunları yutmamalı
         for istem in ("beni sorguya çekmek istiyorum",

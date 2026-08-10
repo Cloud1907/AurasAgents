@@ -19,6 +19,12 @@ import re
 OLUMSUZ_EK = re.compile(r"^m[eaıiuü]")
 OLUMSUZ_ISTISNA = re.compile(r"^m[ea](k|l[iı])")
 
+# İsimden fiil yapan -le/-la eki tetikle olumsuzluk arasına girebilir:
+# "grill" + "-le" + "-me" → "grill'leme". Ek atlanmazsa olumsuzluk görünmez.
+# 'l' isteğe bağlıdır çünkü tetiğin son harfiyle kaynaşabilir: "gril|leme"
+# yazımında tetik "beni grill" eşleşince geriye yalnız "eme" kalır.
+YAPIM_EKI = re.compile(r"^['’]?l?[eaıiuü]")
+
 # Olumsuzluk tetiğin ekinde değil, yardımcı fiilde de olabilir: "sorguya
 # çekmek İSTEMİYORUM". Sözcük listesi kaba ama tetik listesiyle aynı
 # sınıfta: ucuz, okunur, testli.
@@ -31,7 +37,15 @@ ALINTI = re.compile(r"[\"“”«»‹›][^\"“”«»‹›]*[\"“”«»‹
 
 
 def istek_degil(text):
-    """İstem, açık istek OLMADIĞINI ele veren bir ret işareti taşıyor mu?"""
+    """İstem, açık istek OLMADIĞINI ele veren bir ret işareti taşıyor mu?
+
+    Bilinen ve KABUL EDİLEN sınır: ret işareti tüm isteme mutlak veto koyar.
+    "istemiyorum demiştim; fikrimi değiştirdim, beni sorguya çek" gibi
+    fikir-değiştiren istem yönlendirilmez. Yanlış-negatiftir ve ucuzdur —
+    kullanıcı /grilling yazar. Ters yönü (reddi istek sanmak) pahalıdır:
+    istenmeyen sorgu oturumu açar. Sıra/kapsam çözümlemesi bu katmanın
+    işi değil; belirsizliği skill'in kendi ön-koşulu kapatır (SKILL.md 0).
+    """
     return any(r in text for r in RET_ISARETLERI)
 
 
@@ -49,7 +63,7 @@ def olumsuzlanmis(trigger, text):
     yer, bulundu = text.find(trigger), False
     while yer != -1:
         bulundu = True
-        kalan = text[yer + len(trigger):]
+        kalan = YAPIM_EKI.sub("", text[yer + len(trigger):], count=1)
         if not (OLUMSUZ_EK.match(kalan) and not OLUMSUZ_ISTISNA.match(kalan)):
             return False
         yer = text.find(trigger, yer + 1)
