@@ -6,6 +6,7 @@ dayanır. Manifest yanılabiliyordu (2026-08-05 / 4cast); geçmiş yanılmaz.
 """
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -47,6 +48,28 @@ class MotorListesiTest(unittest.TestCase):
         for rel in kd.MOTOR + kd.MOTOR_DIZIN:
             self.assertIsNotNone(kd.yol_coz(ROOT, rel),
                                  f"listede ama repoda yok: {rel}")
+
+    def test_tasinan_betigin_bagimliligi_da_tasinir(self):
+        """Motor betiği yerel bir bin/ modülünü import ediyorsa o da MOTOR'da.
+
+        Yoksa /auras projeye betiği taşır, bağımlılığını taşımaz: import
+        patlar. En kötüsü de sessiz patlamadır — route.py import hatasında
+        exit 0 der, yönlendirme kaybolur ama kimse fark etmez.
+        """
+        yerel = {f[:-3] for f in os.listdir(os.path.join(ROOT, "bin"))
+                 if f.endswith(".py")}
+        for rel in kd.MOTOR:
+            if not (rel.startswith("bin/") and rel.endswith(".py")):
+                continue
+            yol = kd.yol_coz(ROOT, rel)
+            kaynak = open(yol, encoding="utf-8").read()
+            for mod in re.findall(r"^\s*(?:import|from)\s+([a-z_][a-z0-9_]*)",
+                                  kaynak, re.M):
+                if mod in yerel and f"bin/{mod}.py" != rel:
+                    self.assertIn(
+                        f"bin/{mod}.py", kd.MOTOR,
+                        f"{rel} 'bin/{mod}.py' modülünü import ediyor ama o "
+                        "MOTOR listesinde yok — bağlı projede import patlar")
 
     def test_kendi_araclarini_tasir(self):
         # Geri taşıma yolu bağlı projeye de gitmeli, yoksa orada kullanılamaz
