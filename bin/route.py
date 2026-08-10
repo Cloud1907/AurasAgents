@@ -186,6 +186,15 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
+def _tetik_isabetleri(rule, text, tokens):
+    """Kuralın eşleşen tetikleri; explicit_request'te olumsuzlar elenir."""
+    hit = [t for t in rule.get("triggers", [])
+           if matches(normalize(t), text, tokens)]
+    if rule.get("explicit_request"):
+        hit = [t for t in hit if not olumsuzlanmis(normalize(t), text)]
+    return hit
+
+
 def route(prompt, cfg):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -198,10 +207,7 @@ def route(prompt, cfg):
 
     scored = []
     for rule in cfg.get("rules", []):
-        hit = [t for t in rule.get("triggers", [])
-               if matches(normalize(t), text, tokens)]
-        if rule.get("explicit_request"):
-            hit = [t for t in hit if not olumsuzlanmis(normalize(t), text)]
+        hit = _tetik_isabetleri(rule, text, tokens)
         # Açık /komut o kuralı doğrudan seçer (tetik aramaya gerek yok).
         if explicit and explicit == rule.get("skill"):
             return (rule.get("task_class", "research"), rule,
