@@ -101,6 +101,18 @@ class RouteTest(unittest.TestCase):
         _tc, skill, _e, _x = self.pick("dashboard ekranını premium tasarla")
         self.assertEqual(skill, "designing-interfaces")
 
+    def test_acik_sorgu_istegi_grilling(self):
+        # Açık istek ifadesi deterministik yönlendirilir (takdir yok)
+        for istem in ("beni sorguya çek, planı netleştirelim",
+                      "planımı stres testine sok"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertEqual(skill, "grilling", istem)
+
+    def test_yuk_testi_grilling_degildir(self):
+        # "stres testi" tek başına tetik DEĞİL: yük testi işi grilling'e gitmez
+        _tc, skill, _e, _x = self.pick("API endpointine stres testi yap")
+        self.assertEqual(skill, "implement-change")
+
     def test_acik_slash_komut_her_seyi_yener(self):
         tc, skill, _e, explicit = self.pick("/auras bu projeyi bağla")
         self.assertEqual(explicit, "auras")
