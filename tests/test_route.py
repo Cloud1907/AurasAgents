@@ -144,6 +144,19 @@ class RouteTest(unittest.TestCase):
             _tc, skill, _e, _x = self.pick(istem)
             self.assertNotEqual(skill, "grilling", istem)
 
+    def test_karma_istemde_acik_cagri_ek_skill_olur(self):
+        """Karma istemde baskın iş birincil olur, açık çağrı KAYBOLMAZ.
+
+        "beni sorguya çek, planı yaz ve uygula" hem sorgu hem uygulama
+        istiyor. Uygulamayı birincil yapmak doğrudur (iş yükü orada) ve
+        grilling ek skill olarak listelenir — yönlendirme onu düşürmez.
+        explicit_request'in görevi çağrıyı KAYBETTİRMEMEKTİR, her koşulda
+        birinciliğe taşımak değil.
+        """
+        _tc, skill, extras, _x = self.pick("beni sorguya çek, planı yaz ve uygula")
+        self.assertEqual(skill, "implement-change")
+        self.assertIn("grilling", extras)
+
     def test_isimden_fiil_ekiyle_olumsuzlama(self):
         # "grill" isimdir; fiil olurken -le eki alır: grill'le-me = REDDİR.
         # Olumsuzluk eki tetiğe bitişik değil, araya yapım eki giriyor.
