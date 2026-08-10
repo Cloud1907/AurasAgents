@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı açıkça istediğinde kullan ("sorguya çek", "planımı stres testine sok", "grill", "/grilling"); açık istek yokken ASLA kendiliğinden başlatma. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
+description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı açıkça istediğinde kullan ("beni sorguya çek", "planımı stres testine sok", "beni grill'le", "/grilling"); açık istek yokken ASLA kendiliğinden başlatma. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
 ---
 
 # grilling — plan sorgulama (opt-in)
@@ -14,8 +14,9 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 
 ## Ne zaman geçerli
 
-- Kullanıcı AÇIKÇA istedi: "sorguya çek", "beni grill'le", "planımı stres
-  testine sok", ya da doğrudan "/grilling". Açık istek tek kapıdır:
+- Kullanıcı AÇIKÇA istedi: "beni sorguya çek", "beni grill'le", "planımı
+  stres testine sok", ya da doğrudan "/grilling". Soru biçimi de istektir
+  ("çeker misin?"). Açık istek tek kapıdır:
   kullanıcının "ara soru sorma" iletişim tercihi varsayılandır; bu skill'i
   istemek o tercihi o oturum için bilinçli askıya almaktır. Router yalnız bu
   açık istek ifadelerini yönlendirir (skill seçimi takdire bırakılmaz —

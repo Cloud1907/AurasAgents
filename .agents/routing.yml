@@ -190,17 +190,21 @@ rules:
       - auras kur
 
   # Tetikler bilinçli dar (çok-kelimeli açık istek ifadeleri): tek başına
-  # "sorgu" DB disipliniyle, "stres testi" yük testiyle çakışır — o yüzden yok.
-  # Soru yağmuru yalnız kullanıcı açıkça isteyince başlar (iletişim tercihi).
+  # "sorgu" DB disipliniyle, "stres testi" yük testiyle, "grill" yemekle
+  # çakışır — üçü de tek başına tetik DEĞİL. Soru yağmuru yalnız kullanıcı
+  # açıkça isteyince başlar (iletişim tercihi).
   - skill: grilling
     owner: software-architect
     specificity: 2
     task_class: research
     risk: auto
+    # Tetikleri zaten "şunu yap" demek olduğundan soru biçimi bunları
+    # düşürmez: "beni sorguya çeker misin?" istektir, soru değil.
+    explicit_request: true
     triggers:
       - sorguya çek
       - stres testine sok
-      - grill
+      - beni grill
 
   - skill: codex-debate
     owner: software-architect

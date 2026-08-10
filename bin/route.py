@@ -189,8 +189,15 @@ def route(prompt, cfg):
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
     # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil
     # alır ve zorunlu skill dayatılmaz — ajan kendi seçer, kapı kanıtı yine ister.
+    #
+    # İstisna: tetiği zaten "şunu yap" demek olan kural (explicit_request).
+    # "beni sorguya çeker misin?" kibar biçimli bir İSTEKTİR; soru sanıp
+    # düşürmek, kullanıcının açıkça istediği skill'i sessizce yutar.
     if soru_turu(text):
-        return "research", None, extras, [], explicit
+        acik = [s for s in scored if s[2].get("explicit_request")]
+        if not acik:
+            return "research", None, extras, [], explicit
+        scored = acik
 
     if not scored:
         fb = cfg.get("fallback", {})

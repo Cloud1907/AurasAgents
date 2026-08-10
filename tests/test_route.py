@@ -113,6 +113,21 @@ class RouteTest(unittest.TestCase):
         _tc, skill, _e, _x = self.pick("API endpointine stres testi yap")
         self.assertEqual(skill, "implement-change")
 
+    def test_kibar_soru_bicimindeki_acik_istek_yonlendirilir(self):
+        # Açık istek kibarca sorulunca kaybolmaz: "çeker misin?" de istektir.
+        # soru_turu() iş skill'i dayatmayı engeller ama açık çağrıyı değil.
+        for istem in ("beni sorguya çeker misin?",
+                      "planımı stres testine sokar mısın?"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertEqual(skill, "grilling", istem)
+
+    def test_grill_kelimesi_yemekle_karismaz(self):
+        # Tek kelimelik "grill" tetik DEĞİL: opt-in'i alakasız isteklerde açardı
+        for istem in ("grill termometresi araştır",
+                      "İstanbul'da grill restoranı öner"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+
     def test_acik_slash_komut_her_seyi_yener(self):
         tc, skill, _e, explicit = self.pick("/auras bu projeyi bağla")
         self.assertEqual(explicit, "auras")
