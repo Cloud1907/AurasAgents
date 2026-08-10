@@ -130,6 +130,20 @@ class RouteTest(unittest.TestCase):
             _tc, skill, _e, _x = self.pick(istem)
             self.assertNotEqual(skill, "grilling", istem)
 
+    def test_cumle_duzeyi_ret_sorgu_baslatmaz(self):
+        # Olumsuzluk yardımcı fiilde olabilir: "çekmek İSTEMİYORUM"
+        for istem in ("beni sorguya çekmek istemiyorum",
+                      "beni sorguya çek, hayır boşver"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+
+    def test_alintilanan_ifade_emir_degildir(self):
+        # Tırnak içindeki ifade KULLANIM değil ANMA'dır: soru, istek değildir
+        for istem in ("“beni sorguya çek” ne demek?",
+                      "‘beni sorguya çek’ ifadesi nereden geliyor"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+
     def test_mastar_ve_gereklilik_olumsuz_degildir(self):
         # "çekmek"/"çekmeli" olumsuz DEĞİL: olumsuzluk bekçisi bunları yutmamalı
         for istem in ("beni sorguya çekmek istiyorum",

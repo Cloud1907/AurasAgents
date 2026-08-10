@@ -47,30 +47,15 @@ def matches(trigger, text, tokens):
     return any(tok.startswith(trigger) for tok in tokens)
 
 
-# Türkçe olumsuzluk eki fiil kökünden hemen sonra gelir: "çek-me",
-# "sok-ma-dan", "çek-mi-yor", "çek-mez". İki biçim 'm' ile başlar ama
-# OLUMSUZ DEĞİLDİR: mastar ("çek-mek") ve gereklilik ("çek-meli").
-OLUMSUZ_EK = re.compile(r"^m[eaıiuü]")
-OLUMSUZ_ISTISNA = re.compile(r"^m[ea](k|l[iı])")
-
-
-def olumsuzlanmis(trigger, text):
-    """Tetiğin TÜM geçişleri olumsuz çekimliyse True.
-
-    Yalnız `explicit_request` kurallarında uygulanır: orada tetik zaten
-    "şunu yap" demektir, olumsuzu ise açık REDDİR — "beni sorguya çekme"
-    diyene sorgu açmak, opt-in vaadinin en kötü ihlalidir. Diğer kurallarda
-    olumsuz çekim yanlış-eşleşme üretir ama zararsızdır (ajan istemi zaten
-    okur), o yüzden davranışları değiştirilmez.
-    """
-    yer, bulundu = text.find(trigger), False
-    while yer != -1:
-        bulundu = True
-        kalan = text[yer + len(trigger):]
-        if not (OLUMSUZ_EK.match(kalan) and not OLUMSUZ_ISTISNA.match(kalan)):
-            return False
-        yer = text.find(trigger, yer + 1)
-    return bulundu
+# Açık istek dili sezgileri ayrı modülde (bin/istek_dili.py). Import
+# başarısızsa explicit_request kuralları HİÇ eşleşmez — yani opt-in skill
+# kendiliğinden açılmaz, /grilling yolu çalışmaya devam eder. Sessiz
+# degradasyonun güvenli yönü budur: kaçırmak, istem dışı başlatmaktan iyidir.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import istek_dili
+except Exception:                                    # pragma: no cover
+    istek_dili = None
 
 
 def project_dir():
@@ -187,11 +172,18 @@ def soru_turu(text):
 
 
 def _tetik_isabetleri(rule, text, tokens):
-    """Kuralın eşleşen tetikleri; explicit_request'te olumsuzlar elenir."""
+    """Kuralın eşleşen tetikleri; explicit_request'te ret/anma elenir."""
+    acik_istek = rule.get("explicit_request")
+    if acik_istek:
+        if istek_dili is None or istek_dili.istek_degil(text):
+            return []
+        text = istek_dili.alintisiz(text)
+        tokens = tokenize(text)
     hit = [t for t in rule.get("triggers", [])
            if matches(normalize(t), text, tokens)]
-    if rule.get("explicit_request"):
-        hit = [t for t in hit if not olumsuzlanmis(normalize(t), text)]
+    if acik_istek:
+        hit = [t for t in hit
+               if not istek_dili.olumsuzlanmis(normalize(t), text)]
     return hit
 
 

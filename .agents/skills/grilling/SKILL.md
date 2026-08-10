@@ -34,6 +34,12 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 
 ## İş akışı
 
+0. **Önce isteği doğrula (ön-koşul).** Router bir pusuladır, kapı değil:
+   anahtar kelimeyle eşleşir, cümleyi anlamaz. Oturumu açmadan önce istemin
+   kendisine bak — şunlardan biriyse BAŞLATMA, tek cümleyle nedenini söyle:
+   ret ("çekmek istemiyorum"), skill hakkında soru ("'beni sorguya çek' ne
+   demek"), alıntı/aktarma, ya da başkasına verilen talimat. Yönlendirme
+   geldi diye başlamak, yönlendirmenin hatasını senin hatana çevirir.
 1. **Konuyu karar ağacı olarak modelle.** Her karar, ona bağlı alt kararları
    dallandırır. Ağaç zihinsel modeldir; kullanıcıya diyagram dayatma.
 2. **Frontier'ı hesapla.** Frontier = ön koşulu ÇÖZÜLMÜŞ olduğu için ŞİMDİ
