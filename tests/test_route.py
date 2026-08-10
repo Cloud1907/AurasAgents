@@ -121,6 +121,28 @@ class RouteTest(unittest.TestCase):
             _tc, skill, _e, _x = self.pick(istem)
             self.assertEqual(skill, "grilling", istem)
 
+    def test_reddedilen_sorgu_baslamaz(self):
+        # Olumsuz çekim isteğin TERSİDİR: "çekme" diyene sorgu açmak,
+        # opt-in vaadini ihlalin en kötü biçimidir (kullanıcı açıkça reddetti).
+        for istem in ("beni sorguya çekme",
+                      "beni sorguya çekmeden değerlendir",
+                      "planımı stres testine sokma"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+
+    def test_mastar_ve_gereklilik_olumsuz_degildir(self):
+        # "çekmek"/"çekmeli" olumsuz DEĞİL: olumsuzluk bekçisi bunları yutmamalı
+        for istem in ("beni sorguya çekmek istiyorum",
+                      "beni sorguya çekmelisin"):
+            _tc, skill, _e, _x = self.pick(istem)
+            self.assertEqual(skill, "grilling", istem)
+
+    def test_kod_stres_testi_grilling_degildir(self):
+        # Tetik nesneye bağlı: stres testine sokulan PLAN'dır, endpoint değil
+        _tc, skill, _e, _x = self.pick(
+            "API endpointini stres testine sokar mısın?")
+        self.assertNotEqual(skill, "grilling")
+
     def test_grill_kelimesi_yemekle_karismaz(self):
         # Tek kelimelik "grill" tetik DEĞİL: opt-in'i alakasız isteklerde açardı
         for istem in ("grill termometresi araştır",

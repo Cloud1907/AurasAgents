@@ -47,6 +47,32 @@ def matches(trigger, text, tokens):
     return any(tok.startswith(trigger) for tok in tokens)
 
 
+# Türkçe olumsuzluk eki fiil kökünden hemen sonra gelir: "çek-me",
+# "sok-ma-dan", "çek-mi-yor", "çek-mez". İki biçim 'm' ile başlar ama
+# OLUMSUZ DEĞİLDİR: mastar ("çek-mek") ve gereklilik ("çek-meli").
+OLUMSUZ_EK = re.compile(r"^m[eaıiuü]")
+OLUMSUZ_ISTISNA = re.compile(r"^m[ea](k|l[iı])")
+
+
+def olumsuzlanmis(trigger, text):
+    """Tetiğin TÜM geçişleri olumsuz çekimliyse True.
+
+    Yalnız `explicit_request` kurallarında uygulanır: orada tetik zaten
+    "şunu yap" demektir, olumsuzu ise açık REDDİR — "beni sorguya çekme"
+    diyene sorgu açmak, opt-in vaadinin en kötü ihlalidir. Diğer kurallarda
+    olumsuz çekim yanlış-eşleşme üretir ama zararsızdır (ajan istemi zaten
+    okur), o yüzden davranışları değiştirilmez.
+    """
+    yer, bulundu = text.find(trigger), False
+    while yer != -1:
+        bulundu = True
+        kalan = text[yer + len(trigger):]
+        if not (OLUMSUZ_EK.match(kalan) and not OLUMSUZ_ISTISNA.match(kalan)):
+            return False
+        yer = text.find(trigger, yer + 1)
+    return bulundu
+
+
 def project_dir():
     """Aktif projenin kökü: hook env'i, yoksa CWD'den yukarı arama."""
     env = os.environ.get("CLAUDE_PROJECT_DIR")
@@ -174,6 +200,8 @@ def route(prompt, cfg):
     for rule in cfg.get("rules", []):
         hit = [t for t in rule.get("triggers", [])
                if matches(normalize(t), text, tokens)]
+        if rule.get("explicit_request"):
+            hit = [t for t in hit if not olumsuzlanmis(normalize(t), text)]
         # Açık /komut o kuralı doğrudan seçer (tetik aramaya gerek yok).
         if explicit and explicit == rule.get("skill"):
             return (rule.get("task_class", "research"), rule,

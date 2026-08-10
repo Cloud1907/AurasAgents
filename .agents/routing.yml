@@ -201,9 +201,13 @@ rules:
     # Tetikleri zaten "şunu yap" demek olduğundan soru biçimi bunları
     # düşürmez: "beni sorguya çeker misin?" istektir, soru değil.
     explicit_request: true
+    # Nesneye bağlı: stres testine sokulan PLAN'dır — "endpointi stres
+    # testine sok" bir yük testi işidir, sorgu oturumu değil. Kesinlik
+    # kapsamaya tercih edilir: kaçan ifade /grilling ile çağrılır, yanlış
+    # açılan oturum ise kullanıcının açık tercihini ihlal eder.
     triggers:
-      - sorguya çek
-      - stres testine sok
+      - beni sorguya çek
+      - planımı stres testine sok
       - beni grill
 
   - skill: codex-debate
