@@ -276,3 +276,34 @@ class RouteTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@pyyaml_gerekir
+class KuralsizKomutTest(unittest.TestCase):
+    """Profil izin sınırıysa, profilde OLMAYAN skill zorunlu kılınamaz."""
+
+    def kur(self, tmp, skill, profilde):
+        os.makedirs(os.path.join(tmp, ".agents", "skills", skill))
+        pd = os.path.join(tmp, ".agents", "capability-profiles")
+        os.makedirs(pd)
+        with open(os.path.join(pd, "research.yml"), "w", encoding="utf-8") as fh:
+            fh.write("task_class: research\nskills:\n")
+            if profilde:
+                fh.write(f"  - {skill}\n")
+            else:
+                fh.write("  - baska-skill\n")
+
+    def test_profilde_olmayan_kurulu_skill_zorunlu_kilinmaz(self):
+        # Yalnız globalde duran üçüncü taraf skill, izin sınırı dışındadır:
+        # sınıfını ve riskini uydurmak, sınırın kendisini uydurmaktır.
+        with tempfile.TemporaryDirectory() as tmp:
+            self.kur(tmp, "yabanci-skill", profilde=False)
+            self.assertIsNone(route.kuralsiz_komut_kurali("yabanci-skill", tmp))
+
+    def test_profildeki_skill_kural_uretir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.kur(tmp, "tanimli-skill", profilde=True)
+            kural = route.kuralsiz_komut_kurali("tanimli-skill", tmp)
+            self.assertEqual(kural, {"skill": "tanimli-skill",
+                                     "task_class": "research",
+                                     "risk": "auto"})

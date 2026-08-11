@@ -51,24 +51,28 @@ def skill_task_class(skill, pdir):
     return None
 
 
-def kuralsiz_komut_kurali(explicit, cfg, puanlanan, pdir):
+def kuralsiz_komut_kurali(explicit, pdir):
     """Kuralsız ama kurulu bir /komut için sentetik kural (değilse None).
 
     Kullanıcı komutla seçimini yapmışken anahtar kelimeyle başka skill'i
     zorunlu kılmak, açık iradeyi ezmektir. Sınıf profilden gelir: komut,
-    izin sınırını düşürmemeli. Profilde olmayan skill'de kelime puanlamasının
-    sınıfı korunur — dosya yazan skill'i salt-okunur profile mahkûm etmek
-    işi sessizce kırar.
+    izin sınırını düşürmemeli — dosya yazan skill'i salt-okunur profile
+    mahkûm etmek işi sessizce kırar.
 
     Risk de taşınır: /project-onboarding ile /auras aynı işi yapar; birinin
     approval diğerinin auto sayılması riski komut seçimine bağlardı. Kuralsız
     skill'in beyan edilmiş riski olmadığından KATI taraf seçilir — research
     dışı her sınıf approval (fazla temkin, eksik temkinden iyidir).
+
+    Profilde OLMAYAN skill (ör. yalnız kullanıcı-global dizinde duran üçüncü
+    taraf skill) zorunlu kılınmaz: sınırı tanımlı değilse sınıfını ve riskini
+    uydurmak, izin sınırının kendisini uydurmaktır. Router yine "kullanıcı
+    açıkça /X istedi" der — çağrı kaybolmaz, yalnız zorunluluk iddia edilmez.
     """
     if not (explicit and skill_installed(explicit, pdir)):
         return None
-    sinif = (skill_task_class(explicit, pdir)
-             or (puanlanan[0][2].get("task_class") if puanlanan else None)
-             or (cfg.get("fallback", {}) or {}).get("task_class", "research"))
+    sinif = skill_task_class(explicit, pdir)
+    if not sinif:
+        return None
     return {"skill": explicit, "task_class": sinif,
             "risk": "auto" if sinif == "research" else "approval"}

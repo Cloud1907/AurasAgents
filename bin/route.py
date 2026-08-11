@@ -42,7 +42,7 @@ except Exception:                                    # pragma: no cover
     def skill_installed(skill, pdir):
         return True
 
-    def kuralsiz_komut_kurali(explicit, cfg, puanlanan, pdir):
+    def kuralsiz_komut_kurali(explicit, pdir):
         return None
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
@@ -193,8 +193,7 @@ def route(prompt, cfg, pdir=None):
 
     extras = _extras(cfg, text, tokens)
 
-    sentetik = kuralsiz_komut_kurali(explicit, cfg, scored,
-                                     pdir or project_dir())
+    sentetik = kuralsiz_komut_kurali(explicit, pdir or project_dir())
     if sentetik:
         return (sentetik["task_class"], sentetik,
                 [s for s in extras if s != explicit], [f"/{explicit}"],

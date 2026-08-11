@@ -234,8 +234,12 @@ not_routed:
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
-      yaratmamak için giriş noktası auras'tır; bu skill onun altında çağrılan
-      prosedürdür. İkisinin birleştirilmesi ayrı bir kernel işidir.
+      yaratmamak için KELİME yönlendirmesinin giriş noktası auras'tır; bu
+      skill onun altında çağrılan prosedürdür. not_routed yalnız kelime
+      yolunu kapatır: /project-onboarding ile doğrudan çağrılabilir ve
+      code-change profilinde tanımlıdır (dosya yazar) — açık komut kasıtlı
+      kaçış yoludur, kullanıcının iradesi kelimeyle bastırılmaz.
+      İkisinin birleştirilmesi ayrı bir kernel işidir.
 
 fallback:
   task_class: research
