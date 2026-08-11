@@ -34,8 +34,8 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 # router bloklamaz, eksik yardımı yokluğa çevirir.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
-    from skill_kayit import (kuralsiz_komut_kurali, skill_installed,
-                             skill_task_class)
+    from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
+                             skill_installed, skill_task_class)
 except Exception:                                    # pragma: no cover
     skill_task_class = None
 
@@ -44,6 +44,9 @@ except Exception:                                    # pragma: no cover
 
     def kuralsiz_komut_kurali(explicit, pdir):
         return None
+
+    def profil_disinda(skill, pdir):
+        return False
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
@@ -223,7 +226,12 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     profile = os.path.join(".agents", "capability-profiles", f"{task_class}.yml")
     lines = ["[AurasAgents router]"]
 
-    if explicit:
+    if explicit and profil_disinda(explicit, pdir):
+        lines.append(
+            f"/{explicit} bu projenin izin sınırı dışında (capability "
+            "profilinde yok) — YÜKLEME. Gerekiyorsa kullanıcıya söyle: "
+            "profile eklemek bilinçli bir karardır, reviewed PR ister.")
+    elif explicit:
         lines.append(f"Kullanıcı açıkça /{explicit} istedi — onu yükle.")
 
     lines.append(f"Görev sınıfı: {task_class}  |  profil: {profile}")

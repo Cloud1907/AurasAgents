@@ -47,6 +47,33 @@ def skill_task_class(skill, pdir):
     return _profilden_sinif(skill, kok, yaml)
 
 
+def profil_disinda(skill, pdir):
+    """Sistemin YÖNETTİĞİ bir skill, otoriter profilde dışarıda mı bırakılmış?
+
+    Üç durumu ayırır:
+      - yönetilmeyen skill (eklenti/global, `.agents/skills` altında yok)
+        → False: kapsam dışıdır, dışlama değil. /dataviz'i reddetmek
+        router'ı kullanıcının aracına karşı çalıştırmak olurdu.
+      - yönetilen ve profilde → False.
+      - yönetilen ama profilde YOK → True: bilinçli dışlama. "Kullanıcı
+        istedi, yükle" demek kısıtlamayı tavsiyeye çevirir.
+
+    Senkron etkileşimi (ADR-0002): /auras yerel üretilmiş profili EZMEZ,
+    yani kanoniğe yeni eklenen bir üyelik bağlı projeye kendiliğinden
+    gitmez. Bu kasıtlıdır — sınırın sahibi projedir — ve sonucu artık
+    görünür: o projede komut sessizce zorunlu kılınmaz, "izin sınırı
+    dışında" denir. Üyelik gerekiyorsa projenin profiline reviewed PR ile
+    eklenir.
+    """
+    kok = pdir if _profil_dizini_var(pdir) else KANONIK
+    yonetilen = (os.path.isdir(os.path.join(kok, ".agents", "skills", skill))
+                 or os.path.isdir(os.path.join(KANONIK, ".agents", "skills",
+                                               skill)))
+    if not yonetilen:
+        return False
+    return skill_task_class(skill, pdir) is None
+
+
 def _profil_dizini_var(kok):
     """Kökün kendi capability profilleri var mı (tek .yml yeter)."""
     pd = os.path.join(kok, ".agents", "capability-profiles")

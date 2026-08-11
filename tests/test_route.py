@@ -345,3 +345,39 @@ class KuralsizKomutTest(unittest.TestCase):
                 route.skill_task_class("implement-change", tmp))
             self.assertIsNone(
                 route.kuralsiz_komut_kurali("implement-change", tmp))
+
+    def test_profil_disi_gorev_skilli_yuklenmesi_istenmez(self):
+        """Projenin dışarıda bıraktığı skill için "onu yükle" denmez.
+
+        Sistemin YÖNETTİĞİ bir skill (.agents/skills altında var) profilde
+        yoksa bu bilinçli dışlamadır. "Kullanıcı istedi, yükle" demek,
+        kısıtlamayı tavsiyeye çevirir — sınır ancak reddedince sınırdır.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, ".agents", "skills", "yasak-skill"))
+            pd = os.path.join(tmp, ".agents", "capability-profiles")
+            os.makedirs(pd)
+            with open(os.path.join(pd, "research.yml"), "w",
+                      encoding="utf-8") as fh:
+                fh.write("task_class: research\nskills:\n  - baska-skill\n")
+            cfg = route.load_rules()
+            context, _s = route.render("/yasak-skill bir şey yap", cfg,
+                                       pdir=tmp)
+            self.assertNotIn("onu yükle", context)
+            self.assertIn("izin sınırı dışında", context)
+
+    def test_yonetilmeyen_komut_yine_yuklenir(self):
+        """Sistemin yönetmediği (ör. eklenti) skill'e karışılmaz.
+
+        Profilde olmaması dışlama DEĞİL, kapsam dışılıktır: /dataviz gibi
+        komutları reddetmek router'ı kullanıcının aracına karşı çalıştırırdı.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            pd = os.path.join(tmp, ".agents", "capability-profiles")
+            os.makedirs(pd)
+            with open(os.path.join(pd, "research.yml"), "w",
+                      encoding="utf-8") as fh:
+                fh.write("task_class: research\nskills:\n  - baska-skill\n")
+            cfg = route.load_rules()
+            context, _s = route.render("/dataviz grafik çiz", cfg, pdir=tmp)
+            self.assertIn("onu yükle", context)
