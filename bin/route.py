@@ -78,6 +78,31 @@ def load_rules(path=None):
         return yaml.safe_load(fh)
 
 
+def skill_task_class(skill, pdir):
+    """Skill'i izinli sayan profilin sınıfı (yoksa None).
+
+    Profil izin sınırıdır (AGENTS.md), dolayısıyla sınıfın OTORİTESİ odur —
+    tahmin değil. Bilinmeyen skill'de None döner; çağıran o zaman kelime
+    puanlamasına düşer, çünkü sınıfı uydurmak izin sınırını uydurmaktır.
+    """
+    pd = os.path.join(pdir, ".agents", "capability-profiles")
+    try:
+        adlar = sorted(os.listdir(pd))
+    except OSError:
+        return None
+    for ad in adlar:
+        if not ad.endswith(".yml"):
+            continue
+        try:
+            with open(os.path.join(pd, ad), encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+        except Exception:
+            continue
+        if skill in (data.get("skills") or []):
+            return data.get("task_class")
+    return None
+
+
 def skill_installed(skill, pdir):
     """Skill bu projede ya da kullanıcı-global dizinde kurulu mu."""
     for base in (os.path.join(pdir, ".agents", "skills"),
@@ -160,6 +185,23 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
+def _kuralsiz_komut_sinifi(explicit, cfg, scored, pdir):
+    """Kuralsız ama kurulu bir /komutun görev sınıfı (değilse None).
+
+    Kullanıcı komutla seçimini yapmışken anahtar kelimeyle başka skill'i
+    zorunlu kılmak, açık iradeyi ezmektir. Sınıfın otoritesi profildir:
+    komut, izin sınırını düşürmemeli. Profilde olmayan skill'de kelime
+    puanlamasının sınıfı korunur — dosya yazan bir skill'i salt-okunur
+    profile mahkûm etmek işi sessizce kırar.
+    """
+    pdir = pdir or project_dir()
+    if not (explicit and skill_installed(explicit, pdir)):
+        return None
+    return (skill_task_class(explicit, pdir)
+            or (scored[0][2].get("task_class") if scored else None)
+            or cfg.get("fallback", {}).get("task_class", "research"))
+
+
 def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -186,12 +228,9 @@ def route(prompt, cfg, pdir=None):
 
     extras = _extras(cfg, text, tokens)
 
-    # Kurallı olmayan ama KURULU bir skill'in /komutu da kazanır: kullanıcı
-    # seçimini yapmışken anahtar kelimeyle başka skill'i zorunlu kılmak, açık
-    # iradeyi ezmektir. (Kurallı skill'in dalı yukarıda zaten döndü.)
-    if explicit and skill_installed(explicit, pdir or project_dir()):
-        return (cfg.get("fallback", {}).get("task_class", "research"),
-                None, extras, [], explicit)
+    sinif = _kuralsiz_komut_sinifi(explicit, cfg, scored, pdir)
+    if sinif:
+        return sinif, None, extras, [], explicit
 
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
     # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil

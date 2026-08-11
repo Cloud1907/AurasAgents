@@ -119,6 +119,20 @@ class RouteTest(unittest.TestCase):
         _tc, _skill, _e, explicit = self.pick("/grilling planı netleştirelim")
         self.assertEqual(explicit, "grilling")
 
+    def test_acik_komut_sinifi_profilden_gelir(self):
+        """Sınıf profilden okunur — komut, izin sınırını düşüremez.
+
+        Profil izin sınırıdır (AGENTS.md). Kuralsız bir skill'in komutunu
+        koşulsuz 'research'e düşürmek, dosya yazan skill'i salt-okunur
+        profille çalıştırmak demektir: iş ya kırılır ya sınır anlamsızlaşır.
+        """
+        tc, _s, _e, explicit = self.pick("/grilling planı netleştirelim")
+        self.assertEqual((tc, explicit), ("research", "grilling"))
+
+        # Kelime ipucu OLMADAN da doğru sınıf gelmeli: otorite profildir
+        tc, _s, _e, explicit = self.pick("/project-onboarding")
+        self.assertEqual((tc, explicit), ("code-change", "project-onboarding"))
+
     def test_acik_komut_tetik_tasiyan_metinde_de_kazanir(self):
         """Kurallı olmayan skill'in /komutu, anahtar kelimeye yenilmez.
 
