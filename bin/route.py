@@ -28,6 +28,23 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 
+# Skill envanteri ayrı modülde (bin/skill_kayit.py; MOTOR listesinde —
+# bekçi: tests/test_kernel_dosyalari). Import başarısızsa yönlendirme
+# çalışmaya devam eder, yalnız /komut ayrıcalığı ve kurulum uyarısı susar:
+# router bloklamaz, eksik yardımı yokluğa çevirir.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from skill_kayit import (kuralsiz_komut_kurali, skill_installed,
+                             skill_task_class)
+except Exception:                                    # pragma: no cover
+    skill_task_class = None
+
+    def skill_installed(skill, pdir):
+        return True
+
+    def kuralsiz_komut_kurali(explicit, cfg, puanlanan, pdir):
+        return None
+
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
 
@@ -76,41 +93,6 @@ def load_rules(path=None):
     import yaml  # yoksa ImportError → main() sessizce çıkar
     with open(path or routing_path()[0], encoding="utf-8") as fh:
         return yaml.safe_load(fh)
-
-
-def skill_task_class(skill, pdir):
-    """Skill'i izinli sayan profilin sınıfı (yoksa None).
-
-    Profil izin sınırıdır (AGENTS.md), dolayısıyla sınıfın OTORİTESİ odur —
-    tahmin değil. Bilinmeyen skill'de None döner; çağıran o zaman kelime
-    puanlamasına düşer, çünkü sınıfı uydurmak izin sınırını uydurmaktır.
-    """
-    pd = os.path.join(pdir, ".agents", "capability-profiles")
-    try:
-        adlar = sorted(os.listdir(pd))
-    except OSError:
-        return None
-    for ad in adlar:
-        if not ad.endswith(".yml"):
-            continue
-        try:
-            with open(os.path.join(pd, ad), encoding="utf-8") as fh:
-                data = yaml.safe_load(fh) or {}
-        except Exception:
-            continue
-        if skill in (data.get("skills") or []):
-            return data.get("task_class")
-    return None
-
-
-def skill_installed(skill, pdir):
-    """Skill bu projede ya da kullanıcı-global dizinde kurulu mu."""
-    for base in (os.path.join(pdir, ".agents", "skills"),
-                 os.path.join(pdir, ".claude", "skills"),
-                 os.path.expanduser("~/.claude/skills")):
-        if os.path.isdir(os.path.join(base, skill)):
-            return True
-    return False
 
 
 def project_registers_router(pdir):
@@ -185,23 +167,6 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
-def _kuralsiz_komut_sinifi(explicit, cfg, scored, pdir):
-    """Kuralsız ama kurulu bir /komutun görev sınıfı (değilse None).
-
-    Kullanıcı komutla seçimini yapmışken anahtar kelimeyle başka skill'i
-    zorunlu kılmak, açık iradeyi ezmektir. Sınıfın otoritesi profildir:
-    komut, izin sınırını düşürmemeli. Profilde olmayan skill'de kelime
-    puanlamasının sınıfı korunur — dosya yazan bir skill'i salt-okunur
-    profile mahkûm etmek işi sessizce kırar.
-    """
-    pdir = pdir or project_dir()
-    if not (explicit and skill_installed(explicit, pdir)):
-        return None
-    return (skill_task_class(explicit, pdir)
-            or (scored[0][2].get("task_class") if scored else None)
-            or cfg.get("fallback", {}).get("task_class", "research"))
-
-
 def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -228,9 +193,12 @@ def route(prompt, cfg, pdir=None):
 
     extras = _extras(cfg, text, tokens)
 
-    sinif = _kuralsiz_komut_sinifi(explicit, cfg, scored, pdir)
-    if sinif:
-        return sinif, None, extras, [], explicit
+    sentetik = kuralsiz_komut_kurali(explicit, cfg, scored,
+                                     pdir or project_dir())
+    if sentetik:
+        return (sentetik["task_class"], sentetik,
+                [s for s in extras if s != explicit], [f"/{explicit}"],
+                explicit)
 
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
     # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil

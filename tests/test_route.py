@@ -119,19 +119,37 @@ class RouteTest(unittest.TestCase):
         _tc, _skill, _e, explicit = self.pick("/grilling planı netleştirelim")
         self.assertEqual(explicit, "grilling")
 
-    def test_acik_komut_sinifi_profilden_gelir(self):
-        """Sınıf profilden okunur — komut, izin sınırını düşüremez.
+    def test_profil_sinifi_okunabiliyor(self):
+        """skill_task_class GERÇEKTEN çalışıyor mu (yalnız None dönmüyor mu).
 
-        Profil izin sınırıdır (AGENTS.md). Kuralsız bir skill'in komutunu
-        koşulsuz 'research'e düşürmek, dosya yazan skill'i salt-okunur
-        profille çalıştırmak demektir: iş ya kırılır ya sınır anlamsızlaşır.
+        Yönlendirme testi bunu kanıtlamaz: tetik eşleşmesi aynı sınıfı
+        tesadüfen üretebilir ve bozuk profil okuması fark edilmez.
         """
-        tc, _s, _e, explicit = self.pick("/grilling planı netleştirelim")
+        self.assertEqual(route.skill_task_class("grilling", ROOT), "research")
+        self.assertEqual(route.skill_task_class("implement-change", ROOT),
+                         "code-change")
+        self.assertIsNone(route.skill_task_class("boyle-bir-skill-yok", ROOT))
+
+    def test_profil_sinifi_kelime_puanlamasini_yener(self):
+        """Otorite profildir: kelimeler başka sınıf söylese bile.
+
+        "/grilling kodu düzelt ve uygula" isteminde tetikler code-change
+        diyor; profil research diyor. Komutun sınıfı izin sınırından gelir,
+        yoksa kullanıcı /komutla yazma yetkisi açabilirdi.
+        """
+        tc, _s, _e, explicit = self.pick("/grilling kodu düzelt ve uygula")
         self.assertEqual((tc, explicit), ("research", "grilling"))
 
-        # Kelime ipucu OLMADAN da doğru sınıf gelmeli: otorite profildir
-        tc, _s, _e, explicit = self.pick("/project-onboarding")
-        self.assertEqual((tc, explicit), ("code-change", "project-onboarding"))
+    def test_kuralsiz_komut_risk_metadatasini_kaybetmez(self):
+        """Yazma sınıfındaki /komut, risk sınıfını da taşımalı.
+
+        /project-onboarding ile /auras aynı işi yapar; birinin approval
+        diğerinin sessizce 'auto' sayılması, risk politikasını komut
+        seçimine bağlı hale getirirdi.
+        """
+        tc, skill, _e, _x = self.pick("/project-onboarding")
+        self.assertEqual(tc, "code-change")
+        self.assertEqual(skill, "project-onboarding")
 
     def test_acik_komut_tetik_tasiyan_metinde_de_kazanir(self):
         """Kurallı olmayan skill'in /komutu, anahtar kelimeye yenilmez.
@@ -143,7 +161,8 @@ class RouteTest(unittest.TestCase):
         _tc, skill, _e, explicit = self.pick(
             "/grilling yeni bildirim sistemini nasıl kurgulayacağımı bilmiyorum")
         self.assertEqual(explicit, "grilling")
-        self.assertIsNone(skill)
+        # Zorunlu kılınan skill, kullanıcının istediği skill olmalı
+        self.assertEqual(skill, "grilling")
 
     def test_yuk_testi_kod_isidir(self):
         _tc, skill, _e, _x = self.pick("API endpointine stres testi yap")
