@@ -301,6 +301,19 @@ class RouteTest(unittest.TestCase):
             tc, _s, _e, _x = self.pick(istem)
             self.assertEqual(tc, "incident", istem)
 
+    def test_ayni_skill_iki_kuralda_ise_baglam_secer(self):
+        """Aynı skill birden çok kuralda olabilir; /komut ilkine takılmamalı.
+
+        implement-change hem code-change hem incident kuralında geçiyor.
+        Açık komut ilk eşleşende dururken olay kuralı ERİŞİLEMEZ kalıyordu:
+        acil üretim işi normal kod işi gibi sınıflanırdı.
+        """
+        tc, skill, _e, _x = self.pick("/implement-change prod çöktü acil müdahale")
+        self.assertEqual((tc, skill), ("incident", "implement-change"))
+
+        tc, skill, _e, _x = self.pick("/implement-change kullanıcı endpointi ekle")
+        self.assertEqual((tc, skill), ("code-change", "implement-change"))
+
 
 if __name__ == "__main__":
     unittest.main()

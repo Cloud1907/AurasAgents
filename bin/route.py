@@ -191,6 +191,27 @@ def _komut_kurali_cozumle(explicit, cfg, scored, pdir):
                 risk="auto" if sinif == "research" else "approval")
 
 
+def _puanla(cfg, text, tokens, explicit):
+    """(tetik-puanlı kurallar, açık komutun kuralları) — ikisi de sıralı.
+
+    Aynı skill birden çok kuralda olabilir (implement-change hem code-change
+    hem incident). Açık /komut ilk eşleşende dururken diğeri ERİŞİLEMEZ
+    kalıyordu; bağlam (tetik isabeti) seçsin.
+    """
+    scored, komut = [], []
+    for rule in cfg.get("rules", []):
+        hit = [t for t in rule.get("triggers", [])
+               if matches(normalize(t), text, tokens)]
+        if explicit and explicit == rule.get("skill"):
+            komut.append((len(hit), rule, hit))
+        if hit:
+            scored.append((len(hit), rule.get("specificity", 1), rule, hit))
+    # Puan → özgüllük → routing.yml sırası (kararlı sonuç).
+    scored.sort(key=lambda s: (-s[0], -s[1]))
+    komut.sort(key=lambda k: -k[0])
+    return scored, komut
+
+
 def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -201,19 +222,12 @@ def route(prompt, cfg, pdir=None):
     if m:
         explicit = m.group(1)
 
-    scored = []
-    for rule in cfg.get("rules", []):
-        hit = [t for t in rule.get("triggers", [])
-               if matches(normalize(t), text, tokens)]
-        # Açık /komut o kuralı doğrudan seçer (tetik aramaya gerek yok).
-        if explicit and explicit == rule.get("skill"):
-            return (rule.get("task_class", "research"), rule,
-                    [s for s in _extras(cfg, text, tokens)
-                     if s != rule["skill"]], hit or [f"/{explicit}"], explicit)
-        if hit:
-            scored.append((len(hit), rule.get("specificity", 1), rule, hit))
-    # Puan → özgüllük → routing.yml sırası (kararlı sonuç).
-    scored.sort(key=lambda s: (-s[0], -s[1]))
+    scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
+    if komut_kurallari:
+        rule, hit = komut_kurallari[0][1], komut_kurallari[0][2]
+        return (rule.get("task_class", "research"), rule,
+                [s for s in _extras(cfg, text, tokens) if s != rule["skill"]],
+                hit or [f"/{explicit}"], explicit)
 
     extras = _extras(cfg, text, tokens)
 
