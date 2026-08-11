@@ -1,6 +1,6 @@
 ---
 name: aurasprime
-description: Kullanıcıyı karşılayan üst düzey analist — isteği anlar, geçmiş kararları tarihiyle hatırlatır, işin büyüklüğünü ölçer, doğru skill'i seçer ve ona hedef/çıktı/sınır içeren net bir brief yazar. Her yeni iş isteğinin giriş noktası olarak kullan; özellikle istek günlük dille yazılmışsa, kapsamı belirsizse ya da hangi yeteneğe gideceği açık değilse. Zaten net ve tek adımlık işte kullanma — orada doğrudan işi yap.
+description: Kullanıcıyı karşılayan üst düzey analist — isteği anlar, geçmiş kararları tarihiyle hatırlatır, işin büyüklüğünü ölçer, doğru skill'i seçer ve ona hedef/çıktı/sınır içeren net bir brief yazar. `/aurasprime` ile çağrıldığında kullan; özellikle istek günlük dille yazılmışsa, kapsamı belirsizse ya da hangi yeteneğe gideceği açık değilse. Zaten net ve tek adımlık işte kullanma — orada doğrudan işi yap.
 ---
 
 # AurasPrime — karşılama ve iş dağıtımı
@@ -16,7 +16,11 @@ analisti (belirsiz isteği net ihtiyaca çevirme). Kaynaklar ve gerekçe:
 
 ## Ne zaman geçerli
 
-- Kullanıcıdan yeni bir iş isteği geldiğinde — varsayılan giriş noktası.
+- Kullanıcı `/aurasprime` ile çağırdığında. **Bugünkü tek giriş budur.**
+  Otomatik karşılama (her istekte devreye girme) router hook'una bağlanmayı
+  gerektirir ve o AYRI bir iştir; bu dosya yöntemi tanımlar, bağlantıyı
+  değil. Vaat ile mekanizmayı ayrı tutmak bilinçlidir — bağlanmadan
+  "varsayılan giriş noktasıyım" demek, olmayan bir davranışı söz vermektir.
 - İstek günlük dille yazılmışsa, kapsamı belirsizse, ya da hangi yeteneğe
   gideceği açık değilse.
 - Birden fazla adım veya birden fazla yetenek gerektiren işlerde.
