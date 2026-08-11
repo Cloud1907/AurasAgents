@@ -323,3 +323,25 @@ class KuralsizKomutTest(unittest.TestCase):
             self.assertEqual(kural, {"skill": "project-onboarding",
                                      "task_class": "code-change",
                                      "risk": "approval"})
+
+    def test_yerel_profil_kanonigi_ezer_kisitlama_korunur(self):
+        """Projenin profili VARSA otorite odur — kanonik yedek devreye girmez.
+
+        Yedeğin amacı önyükleme (profil YOK) durumudur. Profili olan ama bir
+        skill'i bilinçli DIŞARIDA bırakan projede kanoniğe düşmek, yerel
+        capability kısıtlamasını sessizce geçersiz kılar.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, ".agents", "skills",
+                                     "implement-change"))
+            pd = os.path.join(tmp, ".agents", "capability-profiles")
+            os.makedirs(pd)
+            with open(os.path.join(pd, "research.yml"), "w",
+                      encoding="utf-8") as fh:
+                fh.write("task_class: research\nskills:\n  - baska-skill\n")
+            # implement-change kanonik code-change profilinde VAR ama bu
+            # projede yok: yerel karar kazanmalı.
+            self.assertIsNone(
+                route.skill_task_class("implement-change", tmp))
+            self.assertIsNone(
+                route.kuralsiz_komut_kurali("implement-change", tmp))

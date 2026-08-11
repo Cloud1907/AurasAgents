@@ -30,19 +30,30 @@ def skill_task_class(skill, pdir):
     Bilinmeyen skill'de None döner; çağıran o zaman zorunluluk iddia etmez,
     çünkü sınıfı uydurmak izin sınırını uydurmaktır.
 
-    Proje profilleri yoksa KANONİK profillere düşülür. Önyükleme durumu:
+    Proje profilleri YOKSA kanonik profillere düşülür. Önyükleme durumu:
     repoyu sisteme bağlayan skill, henüz `.agents/`ı olmayan repoda çağrılır;
     orada sınıfsız kalmak dosya yazan işi salt-okunur profile mahkûm ederdi.
+
+    Yedek yalnız YOKLUK içindir, EKSİKLİK için değil: profili olan proje bir
+    skill'i bilinçli dışarıda bırakmış olabilir. O durumda kanoniğe düşmek,
+    yerel capability kısıtlamasını sessizce geçersiz kılardı — profilin
+    otoritesi projede kalır.
     """
     try:
         import yaml  # route.load_rules ile aynı biçim: yoksa sessiz çekil
     except ImportError:
         return None
-    for kok in (pdir, KANONIK):
-        sinif = _profilden_sinif(skill, kok, yaml)
-        if sinif:
-            return sinif
-    return None
+    kok = pdir if _profil_dizini_var(pdir) else KANONIK
+    return _profilden_sinif(skill, kok, yaml)
+
+
+def _profil_dizini_var(kok):
+    """Kökün kendi capability profilleri var mı (tek .yml yeter)."""
+    pd = os.path.join(kok, ".agents", "capability-profiles")
+    try:
+        return any(ad.endswith(".yml") for ad in os.listdir(pd))
+    except OSError:
+        return False
 
 
 def _profilden_sinif(skill, kok, yaml):
