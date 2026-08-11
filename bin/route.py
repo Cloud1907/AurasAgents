@@ -160,7 +160,7 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
-def route(prompt, cfg):
+def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
     tokens = tokenize(text)
@@ -186,6 +186,13 @@ def route(prompt, cfg):
 
     extras = _extras(cfg, text, tokens)
 
+    # Kurallı olmayan ama KURULU bir skill'in /komutu da kazanır: kullanıcı
+    # seçimini yapmışken anahtar kelimeyle başka skill'i zorunlu kılmak, açık
+    # iradeyi ezmektir. (Kurallı skill'in dalı yukarıda zaten döndü.)
+    if explicit and skill_installed(explicit, pdir or project_dir()):
+        return (cfg.get("fallback", {}).get("task_class", "research"),
+                None, extras, [], explicit)
+
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
     # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil
     # alır ve zorunlu skill dayatılmaz — ajan kendi seçer, kapı kanıtı yine ister.
@@ -205,8 +212,8 @@ def route(prompt, cfg):
 
 
 def render(prompt, cfg, pdir=None, table_is_local=True):
-    task_class, primary, extras, hits, explicit = route(prompt, cfg)
     pdir = pdir or project_dir()
+    task_class, primary, extras, hits, explicit = route(prompt, cfg, pdir)
     profile = os.path.join(".agents", "capability-profiles", f"{task_class}.yml")
     lines = ["[AurasAgents router]"]
 
@@ -302,7 +309,7 @@ def _kaydet(prompt, cfg, pdir):
                                        "run_event.py"))
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        task_class, primary, extras, _hits, explicit = route(prompt, cfg)
+        task_class, primary, extras, _hits, explicit = route(prompt, cfg, pdir)
         mod.append({
             "kind": "route",
             "task_class": task_class,

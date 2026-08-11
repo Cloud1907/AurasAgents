@@ -37,7 +37,32 @@ def yaz(kok, rel, icerik):
         fh.write(icerik)
 
 
+_IMPORT = re.compile(r"^\s*import\s+([^\n#]+)|^\s*from\s+([a-z_][a-z0-9_]*)",
+                     re.M)
+
+
+def _import_edilen_moduller(kaynak):
+    """Kaynaktaki üst düzey modül adları — `import os, report` dahil.
+
+    Tek modül varsayan regex, virgüllü import'ta ikinciyi kaçırırdı: taşınmayan
+    bağımlılık sessizce listeden düşerdi.
+    """
+    for duz, gelen in _IMPORT.findall(kaynak):
+        if gelen:
+            yield gelen
+            continue
+        for parca in duz.split(","):
+            ad = parca.strip().split(" as ")[0].split(".")[0].strip()
+            if re.fullmatch(r"[a-z_][a-z0-9_]*", ad or ""):
+                yield ad
+
+
 class MotorListesiTest(unittest.TestCase):
+    def test_import_ayristirici_virgullu_listeyi_gorur(self):
+        moduller = set(_import_edilen_moduller(
+            "import os, report\nfrom surec import x\nimport kalite as k\n"))
+        self.assertEqual(moduller, {"os", "report", "surec", "kalite"})
+
     def test_liste_tekrarsiz(self):
         hepsi = kd.MOTOR + kd.MOTOR_DIZIN
         self.assertEqual(len(hepsi), len(set(hepsi)), "listede tekrar var")
@@ -63,8 +88,7 @@ class MotorListesiTest(unittest.TestCase):
                 continue
             yol = kd.yol_coz(ROOT, rel)
             kaynak = open(yol, encoding="utf-8").read()
-            for mod in re.findall(r"^\s*(?:import|from)\s+([a-z_][a-z0-9_]*)",
-                                  kaynak, re.M):
+            for mod in _import_edilen_moduller(kaynak):
                 if mod in yerel and f"bin/{mod}.py" != rel:
                     self.assertIn(
                         f"bin/{mod}.py", kd.MOTOR,

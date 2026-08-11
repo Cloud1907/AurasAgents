@@ -119,6 +119,18 @@ class RouteTest(unittest.TestCase):
         _tc, _skill, _e, explicit = self.pick("/grilling planı netleştirelim")
         self.assertEqual(explicit, "grilling")
 
+    def test_acik_komut_tetik_tasiyan_metinde_de_kazanir(self):
+        """Kurallı olmayan skill'in /komutu, anahtar kelimeye yenilmez.
+
+        "/grilling ... nasıl kurgulayacağımı bilmiyorum" isteminde "nasıl"
+        research tetiğidir. Kullanıcı komutla seçimini yapmışken başka bir
+        skill'i ZORUNLU kılmak, açık iradeyi anahtar kelimeyle ezmektir.
+        """
+        _tc, skill, _e, explicit = self.pick(
+            "/grilling yeni bildirim sistemini nasıl kurgulayacağımı bilmiyorum")
+        self.assertEqual(explicit, "grilling")
+        self.assertIsNone(skill)
+
     def test_yuk_testi_kod_isidir(self):
         _tc, skill, _e, _x = self.pick("API endpointine stres testi yap")
         self.assertEqual(skill, "implement-change")
