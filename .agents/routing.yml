@@ -223,11 +223,23 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
+  - skill: grilling
+    reason: >-
+      Giriş yalnız /grilling. Doğal dil tetiği denendi ve KALDIRILDI: anahtar
+      kelime katmanı cümleyi anlamadığı için ret ("sorguya çekme"), alıntı
+      ("'sorguya çek' ne demek"), yük testi ve yemek anlamları sürekli
+      yanlış-pozitif üretti. Yanlış açılan sorgu oturumu kullanıcının "ara
+      soru sorma" tercihini ihlal ettiğinden bedeli, kaçırmanın bedelinden
+      yüksek — açık komut hem kesin hem yeterli.
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
-      yaratmamak için giriş noktası auras'tır; bu skill onun altında çağrılan
-      prosedürdür. İkisinin birleştirilmesi ayrı bir kernel işidir.
+      yaratmamak için KELİME yönlendirmesinin giriş noktası auras'tır; bu
+      skill onun altında çağrılan prosedürdür. not_routed yalnız kelime
+      yolunu kapatır: /project-onboarding ile doğrudan çağrılabilir ve
+      code-change profilinde tanımlıdır (dosya yazar) — açık komut kasıtlı
+      kaçış yoludur, kullanıcının iradesi kelimeyle bastırılmaz.
+      İkisinin birleştirilmesi ayrı bir kernel işidir.
 
 fallback:
   task_class: research

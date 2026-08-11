@@ -28,6 +28,26 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 
+# Skill envanteri ayrı modülde (bin/skill_kayit.py; MOTOR listesinde —
+# bekçi: tests/test_kernel_dosyalari). Import başarısızsa yönlendirme
+# çalışmaya devam eder, yalnız /komut ayrıcalığı ve kurulum uyarısı susar:
+# router bloklamaz, eksik yardımı yokluğa çevirir.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
+                             skill_installed, skill_task_class)
+except Exception:                                    # pragma: no cover
+    skill_task_class = None
+
+    def skill_installed(skill, pdir):
+        return True
+
+    def kuralsiz_komut_kurali(explicit, pdir):
+        return None
+
+    def profil_disinda(skill, pdir):
+        return False
+
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
 
@@ -76,16 +96,6 @@ def load_rules(path=None):
     import yaml  # yoksa ImportError → main() sessizce çıkar
     with open(path or routing_path()[0], encoding="utf-8") as fh:
         return yaml.safe_load(fh)
-
-
-def skill_installed(skill, pdir):
-    """Skill bu projede ya da kullanıcı-global dizinde kurulu mu."""
-    for base in (os.path.join(pdir, ".agents", "skills"),
-                 os.path.join(pdir, ".claude", "skills"),
-                 os.path.expanduser("~/.claude/skills")):
-        if os.path.isdir(os.path.join(base, skill)):
-            return True
-    return False
 
 
 def project_registers_router(pdir):
@@ -160,7 +170,7 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
-def route(prompt, cfg):
+def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
     tokens = tokenize(text)
@@ -186,6 +196,12 @@ def route(prompt, cfg):
 
     extras = _extras(cfg, text, tokens)
 
+    sentetik = kuralsiz_komut_kurali(explicit, pdir or project_dir())
+    if sentetik:
+        return (sentetik["task_class"], sentetik,
+                [s for s in extras if s != explicit], [f"/{explicit}"],
+                explicit)
+
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
     # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil
     # alır ve zorunlu skill dayatılmaz — ajan kendi seçer, kapı kanıtı yine ister.
@@ -205,12 +221,17 @@ def route(prompt, cfg):
 
 
 def render(prompt, cfg, pdir=None, table_is_local=True):
-    task_class, primary, extras, hits, explicit = route(prompt, cfg)
     pdir = pdir or project_dir()
+    task_class, primary, extras, hits, explicit = route(prompt, cfg, pdir)
     profile = os.path.join(".agents", "capability-profiles", f"{task_class}.yml")
     lines = ["[AurasAgents router]"]
 
-    if explicit:
+    if explicit and profil_disinda(explicit, pdir):
+        lines.append(
+            f"/{explicit} bu projenin izin sınırı dışında (capability "
+            "profilinde yok) — YÜKLEME. Gerekiyorsa kullanıcıya söyle: "
+            "profile eklemek bilinçli bir karardır, reviewed PR ister.")
+    elif explicit:
         lines.append(f"Kullanıcı açıkça /{explicit} istedi — onu yükle.")
 
     lines.append(f"Görev sınıfı: {task_class}  |  profil: {profile}")
@@ -302,7 +323,7 @@ def _kaydet(prompt, cfg, pdir):
                                        "run_event.py"))
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        task_class, primary, extras, _hits, explicit = route(prompt, cfg)
+        task_class, primary, extras, _hits, explicit = route(prompt, cfg, pdir)
         mod.append({
             "kind": "route",
             "task_class": task_class,

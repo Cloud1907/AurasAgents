@@ -9,6 +9,10 @@ skills:
   - kernel-work
   - designing-interfaces   # görünür yüzey işi de kod değişikliğidir
   - auras                  # projeyi sisteme bağlamak dosya yazar
+  # routing'de yok (not_routed: auras kapsıyor) ama /komutla çağrılabilir;
+  # dosya yazdığı için sınırı burada tanımlı olmalı — profilsiz skill,
+  # sınıfı tahmine bırakır ve salt-okunur profile düşerse iş sessizce kırılır.
+  - project-onboarding
 tools:
   filesystem: workspace-write
   commands: [test, lint, build, typecheck, gh]
