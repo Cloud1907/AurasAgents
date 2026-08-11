@@ -223,6 +223,12 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
+  - skill: aurasprime
+    reason: >-
+      Kelime tetiğiyle seçilmez çünkü BELİRLİ bir işin skill'i değil, her
+      isteğin giriş noktasıdır — tabloya kural yazmak onu diğer skill'lerle
+      yarıştırırdı. Bağlanma yolu router hook'udur (karşılama katmanı, ayrı
+      iş); o bağlanana dek elle `/aurasprime` ile çağrılabilir.
   - skill: grilling
     reason: >-
       Giriş yalnız /grilling. Doğal dil tetiği denendi ve KALDIRILDI: anahtar
