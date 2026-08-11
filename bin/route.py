@@ -47,17 +47,6 @@ def matches(trigger, text, tokens):
     return any(tok.startswith(trigger) for tok in tokens)
 
 
-# Açık istek dili sezgileri ayrı modülde (bin/istek_dili.py). Import
-# başarısızsa explicit_request kuralları HİÇ eşleşmez — yani opt-in skill
-# kendiliğinden açılmaz, /grilling yolu çalışmaya devam eder. Sessiz
-# degradasyonun güvenli yönü budur: kaçırmak, istem dışı başlatmaktan iyidir.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-try:
-    import istek_dili
-except Exception:                                    # pragma: no cover
-    istek_dili = None
-
-
 def project_dir():
     """Aktif projenin kökü: hook env'i, yoksa CWD'den yukarı arama."""
     env = os.environ.get("CLAUDE_PROJECT_DIR")
@@ -171,22 +160,6 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
-def _tetik_isabetleri(rule, text, tokens):
-    """Kuralın eşleşen tetikleri; explicit_request'te ret/anma elenir."""
-    acik_istek = rule.get("explicit_request")
-    if acik_istek:
-        if istek_dili is None or istek_dili.istek_degil(text):
-            return []
-        text = istek_dili.alintisiz(text)
-        tokens = tokenize(text)
-    hit = [t for t in rule.get("triggers", [])
-           if matches(normalize(t), text, tokens)]
-    if acik_istek:
-        hit = [t for t in hit
-               if not istek_dili.olumsuzlanmis(normalize(t), text)]
-    return hit
-
-
 def route(prompt, cfg):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -199,7 +172,8 @@ def route(prompt, cfg):
 
     scored = []
     for rule in cfg.get("rules", []):
-        hit = _tetik_isabetleri(rule, text, tokens)
+        hit = [t for t in rule.get("triggers", [])
+               if matches(normalize(t), text, tokens)]
         # Açık /komut o kuralı doğrudan seçer (tetik aramaya gerek yok).
         if explicit and explicit == rule.get("skill"):
             return (rule.get("task_class", "research"), rule,
@@ -215,15 +189,8 @@ def route(prompt, cfg):
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
     # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil
     # alır ve zorunlu skill dayatılmaz — ajan kendi seçer, kapı kanıtı yine ister.
-    #
-    # İstisna: tetiği zaten "şunu yap" demek olan kural (explicit_request).
-    # "beni sorguya çeker misin?" kibar biçimli bir İSTEKTİR; soru sanıp
-    # düşürmek, kullanıcının açıkça istediği skill'i sessizce yutar.
     if soru_turu(text):
-        acik = [s for s in scored if s[2].get("explicit_request")]
-        if not acik:
-            return "research", None, extras, [], explicit
-        scored = acik
+        return "research", None, extras, [], explicit
 
     if not scored:
         fb = cfg.get("fallback", {})

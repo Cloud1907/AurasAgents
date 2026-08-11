@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı açıkça istediğinde kullan ("beni sorguya çek", "planımı stres testine sok", "beni grill'le", "/grilling"); açık istek yokken ASLA kendiliğinden başlatma. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
+description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı /grilling komutunu yazdığında kullan; komut yokken, konu ne kadar belirsiz görünürse görünsün, ASLA kendiliğinden başlatma. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
 ---
 
 # grilling — plan sorgulama (opt-in)
@@ -14,14 +14,12 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 
 ## Ne zaman geçerli
 
-- Kullanıcı AÇIKÇA istedi: "beni sorguya çek", "beni grill'le", "planımı
-  stres testine sok", ya da doğrudan "/grilling". Soru biçimi de istektir
-  ("çeker misin?"). Açık istek tek kapıdır:
-  kullanıcının "ara soru sorma" iletişim tercihi varsayılandır; bu skill'i
-  istemek o tercihi o oturum için bilinçli askıya almaktır. Router yalnız bu
-  açık istek ifadelerini yönlendirir (skill seçimi takdire bırakılmaz —
-  AGENTS.md); bu ifadeler yokken kendiliğinden başlatma.
+- Kullanıcı `/grilling` yazdı. **Tek giriş budur.** Kullanıcının "ara soru
+  sorma" iletişim tercihi varsayılandır; bu komut, o tercihi o oturum için
+  bilinçli askıya almaktır — kararı kullanıcı verir, sen çıkarsamazsın.
 - Kapsam gerçekten belirsizken (AGENTS.md: plan mode tetiği ile aynı eşik).
+  Belirsizlik tek başına YETMEZ: komut olmadan sorgu açılmaz, en fazla tek
+  netleştirme sorusu sorulur.
 
 ## Ne zaman geçerli DEĞİL (negatif tetik)
 
@@ -34,12 +32,11 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 
 ## İş akışı
 
-0. **Önce isteği doğrula (ön-koşul).** Router bir pusuladır, kapı değil:
-   anahtar kelimeyle eşleşir, cümleyi anlamaz. Oturumu açmadan önce istemin
-   kendisine bak — şunlardan biriyse BAŞLATMA, tek cümleyle nedenini söyle:
-   ret ("çekmek istemiyorum"), skill hakkında soru ("'beni sorguya çek' ne
-   demek"), alıntı/aktarma, ya da başkasına verilen talimat. Yönlendirme
-   geldi diye başlamak, yönlendirmenin hatasını senin hatana çevirir.
+0. **Komutu doğrula (ön-koşul).** `/grilling` yoksa başlama. Doğal dil
+   yönlendirmesi bilinçli olarak KALDIRILDI (bkz. routing.yml `not_routed`):
+   anahtar kelime katmanı reddi ("sorguya çekme"), alıntıyı ("'sorguya çek'
+   ne demek") ve alakasız anlamları isteğe benzetiyordu. Kullanıcı komut
+   yazmadan sorguya çekmek, istemediği bir oturumu ona dayatmaktır.
 1. **Konuyu karar ağacı olarak modelle.** Her karar, ona bağlı alt kararları
    dallandırır. Ağaç zihinsel modeldir; kullanıcıya diyagram dayatma.
 2. **Frontier'ı hesapla.** Frontier = ön koşulu ÇÖZÜLMÜŞ olduğu için ŞİMDİ
@@ -87,16 +84,17 @@ Uyarlama kaynağı: [mattpocock/skills `grilling`](https://github.com/mattpocock
 
 ## Eval
 
-1. **Pozitif — açık çağrı.** Girdi: "yeni bildirim sistemini nasıl
-   kurgulayacağımı bilmiyorum, beni sorguya çek." Beklenen: karar ağacı
+1. **Pozitif — açık komut.** Girdi: "/grilling yeni bildirim sistemini nasıl
+   kurgulayacağımı bilmiyorum." Beklenen: karar ağacı
    kurulur, ilk frontier turu numaralı + önerili cevaplı gelir, cevap
    beklenir; tek mega-soru veya hemen çözüm önerisi GELMEZ.
 2. **Süreç — frontier disiplini.** Tur 1'de "push mu e-posta mı" açıkken
    "push sağlayıcısı hangisi" sorusu SORULMAZ; kullanıcı "push" deyince
    sağlayıcı sorusu tur 2'de gelir.
-3. **Negatif — kendiliğinden tetiklenme yok.** Girdi: "bu bug'ı düzelt."
-   Beklenen: grilling devreye GİRMEZ (`implement-change` işidir); belirsizlik
-   olsa bile en fazla tek netleştirme sorusu sorulur, sorgu oturumu açılmaz.
+3. **Negatif — komutsuz tetiklenme yok.** Girdi: "bu bug'ı düzelt" ya da
+   "beni sorguya çek" (komut değil, düz metin). Beklenen: grilling devreye
+   GİRMEZ; belirsizlik olsa bile en fazla tek netleştirme sorusu sorulur,
+   sorgu oturumu açılmaz.
 4. **Negatif — olgu sorusu kullanıcıya gitmez.** Sorgu sırasında "X nerede
    tanımlı" ihtiyacı doğarsa kullanıcıya sorulmaz, koda bakılır/alt-ajana
    verilir; kullanıcıya yalnız karar soruları düşer.

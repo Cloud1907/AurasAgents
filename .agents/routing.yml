@@ -189,27 +189,6 @@ rules:
       - bağla
       - auras kur
 
-  # Tetikler bilinçli dar (çok-kelimeli açık istek ifadeleri): tek başına
-  # "sorgu" DB disipliniyle, "stres testi" yük testiyle, "grill" yemekle
-  # çakışır — üçü de tek başına tetik DEĞİL. Soru yağmuru yalnız kullanıcı
-  # açıkça isteyince başlar (iletişim tercihi).
-  - skill: grilling
-    owner: software-architect
-    specificity: 2
-    task_class: research
-    risk: auto
-    # Tetikleri zaten "şunu yap" demek olduğundan soru biçimi bunları
-    # düşürmez: "beni sorguya çeker misin?" istektir, soru değil.
-    explicit_request: true
-    # Nesneye bağlı: stres testine sokulan PLAN'dır — "endpointi stres
-    # testine sok" bir yük testi işidir, sorgu oturumu değil. Kesinlik
-    # kapsamaya tercih edilir: kaçan ifade /grilling ile çağrılır, yanlış
-    # açılan oturum ise kullanıcının açık tercihini ihlal eder.
-    triggers:
-      - beni sorguya çek
-      - planımı stres testine sok
-      - beni grill
-
   - skill: codex-debate
     owner: software-architect
     specificity: 2
@@ -244,6 +223,14 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
+  - skill: grilling
+    reason: >-
+      Giriş yalnız /grilling. Doğal dil tetiği denendi ve KALDIRILDI: anahtar
+      kelime katmanı cümleyi anlamadığı için ret ("sorguya çekme"), alıntı
+      ("'sorguya çek' ne demek"), yük testi ve yemek anlamları sürekli
+      yanlış-pozitif üretti. Yanlış açılan sorgu oturumu kullanıcının "ara
+      soru sorma" tercihini ihlal ettiğinden bedeli, kaçırmanın bedelinden
+      yüksek — açık komut hem kesin hem yeterli.
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması

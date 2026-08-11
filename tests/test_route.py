@@ -101,93 +101,27 @@ class RouteTest(unittest.TestCase):
         _tc, skill, _e, _x = self.pick("dashboard ekranını premium tasarla")
         self.assertEqual(skill, "designing-interfaces")
 
-    def test_acik_sorgu_istegi_grilling(self):
-        # Açık istek ifadesi deterministik yönlendirilir (takdir yok)
-        for istem in ("beni sorguya çek, planı netleştirelim",
-                      "planımı stres testine sok"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertEqual(skill, "grilling", istem)
+    def test_grilling_dogal_dille_yonlendirilmez(self):
+        """grilling YALNIZ /grilling ile çağrılır — doğal dil tetiği yok.
 
-    def test_yuk_testi_grilling_degildir(self):
-        # "stres testi" tek başına tetik DEĞİL: yük testi işi grilling'e gitmez
+        Denendi ve kaldırıldı (PR #39): anahtar kelime katmanı cümleyi
+        anlamadığı için ret ("sorguya çekme"), alıntı, yük testi ve yemek
+        anlamları yanlış-pozitif üretti. Yanlış açılan sorgu oturumunun
+        bedeli, kaçırmanın bedelinden yüksek.
+        """
+        for istem in ("beni sorguya çek", "planımı stres testine sok",
+                      "beni grill'le", "beni sorguya çeker misin?"):
+            _tc, skill, extras, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+            self.assertNotIn("grilling", extras, istem)
+
+    def test_grilling_acik_komutla_cagrilir(self):
+        _tc, _skill, _e, explicit = self.pick("/grilling planı netleştirelim")
+        self.assertEqual(explicit, "grilling")
+
+    def test_yuk_testi_kod_isidir(self):
         _tc, skill, _e, _x = self.pick("API endpointine stres testi yap")
         self.assertEqual(skill, "implement-change")
-
-    def test_kibar_soru_bicimindeki_acik_istek_yonlendirilir(self):
-        # Açık istek kibarca sorulunca kaybolmaz: "çeker misin?" de istektir.
-        # soru_turu() iş skill'i dayatmayı engeller ama açık çağrıyı değil.
-        for istem in ("beni sorguya çeker misin?",
-                      "planımı stres testine sokar mısın?"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertEqual(skill, "grilling", istem)
-
-    def test_reddedilen_sorgu_baslamaz(self):
-        # Olumsuz çekim isteğin TERSİDİR: "çekme" diyene sorgu açmak,
-        # opt-in vaadini ihlalin en kötü biçimidir (kullanıcı açıkça reddetti).
-        for istem in ("beni sorguya çekme",
-                      "beni sorguya çekmeden değerlendir",
-                      "planımı stres testine sokma"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertNotEqual(skill, "grilling", istem)
-
-    def test_cumle_duzeyi_ret_sorgu_baslatmaz(self):
-        # Olumsuzluk yardımcı fiilde olabilir: "çekmek İSTEMİYORUM"
-        for istem in ("beni sorguya çekmek istemiyorum",
-                      "beni sorguya çek, hayır boşver"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertNotEqual(skill, "grilling", istem)
-
-    def test_alintilanan_ifade_emir_degildir(self):
-        # Tırnak içindeki ifade KULLANIM değil ANMA'dır: soru, istek değildir
-        for istem in ("“beni sorguya çek” ne demek?",
-                      "‘beni sorguya çek’ ifadesi nereden geliyor"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertNotEqual(skill, "grilling", istem)
-
-    def test_karma_istemde_acik_cagri_ek_skill_olur(self):
-        """Karma istemde baskın iş birincil olur, açık çağrı KAYBOLMAZ.
-
-        "beni sorguya çek, planı yaz ve uygula" hem sorgu hem uygulama
-        istiyor. Uygulamayı birincil yapmak doğrudur (iş yükü orada) ve
-        grilling ek skill olarak listelenir — yönlendirme onu düşürmez.
-        explicit_request'in görevi çağrıyı KAYBETTİRMEMEKTİR, her koşulda
-        birinciliğe taşımak değil.
-        """
-        _tc, skill, extras, _x = self.pick("beni sorguya çek, planı yaz ve uygula")
-        self.assertEqual(skill, "implement-change")
-        self.assertIn("grilling", extras)
-
-    def test_isimden_fiil_ekiyle_olumsuzlama(self):
-        # "grill" isimdir; fiil olurken -le eki alır: grill'le-me = REDDİR.
-        # Olumsuzluk eki tetiğe bitişik değil, araya yapım eki giriyor.
-        for istem in ("beni grill'leme", "beni grilleme"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertNotEqual(skill, "grilling", istem)
-
-    def test_yapim_eki_tek_basina_olumsuz_degildir(self):
-        for istem in ("beni grill'le", "beni grilleyin"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertEqual(skill, "grilling", istem)
-
-    def test_mastar_ve_gereklilik_olumsuz_degildir(self):
-        # "çekmek"/"çekmeli" olumsuz DEĞİL: olumsuzluk bekçisi bunları yutmamalı
-        for istem in ("beni sorguya çekmek istiyorum",
-                      "beni sorguya çekmelisin"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertEqual(skill, "grilling", istem)
-
-    def test_kod_stres_testi_grilling_degildir(self):
-        # Tetik nesneye bağlı: stres testine sokulan PLAN'dır, endpoint değil
-        _tc, skill, _e, _x = self.pick(
-            "API endpointini stres testine sokar mısın?")
-        self.assertNotEqual(skill, "grilling")
-
-    def test_grill_kelimesi_yemekle_karismaz(self):
-        # Tek kelimelik "grill" tetik DEĞİL: opt-in'i alakasız isteklerde açardı
-        for istem in ("grill termometresi araştır",
-                      "İstanbul'da grill restoranı öner"):
-            _tc, skill, _e, _x = self.pick(istem)
-            self.assertNotEqual(skill, "grilling", istem)
 
     def test_acik_slash_komut_her_seyi_yener(self):
         tc, skill, _e, explicit = self.pick("/auras bu projeyi bağla")
