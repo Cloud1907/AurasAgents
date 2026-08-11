@@ -189,6 +189,24 @@ rules:
       - bağla
       - auras kur
 
+  # Olay sınıfı: incident profili tanımlıydı ama hiçbir kural onu
+  # üretmiyordu — ulaşılamayan profil, olmayan korumadır. Acil üretim işi
+  # normal code-change gibi sınıflanırsa olay disiplini hiç devreye girmez.
+  # specificity 3: "düzelt/hata" kelimeleri implement-change'i de tetikler,
+  # olay kuralı onu yenmeli.
+  - skill: implement-change
+    owner: devops-engineer
+    specificity: 3
+    task_class: incident
+    risk: approval
+    triggers:
+      - prod çöktü
+      - üretim hatası
+      - kesinti
+      - acil müdahale
+      - servis durdu
+      - canlıda hata
+
   - skill: codex-debate
     owner: software-architect
     specificity: 2

@@ -273,6 +273,34 @@ class RouteTest(unittest.TestCase):
         # main() stdin okur; boş istek yönlendirme üretmemeli
         self.assertEqual(route.route("", self.cfg)[1], None)
 
+    def test_aurasprime_her_iste_karsilar(self):
+        """Karşılama varsayılan: iş isteğinde AurasPrime devrede olmalı.
+
+        Skill'in kendi pozitif eval girdisi ona ulaşmıyorsa karşılama
+        katmanı yok demektir — kullanıcının /aurasprime yazması gerekirdi.
+        """
+        context, _s = route.render(
+            "müşteriler faturayı geç görüyor, bir şeyler yapalım",
+            self.cfg, pdir=ROOT)
+        self.assertIn("AurasPrime", context)
+
+    def test_acik_komutta_karsilama_yapilmaz(self):
+        # Kullanıcı seçimini yapmışsa araya girilmez
+        context, _s = route.render("/grilling planı netleştirelim",
+                                   self.cfg, pdir=ROOT)
+        self.assertNotIn("AurasPrime", context)
+
+    def test_olay_istegi_incident_sinifi_uretir(self):
+        """incident profili tanımlı ama hiçbir kural onu üretmiyordu.
+
+        Ulaşılamayan profil, olmayan korumadır: acil üretim işi normal
+        code-change gibi sınıflanırsa olay disiplini hiç devreye girmez.
+        """
+        for istem in ("prod çöktü, acil müdahale lazım",
+                      "serviste kesinti var, üretim hatası"):
+            tc, _s, _e, _x = self.pick(istem)
+            self.assertEqual(tc, "incident", istem)
+
 
 if __name__ == "__main__":
     unittest.main()

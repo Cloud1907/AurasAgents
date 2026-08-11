@@ -34,6 +34,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 # router bloklamaz, eksik yardımı yokluğa çevirir.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
+    import davranis
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
                              skill_installed, skill_izinli, skill_task_class)
 except Exception:                                    # pragma: no cover
@@ -246,6 +247,13 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     profile = os.path.join(".agents", "capability-profiles", f"{task_class}.yml")
     lines = ["[AurasAgents router]"]
 
+    # Karşılama katmanı: açık /komut yoksa işi önce AurasPrime karşılar.
+    # Derinlik skill dosyasındadır; burada yalnız DAVRANIŞ enjekte edilir —
+    # her turda skill yüklemek maliyet, karşılama kararını skill'in kendi
+    # negatif tetikleri verir (küçük iş ve takip turunda tören yapılmaz).
+    if not explicit:
+        lines.append(davranis.KARSILAMA)
+
     if explicit and profil_disinda(explicit, pdir):
         lines.append(
             f"/{explicit} bu projenin izin sınırı dışında (capability "
@@ -286,39 +294,7 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
         "Yönlendirme yanlışsa tek cümleyle gerekçelendir ve kullanıcıya söyle "
         "— sessizce atlama.")
 
-    # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
-    owner = sahip(prompt, cfg, primary)
-    if owner:
-        lines.append(
-            f"👤 Sahip disiplin: {owner} — bu işi o alanın dünya standardı "
-            "uzmanı gibi ele al. Disiplin bir ETİKETTİR: derinlik rol "
-            "dosyasında değil, yüklediğin SKILL'de yaşar. Sahiplik tektir; "
-            "aynı işi roller arasında bölme. Ayrı ajan yalnız iki durumda: "
-            "bağımsız doğrulama ve izole araştırma.")
-    else:
-        lines.append(
-            "👤 Sahip disiplin: BELİRSİZ — işin hangi disiplinin işi olduğunu "
-            "ilk cümlede sen belirle ya da kullanıcıya sor; uydurma.")
-
-    # İtiraz yükümlülüğü: uzman susarak uymaz, gerekçeyle itiraz eder.
-    lines.append(
-        "İTİRAZ YÜKÜMLÜLÜĞÜ: isteğin yanlış/eksik/riskli olduğunu düşünüyorsan "
-        "uygulamadan ÖNCE tek paragraf itiraz yaz (neyi, neden, alternatif ne). "
-        "Sessiz uyum kabul edilmez; itiraz ettikten sonra kullanıcı ısrar "
-        "ederse kararı uygula ve bunu belirt.")
-
-    # Görünürlük sözleşmesi: kullanıcı ne olduğunu yazışmadan anlamalı.
-    # Kullanıcının şikâyeti buydu ("hangi skill çağrıldı görmüyorum") — bu
-    # yüzden biçim temenni değil, her turda enjekte edilen zorunluluk.
-    lines.append(
-        "Cevabına ŞU BAŞLIKLA BAŞLA (kullanıcı yazışmada ne olduğunu görmeli):\n"
-        "🧭 Skill: <yüklediğin skill | 'yok — <tek cümle gerekçe>'>"
-        f"  ·  Sınıf: {task_class}  ·  Risk: "
-        f"{(primary or {}).get('risk', 'auto')}\n"
-        f"👤 Sahip: {owner or 'belirsiz'}\n"
-        "🔧 Yaptım: <tek cümle, somut — hangi dosya/komut/sonuç>\n"
-        "Alt-ajan çağırdıysan ek satır: 🤖 Ajan: <rol> — <ne için>\n"
-        "Sohbet/soru turunda da başlığı yaz; skill yoksa 'yok' de.")
+    lines += _davranis_satirlari(prompt, cfg, primary, task_class)
 
     context = "\n".join(lines)
     picked = primary["skill"] if primary else "—"
@@ -328,6 +304,12 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     if extras:
         summary += f" (+{len(extras)})"
     return context, summary
+
+
+def _davranis_satirlari(prompt, cfg, primary, task_class):
+    """Her turda enjekte edilen davranış sözleşmesi (metinler: davranis.py)."""
+    return davranis.sozlesme(sahip(prompt, cfg, primary), task_class,
+                             (primary or {}).get("risk", "auto"))
 
 
 def _kaydet(prompt, cfg, pdir):
