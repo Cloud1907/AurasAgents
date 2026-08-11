@@ -8,6 +8,10 @@ profil söyler, tetik kelimeleri değil.
 """
 import os
 
+# Kanonik kernel kökü: proje kendi profillerini taşımıyorsa buraya düşülür
+# (routing tablosunda zaten aynı sıra geçerli — bkz. route.routing_path).
+KANONIK = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def skill_installed(skill, pdir):
     """Skill bu projede ya da kullanıcı-global dizinde kurulu mu."""
@@ -23,14 +27,27 @@ def skill_task_class(skill, pdir):
     """Skill'i izinli sayan profilin sınıfı (yoksa None).
 
     Profil izin sınırıdır, dolayısıyla sınıfın OTORİTESİ odur — tahmin değil.
-    Bilinmeyen skill'de None döner; çağıran o zaman kelime puanlamasına
-    düşer, çünkü sınıfı uydurmak izin sınırını uydurmaktır.
+    Bilinmeyen skill'de None döner; çağıran o zaman zorunluluk iddia etmez,
+    çünkü sınıfı uydurmak izin sınırını uydurmaktır.
+
+    Proje profilleri yoksa KANONİK profillere düşülür. Önyükleme durumu:
+    repoyu sisteme bağlayan skill, henüz `.agents/`ı olmayan repoda çağrılır;
+    orada sınıfsız kalmak dosya yazan işi salt-okunur profile mahkûm ederdi.
     """
     try:
         import yaml  # route.load_rules ile aynı biçim: yoksa sessiz çekil
     except ImportError:
         return None
-    pd = os.path.join(pdir, ".agents", "capability-profiles")
+    for kok in (pdir, KANONIK):
+        sinif = _profilden_sinif(skill, kok, yaml)
+        if sinif:
+            return sinif
+    return None
+
+
+def _profilden_sinif(skill, kok, yaml):
+    """Tek bir kökün profillerinde skill'i arar."""
+    pd = os.path.join(kok, ".agents", "capability-profiles")
     try:
         adlar = sorted(os.listdir(pd))
     except OSError:

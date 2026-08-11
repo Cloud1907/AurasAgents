@@ -307,3 +307,19 @@ class KuralsizKomutTest(unittest.TestCase):
             self.assertEqual(kural, {"skill": "tanimli-skill",
                                      "task_class": "research",
                                      "risk": "auto"})
+
+    def test_profilsiz_projede_kanonik_profile_dusulur(self):
+        """Bağlanmamış repo: profil yok ama /komut sınıfını kaybetmemeli.
+
+        Önyükleme durumu — repoyu sisteme BAĞLAYAN skill, henüz .agents/'ı
+        olmayan repoda çağrılır. Sınıf bulunamazsa dosya yazan iş salt-okunur
+        profile düşer. Tablo için zaten kanoniğe düşülüyor (routing_path);
+        profil için de aynı yol geçerli olmalı.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, ".agents", "skills",
+                                     "project-onboarding"))
+            kural = route.kuralsiz_komut_kurali("project-onboarding", tmp)
+            self.assertEqual(kural, {"skill": "project-onboarding",
+                                     "task_class": "code-change",
+                                     "risk": "approval"})
