@@ -39,6 +39,29 @@ class NiyetKapisiTest(unittest.TestCase):
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
 
+    # --- incele.py P1 bulguları, 9. tur (PR #49) ---
+
+    def test_egri_tek_tirnak_da_alintidir(self):
+        # P1: ‘…’ (U+2018/2019) tanınmıyordu — düz tırnak tanınırken eğri
+        # tırnak tanınmaması, aynı cümleyi klavyeye göre farklı sınıflara
+        # yolluyordu.
+        tc, _s, _e, _x = self.pick(
+            "router çıktısındaki ‘kodu düzelt ve uygula’ ifadesini incele")
+        self.assertEqual(tc, "research")
+
+    def test_anma_isareti_alinti_basina_baglanir(self):
+        # P1: tek bir anma işareti metindeki TÜM alıntıları siliyordu;
+        # ikinci alıntı kullanıcının gerçek emriyken yok oluyordu.
+        tc, _s, _e, _x = self.pick(
+            '"router çıktısı" ifadesini incele; ardından '
+            '"auth açığını düzelt"')
+        self.assertEqual(tc, "code-change")
+
+    def test_ikinci_cogul_iyelik_ad_ceki(self):
+        # P1: -inizi biçimi ad çekimi sayılmıyordu.
+        tc, _s, _e, _x = self.pick("bu PR için güvenlik analizinizi yapın")
+        self.assertEqual(tc, "research")
+
     # --- incele.py P1 bulguları, 8. tur (PR #49) ---
 
     def test_anma_isareti_alinti_disinda_ve_kelime_siniriyla_aranir(self):

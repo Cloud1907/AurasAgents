@@ -90,7 +90,9 @@ _VN_EK = re.compile(r"^m[ae](?:m|m[ıiuü]z|n|n[ıiuü]z|s[ıi]|l[ae]r[ıi])$")
 # sayılır — yoksa "router'ı düzelt ve endpoint'i ekle" cümlesinin ortası
 # alıntı sanılıp silinirdi.
 _ALINTI = re.compile(
-    r"(?<![0-9a-zçğıöşüA-ZÇĞİÖŞÜ])'[^']*'|\"[^\"]*\"|`[^`]*`|“[^”]*”")
+    r"(?<![0-9a-zçğıöşüA-ZÇĞİÖŞÜ])'[^']*'|\"[^\"]*\"|`[^`]*`|“[^”]*”"
+    r"|‘[^’]*’")   # eğri tek tırnak (inceleme 9. tur): klavye farkı
+                   # aynı cümleyi farklı sınıfa yollamamalı
 # Tırnak tek başına "anma" demek DEĞİLDİR: kullanıcı kendi emrini de
 # tırnaklayabilir ("auth açığını düzelt" ve yaptıklarını raporla) ve o
 # istek yazmadır (inceleme 7. tur). Anma POZİTİF kanıt ister — alıntının
@@ -105,26 +107,49 @@ _ANMA_ISARETI = re.compile(
     r"başlık|alıntı|diyor|geçiyor|yazıyor|deniyor)|\blog\b")
 
 
-def anma_var(text):
-    """Alıntı, ANILAN metin olarak mı sunuluyor (yoksa kullanıcının emri)?
+# Anma işareti alıntının KENDİ komşuluğunda aranır (inceleme 9. tur):
+# tek bir işaretin metindeki bütün alıntıları silmesi, ikinci alıntıdaki
+# gerçek emri yok ediyordu. Pencere komşu alıntıda kesilir, böylece
+# önceki alıntıya ait işaret sonrakine sızmaz.
+_PENCERE = 25
 
-    İşaret alıntının DIŞINDA aranır: alıntının kendi içindeki "ifade"
-    kelimesi, alıntıyı anma olarak nitelemeye yetmez — yoksa metin kendi
-    kendine izin verirdi (inceleme 8. tur).
+
+def _anma_komsulugu(text, bas, son, sinirlar):
+    """Alıntının hemen öncesi/sonrası — komşu alıntıda kesilmiş."""
+    onceki_son = max((s for _b, s in sinirlar if s <= bas), default=0)
+    sonraki_bas = min((b for b, _s in sinirlar if b >= son), default=len(text))
+    return text[max(onceki_son, bas - _PENCERE):bas] + " " + \
+        text[son:min(sonraki_bas, son + _PENCERE)]
+
+
+def anma_var(text):
+    """Metinde ANILAN (kullanıcının emri olmayan) bir alıntı var mı?"""
+    return any(_anma_alintilari(text))
+
+
+def _anma_alintilari(text):
+    """Anma işaretiyle nitelenmiş alıntıların (başlangıç, bitiş) listesi.
+
+    İşaret alıntının DIŞINDA aranır — alıntının kendi içindeki "ifade"
+    kelimesi onu anma yapmaya yetmez, yoksa metin kendine izin verirdi
+    (inceleme 8. tur).
     """
-    disari = _ALINTI.sub(" ", text)
-    return bool(_ANMA_ISARETI.search(disari))
+    sinirlar = [(m.start(), m.end()) for m in _ALINTI.finditer(text)]
+    return [(bas, son) for bas, son in sinirlar
+            if _ANMA_ISARETI.search(_anma_komsulugu(text, bas, son, sinirlar))]
 
 
 def alintisiz(text):
-    """Anılan alıntıları boşlukla değiştirir (konumlar korunur).
+    """ANILAN alıntıları boşlukla değiştirir (konumlar korunur).
 
-    Anma işareti yoksa tırnak korunur: kullanıcının kendi emrini
+    Anma işareti taşımayan alıntı korunur: kullanıcının kendi emrini
     tırnaklaması niyeti yok etmemeli.
     """
-    if not anma_var(text):
-        return text
-    return _ALINTI.sub(lambda m: " " * len(m.group()), text)
+    parcalar = list(text)
+    for bas, son in _anma_alintilari(text):
+        for i in range(bas, son):
+            parcalar[i] = " "
+    return "".join(parcalar)
 
 
 # Birleşik fiil: "analiz yap" gibi kalıplarda anlamı AD taşır, "yap"
@@ -144,7 +169,9 @@ OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
 # sayılıyordu). Türemiş ad hâlâ dışarıda kalır: "analizör" → "ör".
 _AD_EK = re.compile(
     r"^(?:[yns]?[ıiuü]n?[ıiuü]?|[yns]?[ae]|[dt][ae]n?|"
-    r"[ıiuü]m[ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
+    r"[ıiuü][mn][ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
+#            ^ -imiz/-imizi ve -iniz/-inizi (2. çoğul iyelik, 9. tur:
+#              "güvenlik analizinizi yapın" salt-okunur denetimdir)
 
 
 def _okuma_adi_mi(tokenlar, i):
