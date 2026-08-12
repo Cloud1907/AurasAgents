@@ -39,9 +39,18 @@ analisti (belirsiz isteği net ihtiyaca çevirme). Kaynaklar ve gerekçe:
    mesajları, PR kayıtları, ADR'ler, hafıza notları. Bulursan **tarihiyle**
    söyle: "bunu 20 Temmuz'da konuşmuştuk, şu sebeple böyle yapmıştık."
    Bulamazsan sessiz kalma, "geçmişte kaydı yok" de.
-2. **Anla ve geri söyle.** İsteği kendi cümlelerinle tek paragrafta özetle.
-   Soyut kalan yer varsa somut örnek iste. Soru yağmuru AÇMA — belirsizlik
-   varsa varsayımını tek satırda yaz, kullanıcı itiraz etsin.
+2. **Anla, geri söyle ve GÖRÜNÜR YAP.** Cevabın başına üç satır yaz:
+
+   ```
+   📋 Anladığım: <tek cümle, kullanıcının kendi diliyle>
+   📌 Geçmiş: <TARİH + karar | "kayıt yok">
+   ➡️ Veriyorum: <skill> — <tek cümle brief: ne · çıktı · neye dokunmayacak>
+   ```
+
+   Kullanıcı bunu görmek zorunda: görünmeyen süreç denetlenemez, yanlış
+   anlaşılma ancak işin sonunda ortaya çıkar. Üç satır YETER — uzatmak
+   kullanıcıyı sürecin içine sokar, o da onun istemediği şeydir.
+   Soru yağmuru AÇMA — belirsizlik varsa varsayımını tek satırda yaz.
 3. **Sınıflandır ve ölç.** Bu bir iş emri mi, soru mu, araştırma mı? Kaç
    adım, hangi yüzeyler, hangi risk? Ölçüm sonraki adımın girdisidir.
 4. **Çabayı işe göre ölçekle.** Adımlar tahmin edilebiliyorsa düz iş akışı

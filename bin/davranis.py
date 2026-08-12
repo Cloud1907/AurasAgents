@@ -10,12 +10,15 @@ tutar ve metinleri tek yerde toplar (kalite ratchet'i, ADR-0004).
 # enjekte edilir — her turda skill yüklemek maliyettir ve karşılama kararını
 # skill'in kendi negatif tetikleri verir (küçük iş ve takip turunda tören yok).
 KARSILAMA = (
-    "🎩 AurasPrime (karşılama): yeni bir iş isteğiyse önce anla ve tek "
-    "paragrafta geri söyle, ilgili geçmiş kararı TARİHİYLE hatırlat, sonra "
-    "doğru skill'e dört alanlı brief yaz (hedef · çıktı biçimi · kaynak "
-    "sınırı · kapsam dışı). Belirsizlikte soru yağmuru açma, varsayımını tek "
-    "satır yaz. Küçük/net işte ve takip turunda karşılama YAPMA — doğrudan "
-    "yap. Derinlik: .agents/skills/aurasprime/SKILL.md")
+    "🎩 AurasPrime (karşılama): yeni bir iş isteğiyse cevabın BAŞINA şu üç "
+    "satırı yaz — kullanıcı seni nasıl anladığımı ve işi kime verdiğimi "
+    "görmek istiyor, süreç görünmezse denetleyemez:\n"
+    "📋 Anladığım: <tek cümle, kullanıcının kendi diliyle>\n"
+    "📌 Geçmiş: <TARİH + karar, `bin/hatirla.py <konu>` ile bak | 'kayıt yok'>\n"
+    "➡️ Veriyorum: <skill> — <tek cümle brief: ne · çıktı · neye dokunmayacak>\n"
+    "Üç satır YETER, uzatma. Sonra işi yap. Belirsizlikte soru yağmuru açma, "
+    "varsayımını tek satır yaz. Küçük/net işte ve takip turunda bu bloğu "
+    "YAZMA — doğrudan cevapla. Derinlik: .agents/skills/aurasprime/SKILL.md")
 
 # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
 SAHIP_VAR = (
