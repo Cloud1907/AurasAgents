@@ -123,28 +123,35 @@ _SINIR = re.compile(r"[;:.!?\n]")
 def _anma_komsulugu(text, bas, son, sinirlar):
     """Alıntıyı niteleyebilecek komşuluk: sonrası + hemen öncesi.
 
-    Sonrası — bir sonraki alıntıya ya da cümle sınırına kadar ("'…'
-    ifadesini incele"). Öncesi — son iki kelime, cümle sınırı aşılmadan
-    ("router çıktısındaki '…'"). Uzaktaki işaret bağlamaz.
+    İKİ YÖN de aynı ölçüyle sınırlıdır: son/ilk iki kelime, cümle sınırı
+    aşılmadan. 10. turda yalnız öncesi sınırlanmıştı; sonrası cümle
+    sonuna kadar serbest kalınca uzaktaki bir işaret ("… ve yaptıklarını
+    MESAJ olarak raporla") alıntıya bağlanıp kullanıcının emrini
+    siliyordu (inceleme 11. tur). Niteleme yakınlıktır; asimetrik
+    pencere, bir yönde sessiz bir açık demektir.
     """
     onceki_son = max((s for _b, s in sinirlar if s <= bas), default=0)
     sonraki_bas = min((b for b, _s in sinirlar if b >= son), default=len(text))
-
-    sonrasi = text[son:sonraki_bas]
-    kesme = _SINIR.search(sonrasi)
-    if kesme:
-        sonrasi = sonrasi[:kesme.start()]
-
-    oncesi = text[onceki_son:bas]
-    son_sinir = None
-    for m in _SINIR.finditer(oncesi):
-        son_sinir = m
-    if son_sinir:
-        oncesi = oncesi[son_sinir.end():]
-    kelimeler = [m.group() for m in _TOKEN_RE.finditer(oncesi)]
-    oncesi = " ".join(kelimeler[-_KOMSU_KELIME:])
-
+    oncesi = _kirp(text[onceki_son:bas], bas=False)
+    sonrasi = _kirp(text[son:sonraki_bas], bas=True)
     return oncesi + " " + sonrasi
+
+
+def _kirp(parca, bas):
+    """Cümle sınırında kes, sonra baştan/sondan _KOMSU_KELIME kelime al."""
+    if bas:
+        kesme = _SINIR.search(parca)
+        if kesme:
+            parca = parca[:kesme.start()]
+    else:
+        son_sinir = None
+        for m in _SINIR.finditer(parca):
+            son_sinir = m
+        if son_sinir:
+            parca = parca[son_sinir.end():]
+    kelimeler = [m.group() for m in _TOKEN_RE.finditer(parca)]
+    secilen = kelimeler[:_KOMSU_KELIME] if bas else kelimeler[-_KOMSU_KELIME:]
+    return " ".join(secilen)
 
 
 def anma_var(text):
@@ -193,11 +200,16 @@ OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
 # -ı → "araştırmayı" (inceleme 8. tur — onsuz salt-okunur istek yazma
 # sayılıyordu). Türemiş ad hâlâ dışarıda kalır: "analizör" → "ör".
 _AD_EK = re.compile(
-    r"^(?:[yns]?[ıiuü]n?[ıiuü]?|[yns]?[ae]|[dt][ae]n?|"
+    r"^(?:[yns]?[ıiuü]n?[ıiuü]?|"
     r"[ıiuü]?[mn][ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
 #            ^ -imiz/-imizi, -iniz/-inizi (ünsüzle biten: "analizinizi")
 #              ve ünlüyle bitende kaynaştırmalı -niz/-nizi
 #              ("incelemenizi", "araştırmanızı" — 9. ve 10. tur)
+#
+# Ayrılma/bulunma/yönelme hâli (-dAn/-dA/-A) BİLİNÇLİ olarak dışarıda
+# (inceleme 11. tur): birleşik fiilin nesnesi yalın ya da belirtme
+# hâlindedir. "analizDEN sonra düzeltmeyi yap" cümlesinde ad, "yap"ın
+# nesnesi değil zaman belirtecidir — istek gerçek bir iş emridir.
 
 
 def _okuma_adi_mi(tokenlar, i):

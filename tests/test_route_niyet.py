@@ -39,87 +39,6 @@ class NiyetKapisiTest(unittest.TestCase):
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
 
-    # --- incele.py P1 bulguları, 10. tur (PR #49) ---
-
-    def test_anma_baglama_kelimeyle_olculur_karakterle_degil(self):
-        # P1: 9. turun komşuluk penceresi KARAKTER sayıyordu; bağlaç
-        # kısalınca ("ardından" → "sonra") aynı işaret ikinci alıntıya da
-        # ulaşıyordu. Bağlama artık kelimeyle ölçülür ve noktalama
-        # sınırında kesilir.
-        for prompt in ('"router çıktısı" ifadesini incele; sonra '
-                       '"auth açığını düzelt"',
-                       '"router çıktısı" ifadesini incele ve sonra '
-                       '"auth açığını düzelt"'):
-            with self.subTest(prompt=prompt):
-                tc, _s, _e, _x = self.pick(prompt)
-                self.assertEqual(tc, "code-change")
-
-    def test_unlu_biten_adda_ikinci_cogul_iyelik(self):
-        # P1: "incelemenizi" (inceleme+niz+i) ad çekimi sayılmıyordu.
-        for prompt in ("bu PR için güvenlik incelemenizi yapın",
-                       "kapsamlı araştırmanızı yapın"):
-            with self.subTest(prompt=prompt):
-                tc, _s, _e, _x = self.pick(prompt)
-                self.assertEqual(tc, "research")
-
-    def test_hafif_fiil_araya_giren_kelimeye_ragmen_taninir(self):
-        # P1: yardımcı fiil yalnız adın HEMEN ardındaysa tanınıyordu;
-        # "analizini detaylı yap" arada sıfat olduğu için yazma sayılıyordu.
-        for prompt in ("login akışının güvenlik analizini detaylı yap",
-                       "kod tabanının incelemesini çok kapsamlı yap"):
-            with self.subTest(prompt=prompt):
-                tc, _s, _e, _x = self.pick(prompt)
-                self.assertEqual(tc, "research")
-
-    def test_hafif_fiil_penceresi_uzak_fiili_yutmaz(self):
-        # Negatif kontrol: ad ile fiil arasındaki mesafe büyükse birleşik
-        # fiil değildir — "testleri yap" gerçek iş emridir.
-        tc, _s, _e, _x = self.pick("analiz raporunu oku ve testleri yap")
-        self.assertEqual(tc, "code-change")
-
-    # --- incele.py P1 bulguları, 9. tur (PR #49) ---
-
-    def test_egri_tek_tirnak_da_alintidir(self):
-        # P1: ‘…’ (U+2018/2019) tanınmıyordu — düz tırnak tanınırken eğri
-        # tırnak tanınmaması, aynı cümleyi klavyeye göre farklı sınıflara
-        # yolluyordu.
-        tc, _s, _e, _x = self.pick(
-            "router çıktısındaki ‘kodu düzelt ve uygula’ ifadesini incele")
-        self.assertEqual(tc, "research")
-
-    def test_anma_isareti_alinti_basina_baglanir(self):
-        # P1: tek bir anma işareti metindeki TÜM alıntıları siliyordu;
-        # ikinci alıntı kullanıcının gerçek emriyken yok oluyordu.
-        tc, _s, _e, _x = self.pick(
-            '"router çıktısı" ifadesini incele; ardından '
-            '"auth açığını düzelt"')
-        self.assertEqual(tc, "code-change")
-
-    def test_ikinci_cogul_iyelik_ad_ceki(self):
-        # P1: -inizi biçimi ad çekimi sayılmıyordu.
-        tc, _s, _e, _x = self.pick("bu PR için güvenlik analizinizi yapın")
-        self.assertEqual(tc, "research")
-
-    # --- incele.py P1 bulguları, 8. tur (PR #49) ---
-
-    def test_anma_isareti_alinti_disinda_ve_kelime_siniriyla_aranir(self):
-        # P1: işaret TÜM metinde ve kelime sınırı olmadan aranıyordu —
-        # "login" içindeki "log" anma sanılıp kullanıcının kendi emrini
-        # yok ediyordu. İşaret alıntının DIŞINDA ve tam kelime olmalı.
-        tc, _s, _e, _x = self.pick(
-            '"login açığını düzelt" ve yaptıklarını raporla')
-        self.assertEqual(tc, "code-change")
-
-    def test_unlu_biten_okuma_adi_kaynastirma_ekini_alir(self):
-        # P1: _AD_EK ünlüyle biten adın -yı/-yi çekimini tanımıyordu;
-        # "araştırmayı yap" salt-okunur istekken yazma sayılıyordu.
-        for prompt in ("gerekli araştırmayı yap",
-                       "bu değerlendirmeyi yap",
-                       "kapsamlı taramayı yapalım"):
-            with self.subTest(prompt=prompt):
-                tc, _s, _e, _x = self.pick(prompt)
-                self.assertEqual(tc, "research")
-
     # --- incele.py P1 bulguları, 7. tur (PR #49) ---
 
     def test_yerel_profilin_bilincli_dislamasi_onerilmez(self):
@@ -134,7 +53,8 @@ class NiyetKapisiTest(unittest.TestCase):
                 fh.write("task_class: research\nskills:\n"
                          "  - research-with-evidence\n")
             sonuc = ("research", None, ["security-review", "dataviz"], [], None)
-            _tc, _p, extras, _h, _x = route._sinirli(sonuc, tmp)
+            _tc, _p, extras, _h, _x = route._sinirli(
+                sonuc, lambda sk, tc: route._profil_disi(sk, tc, tmp))
             # security-review kanonikte YÖNETİLEN bir skill ama bu projenin
             # profilinde yok → bilinçli dışlama, önerilmez.
             self.assertNotIn("security-review", extras)

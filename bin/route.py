@@ -35,7 +35,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import davranis
-    from secim import _eskale, _puanla, soru_turu
+    from secim import _eskale, _puanla, _sinirli, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
                              sinifta_izinli, skill_installed, skill_izinli,
                              skill_task_class)
@@ -66,6 +66,9 @@ try:
 except Exception:                                    # pragma: no cover
     def niyet_kapisi(text, scored, extras):
         return scored, extras
+
+    def _sinirli(sonuc, profil_disi):
+        return sonuc
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
@@ -191,33 +194,21 @@ def route(prompt, cfg, pdir=None):
     sonuc = _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
                          pd), scored,
                     olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
-    return _sinirli(sonuc, pd)
+    return _sinirli(sonuc,
+                    lambda sk, tc: _profil_disi(sk, tc, pd))
 
 
-def _sinirli(sonuc, pdir):
-    """Öneri listesini turun NİHAİ sınıfına göre süz (eskalasyondan sonra).
+def _profil_disi(skill, task_class, pdir):
+    """Skill bu sınıfta izinsiz mi (yönetiliyorsa ve sınıfta yoksa)?
 
-    Profil "izin sınırı"dır (AGENTS.md); ÖNERİ de o sınıra tabidir.
-    Salt-okunur tura düşen yazma kuralını "Ek skill" diye sunmak sınırı
-    tavsiyeye çevirirdi (inceleme 5. tur, PR #43).
-
-    Yalnız sistemin YÖNETTİĞİ skill süzülür: profillerde hiç geçmeyen ad
-    kapsam dışıdır, dışlama değil — `profil_disinda`nın aynı üç-durum
-    ayrımı. Eklenti skill'ini öneriden düşürmek router'ı kullanıcının
-    aracına karşı çalıştırırdı.
-
-    "Yönetilen" iki kanaldan sorulur (inceleme 7. tur, PR #49): skill bir
-    profilde geçiyorsa `skill_izinli`, projenin profilinden bilinçle
-    ÇIKARILMIŞSA `profil_disinda` doğru döner. Yalnız birincisine bakmak
-    yerel dışlamayı sessizce tavsiyeye çevirirdi — ikisi de False ise ad
-    gerçekten kapsam dışıdır.
+    "Yönetilen" iki kanaldan sorulur (inceleme 7. tur): bir profilde
+    geçiyorsa `skill_izinli`, projenin profilinden bilinçle ÇIKARILMIŞSA
+    `profil_disinda` doğru döner. İkisi de False ise ad gerçekten kapsam
+    dışıdır (eklenti skill'i) ve karışılmaz.
     """
-    task_class, primary, extras, hits, explicit = sonuc
-    sinirli_extras = [
-        s for s in extras
-        if sinifta_izinli(s, task_class, pdir)
-        or not (skill_izinli(s, pdir) or profil_disinda(s, pdir))]
-    return task_class, primary, sinirli_extras, hits, explicit
+    if not skill or sinifta_izinli(skill, task_class, pdir):
+        return False
+    return skill_izinli(skill, pdir) or profil_disinda(skill, pdir)
 
 
 def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
