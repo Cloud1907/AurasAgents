@@ -8,10 +8,11 @@
 # Eşleşme kuralı: istek küçük harfe indirilir, kelimelere bölünür; bir tetik
 # kelime, isteğin bir kelimesinin BAŞINDA geçiyorsa eşleşir (Türkçe eklerin
 # üstesinden gelmek için: "ekle" → "ekleyelim", "eklemek"). Boşluk içeren
-# tetikler alt-dize olarak aranır. Puan = eşleşen tetik sayısı; en yüksek
-# puanlı kural birincil, diğerleri ek skill olur. Puan eşitliğinde
-# `specificity` (varsayılan 1) yüksek olan kazanır: alan-özgül kural,
-# genel kuralı yener. Açık /komut her şeyi yener.
+# tetikler alt-dize olarak aranır. Puan = eşleşen tetik sayısı × specificity
+# (varsayılan 1); en yüksek puanlı kural birincil, diğerleri ek skill olur.
+# Çarpım bilinçli: doğal cümledeki genel fiiller ("düzelt ve uygula") tek
+# özgül tetiği sayıyla ezememeli. Puan eşitliğinde specificity bozar.
+# Açık /komut her şeyi yener.
 
 schema_version: 1
 
@@ -189,6 +190,28 @@ rules:
       - bağla
       - auras kur
 
+  # Olay sınıfı: incident profili tanımlıydı ama hiçbir kural onu
+  # üretmiyordu — ulaşılamayan profil, olmayan korumadır. Sınıf SEÇİMLE
+  # değil ESKALASYONLA gelir (route._eskale): olay tetiği görüldüyse sınıf
+  # incident'a çıkar, skill seçimi normal akışta kalır. Sayı yarışı yok —
+  # "prod çöktü, düzelt ve uygula"daki genel fiiller sınıfı düşüremez
+  # (üç turda ölçüldü: sayı-tabanlı her formül yenildi; grilling dersi).
+  # Tetikler somut olay İFADELERİ: tek kelime "kesinti" önek eşleşmesiyle
+  # "kesintisiz"i, "servis durdu" alt-dizesi "servis durdurma"yı yakalıyordu.
+  - skill: implement-change
+    owner: devops-engineer
+    specificity: 3
+    task_class: incident
+    risk: approval
+    triggers:
+      - prod çöktü
+      - üretim hatası
+      - kesinti var
+      - kesinti yaşıyoruz
+      - acil müdahale
+      - servis çöktü
+      - canlıda hata
+
   - skill: codex-debate
     owner: software-architect
     specificity: 2
@@ -223,11 +246,29 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
+  - skill: aurasprime
+    reason: >-
+      Kelime tetiğiyle seçilmez çünkü BELİRLİ bir işin skill'i değil, her
+      isteğin giriş noktasıdır — tabloya kural yazmak onu diğer skill'lerle
+      yarıştırırdı. Bağlanma yolu router hook'udur (karşılama katmanı, ayrı
+      iş); o bağlanana dek elle `/aurasprime` ile çağrılabilir.
+  - skill: grilling
+    reason: >-
+      Giriş yalnız /grilling. Doğal dil tetiği denendi ve KALDIRILDI: anahtar
+      kelime katmanı cümleyi anlamadığı için ret ("sorguya çekme"), alıntı
+      ("'sorguya çek' ne demek"), yük testi ve yemek anlamları sürekli
+      yanlış-pozitif üretti. Yanlış açılan sorgu oturumu kullanıcının "ara
+      soru sorma" tercihini ihlal ettiğinden bedeli, kaçırmanın bedelinden
+      yüksek — açık komut hem kesin hem yeterli.
   - skill: project-onboarding
     reason: >-
       auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
-      yaratmamak için giriş noktası auras'tır; bu skill onun altında çağrılan
-      prosedürdür. İkisinin birleştirilmesi ayrı bir kernel işidir.
+      yaratmamak için KELİME yönlendirmesinin giriş noktası auras'tır; bu
+      skill onun altında çağrılan prosedürdür. not_routed yalnız kelime
+      yolunu kapatır: /project-onboarding ile doğrudan çağrılabilir ve
+      code-change profilinde tanımlıdır (dosya yazar) — açık komut kasıtlı
+      kaçış yoludur, kullanıcının iradesi kelimeyle bastırılmaz.
+      İkisinin birleştirilmesi ayrı bir kernel işidir.
 
 fallback:
   task_class: research
