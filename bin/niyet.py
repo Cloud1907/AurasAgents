@@ -102,9 +102,12 @@ _ALINTI = re.compile(
 # içindeki "log"u anma sanıp kullanıcının kendi emrini yok ediyordu.
 # Kök + ek serbest ("ifadesini"), ama kök kelime başında olmalı; "log"
 # tam kelime aranır çünkü çok kısa ve yaygın bir alt-dizedir.
+# Ünlü düşmesi kökü kısaltır: metin + -i → "metni" (12. tur — kök olduğu
+# gibi arandığı için anma hiç görülmüyordu). Liste tarandı: çekimde
+# ünlüsünü düşüren tek ad "metin".
 _ANMA_ISARETI = re.compile(
-    r"\b(?:ifade|cümle|metin|çıktı|kelime|satır|mesaj|yorum|ibare|terim|"
-    r"başlık|alıntı|diyor|geçiyor|yazıyor|deniyor)|\blog\b")
+    r"\b(?:ifade|cümle|met(?:in|n)|çıktı|kelime|satır|mesaj|yorum|ibare|"
+    r"terim|başlık|alıntı|diyor|geçiyor|yazıyor|deniyor)|\blog\b")
 
 
 # Anma işareti alıntının KENDİ komşuluğunda aranır (inceleme 9. tur):
@@ -117,7 +120,9 @@ _ANMA_ISARETI = re.compile(
 # oynayan bir kapı, kapı değildir. Ayrıca pencere noktalama sınırında
 # kesilir: ";" sonrası yeni bir cümledir, önceki nitelemeyi taşımaz.
 _KOMSU_KELIME = 2
-_SINIR = re.compile(r"[;:.!?\n]")
+# Nokta ancak kelimenin İÇİNDE değilse cümle sonudur (12. tur P1): sınır
+# ham metinde arandığından "foo.py" cümleyi bölüp isteği yazmaya çeviriyordu.
+_SINIR = re.compile(r"[;:!?\n]|\.(?![0-9a-zçğıöşü])")
 
 
 def _anma_komsulugu(text, bas, son, sinirlar):
@@ -242,7 +247,13 @@ _ARAYA_GIREN = 2
 
 
 def _hafif_fiil_yerleri(text):
-    """Okuma adının ardındaki yardımcı fiillerin (başlangıç, bitiş)."""
+    """Okuma adının ardındaki yardımcı fiillerin (başlangıç, bitiş).
+
+    Ad ile yardımcı AYNI cümlede olmalıdır (inceleme 12. tur): pencere
+    noktalamayı aşınca "araştırma tamam; migration yap" okuma sayılıyordu.
+    Ölçü alıntı bağlamasıyla aynı (_SINIR) ve HAM metin diliminde aranır —
+    nokta token'a yapışır ("tamam."), token aralığı onu kaçırırdı.
+    """
     tokenlar = list(_TOKEN_RE.finditer(text))
     yerler = []
     for i in range(1, len(tokenlar)):
@@ -252,6 +263,7 @@ def _hafif_fiil_yerleri(text):
                    for f in HAFIF_FIILLER):
             continue
         if any(_okuma_adi_mi(tokenlar, j)
+               and not _SINIR.search(text[tokenlar[j].end():simdi.start()])
                for j in range(max(0, i - 1 - _ARAYA_GIREN), i)):
             yerler.append((simdi.start(), simdi.end()))
     return yerler
