@@ -6,6 +6,7 @@ dayanır. Manifest yanılabiliyordu (2026-08-05 / 4cast); geçmiş yanılmaz.
 """
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -36,7 +37,32 @@ def yaz(kok, rel, icerik):
         fh.write(icerik)
 
 
+_IMPORT = re.compile(r"^\s*import\s+([^\n#]+)|^\s*from\s+([a-z_][a-z0-9_]*)",
+                     re.M)
+
+
+def _import_edilen_moduller(kaynak):
+    """Kaynaktaki üst düzey modül adları — `import os, report` dahil.
+
+    Tek modül varsayan regex, virgüllü import'ta ikinciyi kaçırırdı: taşınmayan
+    bağımlılık sessizce listeden düşerdi.
+    """
+    for duz, gelen in _IMPORT.findall(kaynak):
+        if gelen:
+            yield gelen
+            continue
+        for parca in duz.split(","):
+            ad = parca.strip().split(" as ")[0].split(".")[0].strip()
+            if re.fullmatch(r"[a-z_][a-z0-9_]*", ad or ""):
+                yield ad
+
+
 class MotorListesiTest(unittest.TestCase):
+    def test_import_ayristirici_virgullu_listeyi_gorur(self):
+        moduller = set(_import_edilen_moduller(
+            "import os, report\nfrom surec import x\nimport kalite as k\n"))
+        self.assertEqual(moduller, {"os", "report", "surec", "kalite"})
+
     def test_liste_tekrarsiz(self):
         hepsi = kd.MOTOR + kd.MOTOR_DIZIN
         self.assertEqual(len(hepsi), len(set(hepsi)), "listede tekrar var")
@@ -47,6 +73,27 @@ class MotorListesiTest(unittest.TestCase):
         for rel in kd.MOTOR + kd.MOTOR_DIZIN:
             self.assertIsNotNone(kd.yol_coz(ROOT, rel),
                                  f"listede ama repoda yok: {rel}")
+
+    def test_tasinan_betigin_bagimliligi_da_tasinir(self):
+        """Motor betiği yerel bir bin/ modülünü import ediyorsa o da MOTOR'da.
+
+        Yoksa /auras projeye betiği taşır, bağımlılığını taşımaz: import
+        patlar. En kötüsü de sessiz patlamadır — route.py import hatasında
+        exit 0 der, yönlendirme kaybolur ama kimse fark etmez.
+        """
+        yerel = {f[:-3] for f in os.listdir(os.path.join(ROOT, "bin"))
+                 if f.endswith(".py")}
+        for rel in kd.MOTOR:
+            if not (rel.startswith("bin/") and rel.endswith(".py")):
+                continue
+            yol = kd.yol_coz(ROOT, rel)
+            kaynak = open(yol, encoding="utf-8").read()
+            for mod in _import_edilen_moduller(kaynak):
+                if mod in yerel and f"bin/{mod}.py" != rel:
+                    self.assertIn(
+                        f"bin/{mod}.py", kd.MOTOR,
+                        f"{rel} 'bin/{mod}.py' modülünü import ediyor ama o "
+                        "MOTOR listesinde yok — bağlı projede import patlar")
 
     def test_kendi_araclarini_tasir(self):
         # Geri taşıma yolu bağlı projeye de gitmeli, yoksa orada kullanılamaz

@@ -101,6 +101,73 @@ class RouteTest(unittest.TestCase):
         _tc, skill, _e, _x = self.pick("dashboard ekranını premium tasarla")
         self.assertEqual(skill, "designing-interfaces")
 
+    def test_grilling_dogal_dille_yonlendirilmez(self):
+        """grilling YALNIZ /grilling ile çağrılır — doğal dil tetiği yok.
+
+        Denendi ve kaldırıldı (PR #39): anahtar kelime katmanı cümleyi
+        anlamadığı için ret ("sorguya çekme"), alıntı, yük testi ve yemek
+        anlamları yanlış-pozitif üretti. Yanlış açılan sorgu oturumunun
+        bedeli, kaçırmanın bedelinden yüksek.
+        """
+        for istem in ("beni sorguya çek", "planımı stres testine sok",
+                      "beni grill'le", "beni sorguya çeker misin?"):
+            _tc, skill, extras, _x = self.pick(istem)
+            self.assertNotEqual(skill, "grilling", istem)
+            self.assertNotIn("grilling", extras, istem)
+
+    def test_grilling_acik_komutla_cagrilir(self):
+        _tc, _skill, _e, explicit = self.pick("/grilling planı netleştirelim")
+        self.assertEqual(explicit, "grilling")
+
+    def test_profil_sinifi_okunabiliyor(self):
+        """skill_task_class GERÇEKTEN çalışıyor mu (yalnız None dönmüyor mu).
+
+        Yönlendirme testi bunu kanıtlamaz: tetik eşleşmesi aynı sınıfı
+        tesadüfen üretebilir ve bozuk profil okuması fark edilmez.
+        """
+        self.assertEqual(route.skill_task_class("grilling", ROOT), "research")
+        self.assertEqual(route.skill_task_class("implement-change", ROOT),
+                         "code-change")
+        self.assertIsNone(route.skill_task_class("boyle-bir-skill-yok", ROOT))
+
+    def test_profil_sinifi_kelime_puanlamasini_yener(self):
+        """Otorite profildir: kelimeler başka sınıf söylese bile.
+
+        "/grilling kodu düzelt ve uygula" isteminde tetikler code-change
+        diyor; profil research diyor. Komutun sınıfı izin sınırından gelir,
+        yoksa kullanıcı /komutla yazma yetkisi açabilirdi.
+        """
+        tc, _s, _e, explicit = self.pick("/grilling kodu düzelt ve uygula")
+        self.assertEqual((tc, explicit), ("research", "grilling"))
+
+    def test_kuralsiz_komut_risk_metadatasini_kaybetmez(self):
+        """Yazma sınıfındaki /komut, risk sınıfını da taşımalı.
+
+        /project-onboarding ile /auras aynı işi yapar; birinin approval
+        diğerinin sessizce 'auto' sayılması, risk politikasını komut
+        seçimine bağlı hale getirirdi.
+        """
+        tc, skill, _e, _x = self.pick("/project-onboarding")
+        self.assertEqual(tc, "code-change")
+        self.assertEqual(skill, "project-onboarding")
+
+    def test_acik_komut_tetik_tasiyan_metinde_de_kazanir(self):
+        """Kurallı olmayan skill'in /komutu, anahtar kelimeye yenilmez.
+
+        "/grilling ... nasıl kurgulayacağımı bilmiyorum" isteminde "nasıl"
+        research tetiğidir. Kullanıcı komutla seçimini yapmışken başka bir
+        skill'i ZORUNLU kılmak, açık iradeyi anahtar kelimeyle ezmektir.
+        """
+        _tc, skill, _e, explicit = self.pick(
+            "/grilling yeni bildirim sistemini nasıl kurgulayacağımı bilmiyorum")
+        self.assertEqual(explicit, "grilling")
+        # Zorunlu kılınan skill, kullanıcının istediği skill olmalı
+        self.assertEqual(skill, "grilling")
+
+    def test_yuk_testi_kod_isidir(self):
+        _tc, skill, _e, _x = self.pick("API endpointine stres testi yap")
+        self.assertEqual(skill, "implement-change")
+
     def test_acik_slash_komut_her_seyi_yener(self):
         tc, skill, _e, explicit = self.pick("/auras bu projeyi bağla")
         self.assertEqual(explicit, "auras")
@@ -205,6 +272,128 @@ class RouteTest(unittest.TestCase):
     def test_bos_istek_ciktisiz(self):
         # main() stdin okur; boş istek yönlendirme üretmemeli
         self.assertEqual(route.route("", self.cfg)[1], None)
+
+    def test_aurasprime_her_iste_karsilar(self):
+        """Karşılama varsayılan: iş isteğinde AurasPrime devrede olmalı.
+
+        Skill'in kendi pozitif eval girdisi ona ulaşmıyorsa karşılama
+        katmanı yok demektir — kullanıcının /aurasprime yazması gerekirdi.
+        """
+        context, _s = route.render(
+            "müşteriler faturayı geç görüyor, bir şeyler yapalım",
+            self.cfg, pdir=ROOT)
+        self.assertIn("AurasPrime", context)
+
+    def test_acik_komutta_karsilama_yapilmaz(self):
+        # Kullanıcı seçimini yapmışsa araya girilmez
+        context, _s = route.render("/grilling planı netleştirelim",
+                                   self.cfg, pdir=ROOT)
+        self.assertNotIn("AurasPrime", context)
+
+    def test_olay_istegi_incident_sinifi_uretir(self):
+        """incident profili tanımlı ama hiçbir kural onu üretmiyordu.
+
+        Ulaşılamayan profil, olmayan korumadır: acil üretim işi normal
+        code-change gibi sınıflanırsa olay disiplini hiç devreye girmez.
+        """
+        for istem in ("prod çöktü, acil müdahale lazım",
+                      "serviste kesinti var, üretim hatası"):
+            tc, _s, _e, _x = self.pick(istem)
+            self.assertEqual(tc, "incident", istem)
+
+    def test_ayni_skill_iki_kuralda_ise_baglam_secer(self):
+        """Aynı skill birden çok kuralda olabilir; /komut ilkine takılmamalı.
+
+        implement-change hem code-change hem incident kuralında geçiyor.
+        Açık komut ilk eşleşende dururken olay kuralı ERİŞİLEMEZ kalıyordu:
+        acil üretim işi normal kod işi gibi sınıflanırdı.
+        """
+        tc, skill, _e, _x = self.pick("/implement-change prod çöktü acil müdahale")
+        self.assertEqual((tc, skill), ("incident", "implement-change"))
+
+        tc, skill, _e, _x = self.pick("/implement-change kullanıcı endpointi ekle")
+        self.assertEqual((tc, skill), ("code-change", "implement-change"))
+
+    def test_acik_komut_kural_seciminde_ozgulluk_de_sayilir(self):
+        """Komut kuralı seçimi tetik SAYISI + ÖZGÜLLÜK ister, yalnız sayı değil.
+
+        İnceleme bulgusu (PR #40): '/implement-change prod çöktü' isteminde
+        komut adındaki 'implement' kelimesi GENEL kurala tetik sayılıyor;
+        tek olay tetiği ile berabere kalınca tablo sırası kazanıyor ve
+        specificity-3 olay kuralı yeniliyordu. Acil iş normal kod işi gibi
+        sınıflanıyordu — puanlamayla aynı kural: eşitlikte özgül kazanır.
+        """
+        tc, skill, _e, _x = self.pick("/implement-change prod çöktü")
+        self.assertEqual((tc, skill), ("incident", "implement-change"))
+
+    def test_olay_sinifi_eskalasyonu_sayiya_bakmaz(self):
+        """Olay tetiği görüldüyse sınıf incident'a ESKALE olur — sayı yarışı yok.
+
+        İnceleme bulguları (PR #40, ardışık 3 tur): sayı-tabanlı her formül
+        yenildi — önce 2 genel fiil tek olay tetiğini ezdi, çarpım eşiği
+        kaydırınca 4 fiil ezdi. Yarış kazanılamaz (grilling dersi, PR #39).
+        Eskalasyon varlığa bakar, sayıya değil: AGENTS.md 'eskalasyon yalnız
+        yukarı' ilkesinin routing karşılığı.
+        """
+        for istem in ("prod çöktü, düzelt ve uygula",
+                      "prod çöktü; düzelt, uygula, kodla ve test yaz",
+                      "canlıda hata var hemen düzelt"):
+            tc, _s, _e, _x = self.pick(istem)
+            self.assertEqual(tc, "incident", istem)
+
+    def test_soru_bicimi_olay_sinifini_dusurmez(self):
+        # Soru zorunlu skill dayatmayı engeller, SINIFI düşürmez: çökmüş
+        # prod hakkında soru da olay bağlamında ele alınır.
+        tc, skill, _e, _x = self.pick("prod çöktü, bakabilir misin?")
+        self.assertEqual(tc, "incident")
+        self.assertIsNone(skill)
+
+    def test_olay_tetikleri_gundelik_isle_karismaz(self):
+        # 'kesinti' öneki 'kesintisiz'i, 'servis durdu' alt-dizesi 'servis
+        # durdurma'yı yakalıyordu — tetikler somut olay ifadeleri olmalı.
+        for istem in ("kesintisiz dağıtım pipeline'ı ekle",
+                      "servis durdurma butonu ekle"):
+            tc, _s, _e, _x = self.pick(istem)
+            self.assertNotEqual(tc, "incident", istem)
+
+    def test_guvenlik_arastirmasinda_risk_yuzeyi_kaybolmaz(self):
+        """Fiiller birincil skill'i seçer; alan kelimesi risk yüzeyini EKLER.
+
+        İnceleme bulgusu: 'güvenlik durumunu incele ve karşılaştır' iki
+        araştırma fiiliyle research'e gidiyor ve güvenlik bağlamı düşüyordu.
+        Çözüm puan çarpımı değil (denendi, salınım üretti) — always_add:
+        'güvenlik' risk-yüzeyi kelimesidir, birincil ne olursa olsun
+        security-review daima eklenir.
+        """
+        _tc, skill, extras, _x = self.pick("güvenlik durumunu incele ve karşılaştır")
+        self.assertEqual(skill, "research-with-evidence")
+        self.assertIn("security-review", extras)
+
+    def test_acik_komutta_da_olay_eskalasyonu_calisir(self):
+        """Komut SKILL seçimidir, SINIF seçimi değil — eskalasyon çalışır.
+
+        İnceleme bulgusu: '/implement-change prod çöktü; düzelt, uygula,
+        kodla ve test yaz' komut yolunda eskalasyon atlanıp code-change
+        kalıyordu. Kullanıcının seçtiği şey skill; sınıf bağlamdan gelir.
+        Sınır: seçilen skill incident profilinde İZİNLİ değilse (grilling
+        gibi) kullanıcı sınıfı korunur — read-only skill'e yazma profili
+        giydirilmez.
+        """
+        tc, skill, _e, _x = self.pick(
+            "/implement-change prod çöktü; düzelt, uygula, kodla ve test yaz")
+        self.assertEqual((tc, skill), ("incident", "implement-change"))
+        # incident profilinde olmayan skill'de sınıf korunur
+        tc, _s, _e, _x = self.pick("/grilling prod çöktü planı netleştir")
+        self.assertEqual(tc, "research")
+
+    def test_primarysiz_olayin_riski_auto_gorunmez(self):
+        # 'prod çöktü, bakabilir misin?' → sınıf incident, zorunlu skill yok;
+        # başlıktaki risk sınıftan türemeli, 'auto' yanlış güven verir.
+        cfg = route.load_rules()
+        context, _s = route.render("prod çöktü, bakabilir misin?", cfg,
+                                   pdir=ROOT)
+        self.assertIn("Sınıf: incident", context)
+        self.assertIn("Risk: approval", context)
 
 
 if __name__ == "__main__":

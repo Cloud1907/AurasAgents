@@ -280,15 +280,19 @@ def main(argv=None):
             dogrulayici_sonuclari(duzenlenen_dosyalar(olaylar)))
         bloklar = [b for b in bulgular if b[0] == "BLOK"]
         # Sonsuz döngü koruması: hook zaten blokladıysa ya da aynı imza daha
-        # önce bloklandıysa yalnız bilgi ver.
+        # önce bloklandıysa tekrar bloklamaz — ama SESSİZ de kalmaz (aşağıda
+        # uyarı basılır). Sessiz geçiş, borcu temizlenmiş gösterirdi.
         tekrar = payload.get("stop_hook_active") or zaten_bloklandi(olaylar, imza)
 
-        re_mod.append({"kind": "stop"}, yol)
         if bulgular:
             re_mod.append({"kind": "gate", "sig": imza,
                            "cmd": ";".join(b[1] for b in bulgular)}, yol)
 
         if bloklar and not tekrar:
+            # Bloklanan tur KAPANMADI: 'stop' yazılmaz. Yazılsaydı bir sonraki
+            # değerlendirme boş pencere görür ve kanıtsız düzenlemeler sessizce
+            # geçmiş tura gömülürdü (Codex ölçümü, 2026-08-12). 'stop' yalnız
+            # gerçekten kapanan turda yazılır (aşağıda).
             gerekce = "\n".join(f"[{b[0]}] {b[1]} — {b[2]}" for b in bulgular)
             print(json.dumps({
                 "decision": "block",
@@ -300,9 +304,14 @@ def main(argv=None):
                 "systemMessage": f"⛔ kapı: {', '.join(b[1] for b in bloklar)}",
             }, ensure_ascii=False))
             return 0
+
+        re_mod.append({"kind": "stop"}, yol)
         if bulgular:
+            # Kapan kurulmaz ama iz bırakılır: bu tur kanıt borcuyla kapandı.
             print(json.dumps({
-                "systemMessage": "⚠️ kapı: " + ", ".join(b[1] for b in bulgular),
+                "systemMessage": "⚠️ kapı: " + ", ".join(b[1] for b in bulgular)
+                                 + (" — tur kanıt borcuyla kapandı"
+                                    if bloklar else ""),
             }, ensure_ascii=False))
     except Exception:
         return 0  # kapı çökerse tur bloklanmaz — mekanizma kullanıcıyı kilitlemez
