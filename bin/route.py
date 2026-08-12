@@ -57,6 +57,16 @@ except Exception:                                    # pragma: no cover
     def sinifta_izinli(skill, task_class, pdir):
         return False
 
+# Niyet ayrımı (okuma vs mutasyon) ayrı modülde: bin/niyet.py (MOTOR
+# listesinde — bekçi: tests/test_kernel_dosyalari). Import başarısızsa
+# yalnız önyükleme anındaki eski tek-aşamalı davranışa düşülür; MOTOR
+# senkronu dosyayı her bağlı projeye taşır.
+try:
+    from niyet import niyet_kapisi
+except Exception:                                    # pragma: no cover
+    def niyet_kapisi(text, scored, extras):
+        return scored, extras
+
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
 
@@ -200,11 +210,13 @@ def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
                 explicit)
 
     # Açık /komut soru biçimini EZER ("/auras bunu bağlar mısın?" iş emridir);
-    # o dal yukarıda zaten döndü. Buraya gelen soru turu salt-okunur profil
-    # alır ve zorunlu skill dayatılmaz — ajan kendi seçer, kapı kanıtı yine ister.
+    # o dal yukarıda döndü. Soru turu salt-okunur profil alır, skill dayatılmaz.
     if soru_turu(text):
         return "research", None, extras, [], explicit
 
+    # Niyet kapısı (2. aşama, bin/niyet.py): mutasyon doğrulanmadıysa yazma
+    # kuralları öneriye düşer; okuma kuralı da yoksa scored boşalır → fallback.
+    scored, extras = niyet_kapisi(text, scored, extras)
     if not scored:
         fb = cfg.get("fallback", {})
         return fb.get("task_class", "research"), None, extras, [], explicit

@@ -13,6 +13,12 @@
 # Çarpım bilinçli: doğal cümledeki genel fiiller ("düzelt ve uygula") tek
 # özgül tetiği sayıyla ezememeli. Puan eşitliğinde specificity bozar.
 # Açık /komut her şeyi yener.
+#
+# Niyet kapısı (2026-08-12, bin/niyet.py): istek POZİTİF okuma emri
+# taşıyor ve mutasyon işareti taşımıyorsa yazma-niyetli kural zorunlu
+# kılınmaz, öneriye düşer; niyet belirsizse bu tablonun otoritesi aynen
+# geçerlidir. Kuralın niyeti task_class'tan türer (research → read,
+# gerisi write); `intent: read` alanı bunu ezer.
 
 schema_version: 1
 
@@ -116,6 +122,12 @@ rules:
     specificity: 2
     task_class: code-change
     risk: approval
+    # Denetim salt-okunur bulgu üretir: "güvenlik açısından incele" gibi
+    # okuma-niyetli istekte de zorunlu kılınabilir. Okuma niyetinde sınıf
+    # salt-okunur profile İNER (incele.py P1, PR #43 — denetim yazma
+    # profili açmaz); mutasyon turunda code-change/approval geçerlidir.
+    # risk etiketi her iki durumda kuraldan gelir.
+    intent: read
     triggers:
       - güvenlik
       - auth

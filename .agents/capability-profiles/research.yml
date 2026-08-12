@@ -7,6 +7,10 @@ skills:
   - aurasprime
   - research-with-evidence
   - grilling  # opt-in plan sorgusu; dosya yazmaz, read-only sınıra uyar
+  # Okuma-niyetli denetim ("güvenlik açısından incele") bu profile iner
+  # (incele.py P1, PR #43): denetim bulgu üretir, dosya yazmaz — yazma
+  # profili açmadan zorunlu kılınabilmesi için burada kayıtlı olmalı.
+  - security-review
 tools:
   filesystem: read-only
   report_path: ".agents/reports/"
