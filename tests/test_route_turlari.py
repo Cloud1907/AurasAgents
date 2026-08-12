@@ -34,6 +34,50 @@ class IncelemeTurlariTest(unittest.TestCase):
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
 
+    # --- incele.py P1 bulguları, 12. tur (PR #49'da ertelendi) ---
+
+    def test_unlu_dusmeli_anma_adi_da_isarettir(self):
+        # P1: "metin" ünlü düşmesiyle çekilir ("metni", "metnini") ve anma
+        # işareti listesi kökü olduğu gibi arıyordu — salt-okunur alıntı
+        # isteği kullanıcının emri sanılıp code-change'e gidiyordu.
+        for prompt in ('şu metni "kodu düzelt ve uygula" incele',
+                       '"kodu düzelt ve uygula" metnini incele'):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
+    def test_birlesik_fiil_cumle_sinirini_asmaz(self):
+        # P1: yardımcı fiil araması noktalamayı aşıyordu; ÖNCEKİ cümlenin
+        # okuma adı sonraki cümlenin "yap"ına bağlanıp gerçek iş emrini
+        # okuma sanıyordu. Alıntı bağlamasındaki _SINIR ölçüsü burada da
+        # geçerlidir — birleşik fiilin adı ile yardımcısı aynı cümlededir.
+        for prompt in ("araştırma tamam; migration yap",
+                       "tarama tamam. testleri yap"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "code-change")
+
+    def test_komut_uyarisi_turun_siniriyla_ayni_olcuyu_kullanir(self):
+        # P1: _sinirli zorunlu skill'i TURUN sınıfına göre düşürürken
+        # render'ın /komut dalı "herhangi bir profilde var mı" diye
+        # soruyordu. Bu turda izinsiz olan skill için "onu yükle" denmesi,
+        # aynı kararı iki farklı ölçüye bağlamaktır.
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, ".agents", "skills", "yerel-skill"))
+            pd = os.path.join(tmp, ".agents", "capability-profiles")
+            os.makedirs(pd)
+            with open(os.path.join(pd, "research.yml"), "w",
+                      encoding="utf-8") as fh:
+                fh.write("task_class: research\nskills:\n  - yerel-skill\n")
+            cfg = {"rules": [{"skill": "yerel-skill",
+                              "task_class": "code-change",
+                              "risk": "approval",
+                              "triggers": ["deneme"]}],
+                   "fallback": {"task_class": "research"}}
+            context, _s = route.render("/yerel-skill deneme", cfg, pdir=tmp)
+            self.assertIn("izin sınırı dışında", context)
+            self.assertNotIn("onu yükle", context)
+
     # --- incele.py P1 bulguları, 11. tur (PR #49) ---
 
     def test_anma_sonrasi_pencere_de_kelimeyle_sinirli(self):

@@ -260,9 +260,13 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     if not explicit:
         lines.append(davranis.KARSILAMA)
 
-    if explicit and profil_disinda(explicit, pdir):
+    # Ölçü, zorunlu skill'i düşüren ölçünün AYNISI olmalıdır (inceleme
+    # 12. tur): burada "herhangi bir profilde var mı" sorulurken _sinirli
+    # turun SINIFINA bakıyordu — bu turda izinsiz bir skill dayatmadan
+    # düşürülüp öneride elenirken, kullanıcıya "onu yükle" deniyordu.
+    if explicit and _profil_disi(explicit, task_class, pdir):
         lines.append(
-            f"/{explicit} bu projenin izin sınırı dışında (capability "
+            f"/{explicit} bu turun izin sınırı dışında ({task_class} "
             "profilinde yok) — YÜKLEME. Gerekiyorsa kullanıcıya söyle: "
             "profile eklemek bilinçli bir karardır, reviewed PR ister.")
     elif explicit:
