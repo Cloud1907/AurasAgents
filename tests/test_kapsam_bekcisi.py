@@ -61,6 +61,46 @@ class TekModulImportTest(unittest.TestCase):
             + "\n  ".join(hatali))
 
 
+class ModulAtlamaHukmuTest(unittest.TestCase):
+    """Modül düzeyinde atlama, ortam kaydıyla DOĞRULANMADAN meşru sayılamaz.
+
+    Codex bağımsız incelemesi (PR #47, P1): bekçi çökme ile görünür atlamayı
+    ayırdı ama atlamanın gerekçesini hiç sınamadı. Modül başına yazılan tek
+    bir `raise unittest.SkipTest("...")` testleri süitten çıkarıyor, bekçi
+    bunu ortam bağımlılığı sanıyordu. Beyan kanıt değildir.
+    """
+
+    KAYIT = {"yok": True, "var": False}
+
+    def test_ortam_dogrularsa_mesru(self):
+        self.assertEqual(kd.atlama_hukmu([["m", "yok"]], self.KAYIT),
+                         [("m", "yok", "ortam")])
+
+    def test_kayitsiz_sebep_mesru_degil(self):
+        self.assertEqual(kd.atlama_hukmu([["m", "canim istedi"]], self.KAYIT),
+                         [("m", "canim istedi", "kayitsiz")])
+
+    def test_on_kosul_saglaniyorsa_mesru_degil(self):
+        # Kayıtlı bir sebebi kopyalamak muafiyet satın almaz: ortam o
+        # bağımlılığı sağlıyorsa atlamayı açıklayan bir şey yoktur.
+        self.assertEqual(kd.atlama_hukmu([["m", "var"]], self.KAYIT),
+                         [("m", "var", "yanlis")])
+
+    def test_kayit_okunamazsa_fail_closed(self):
+        # None = kayıt OKUNAMADI. "Okunamadı" ile "meşru" aynı şey değildir.
+        self.assertEqual(kd.atlama_hukmu([["m", "yok"]], None),
+                         [("m", "yok", "okunamadi")])
+
+    def test_her_bloklayan_hukmun_gerekcesi_var(self):
+        # Mesajsız hüküm kapıyı KeyError ile çökertir — ve çöken kapı,
+        # koruduğunu sandığın kapıdır.
+        hukumler = {h for _, _, h in kd.atlama_hukmu(
+            [["m", "yok"], ["m", "canim istedi"], ["m", "var"]], self.KAYIT)}
+        hukumler |= {h for _, _, h in kd.atlama_hukmu([["m", "yok"]], None)}
+        self.assertEqual(sorted(hukumler - {"ortam"}),
+                         sorted(kd.ATLAMA_MESAJI))
+
+
 class TestKapsamiTest(unittest.TestCase):
     """Keşfe hiç girmeyen test dosyası sessizce kapsam kaybıdır.
 

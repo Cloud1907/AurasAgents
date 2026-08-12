@@ -42,6 +42,25 @@ PYYAML_EKSIK = (
 pyyaml_gerekir = unittest.skipUnless(yaml is not None, PYYAML_SEBEP)
 
 
+# --- modül düzeyinde atlamanın TEK meşru kaydı ------------------------------
+# sebep → ön-koşul yoklaması. Yoklama True ise "bu makinede o bağımlılık
+# GERÇEKTEN yok" demektir; keşif bekçisi atlamayı ancak o zaman meşru sayar.
+#
+# Neden sebebi yalnız OKUMAK yetmez: `raise unittest.SkipTest("...")` bir
+# modülün bütün testlerini süitten çıkarır ve çıkış kodunu 0 bırakır. Sebep
+# denetlenmeseydi beyan kanıt yerine geçerdi — modül başına yazılan tek bir
+# satır "Ran N"i sessizce daraltırdı (Codex bağımsız incelemesi, PR #47, P1).
+# Yoklamayla birlikte, kayıtlı bir sebebi kopyalayan modül bağımlılığın VAR
+# olduğu makinede blok alır.
+#
+# Yeni bir meşru atlama buraya ilan edilmeden var olamaz: burası, atlama
+# kararının gözden geçirildiği tek yerdir. Kural `bin/kapsam_bekcisi.py`
+# (`atlama_hukmu`) içinde, kapı `bin/validate.py`de.
+MESRU_ATLAMALAR = {
+    PYYAML_SEBEP: lambda: yaml is None,
+}
+
+
 # --- pre-push kapısının yorumlayıcı sözleşmesi -----------------------------
 # Kapı (`bin/hooks/pre-push`, py_uygun) adayı ÇIKTIYLA sınar, çıkış koduyla
 # değil: `/usr/bin/true` de 0 döner ve kapıyı sessizce geçerdi (denetim
