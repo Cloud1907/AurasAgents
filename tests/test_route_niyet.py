@@ -39,6 +39,44 @@ class NiyetKapisiTest(unittest.TestCase):
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
 
+    # --- incele.py P1 bulguları, 10. tur (PR #49) ---
+
+    def test_anma_baglama_kelimeyle_olculur_karakterle_degil(self):
+        # P1: 9. turun komşuluk penceresi KARAKTER sayıyordu; bağlaç
+        # kısalınca ("ardından" → "sonra") aynı işaret ikinci alıntıya da
+        # ulaşıyordu. Bağlama artık kelimeyle ölçülür ve noktalama
+        # sınırında kesilir.
+        for prompt in ('"router çıktısı" ifadesini incele; sonra '
+                       '"auth açığını düzelt"',
+                       '"router çıktısı" ifadesini incele ve sonra '
+                       '"auth açığını düzelt"'):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "code-change")
+
+    def test_unlu_biten_adda_ikinci_cogul_iyelik(self):
+        # P1: "incelemenizi" (inceleme+niz+i) ad çekimi sayılmıyordu.
+        for prompt in ("bu PR için güvenlik incelemenizi yapın",
+                       "kapsamlı araştırmanızı yapın"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
+    def test_hafif_fiil_araya_giren_kelimeye_ragmen_taninir(self):
+        # P1: yardımcı fiil yalnız adın HEMEN ardındaysa tanınıyordu;
+        # "analizini detaylı yap" arada sıfat olduğu için yazma sayılıyordu.
+        for prompt in ("login akışının güvenlik analizini detaylı yap",
+                       "kod tabanının incelemesini çok kapsamlı yap"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
+    def test_hafif_fiil_penceresi_uzak_fiili_yutmaz(self):
+        # Negatif kontrol: ad ile fiil arasındaki mesafe büyükse birleşik
+        # fiil değildir — "testleri yap" gerçek iş emridir.
+        tc, _s, _e, _x = self.pick("analiz raporunu oku ve testleri yap")
+        self.assertEqual(tc, "code-change")
+
     # --- incele.py P1 bulguları, 9. tur (PR #49) ---
 
     def test_egri_tek_tirnak_da_alintidir(self):

@@ -109,17 +109,42 @@ _ANMA_ISARETI = re.compile(
 
 # Anma işareti alıntının KENDİ komşuluğunda aranır (inceleme 9. tur):
 # tek bir işaretin metindeki bütün alıntıları silmesi, ikinci alıntıdaki
-# gerçek emri yok ediyordu. Pencere komşu alıntıda kesilir, böylece
-# önceki alıntıya ait işaret sonrakine sızmaz.
-_PENCERE = 25
+# gerçek emri yok ediyordu.
+#
+# Komşuluk KELİMEYLE ölçülür, karakterle değil (inceleme 10. tur):
+# karakter penceresi bağlaç kısalınca ("ardından" → "sonra") işareti
+# komşu alıntıya sızdırıyordu — eşik kullanıcının kelime seçimine göre
+# oynayan bir kapı, kapı değildir. Ayrıca pencere noktalama sınırında
+# kesilir: ";" sonrası yeni bir cümledir, önceki nitelemeyi taşımaz.
+_KOMSU_KELIME = 2
+_SINIR = re.compile(r"[;:.!?\n]")
 
 
 def _anma_komsulugu(text, bas, son, sinirlar):
-    """Alıntının hemen öncesi/sonrası — komşu alıntıda kesilmiş."""
+    """Alıntıyı niteleyebilecek komşuluk: sonrası + hemen öncesi.
+
+    Sonrası — bir sonraki alıntıya ya da cümle sınırına kadar ("'…'
+    ifadesini incele"). Öncesi — son iki kelime, cümle sınırı aşılmadan
+    ("router çıktısındaki '…'"). Uzaktaki işaret bağlamaz.
+    """
     onceki_son = max((s for _b, s in sinirlar if s <= bas), default=0)
     sonraki_bas = min((b for b, _s in sinirlar if b >= son), default=len(text))
-    return text[max(onceki_son, bas - _PENCERE):bas] + " " + \
-        text[son:min(sonraki_bas, son + _PENCERE)]
+
+    sonrasi = text[son:sonraki_bas]
+    kesme = _SINIR.search(sonrasi)
+    if kesme:
+        sonrasi = sonrasi[:kesme.start()]
+
+    oncesi = text[onceki_son:bas]
+    son_sinir = None
+    for m in _SINIR.finditer(oncesi):
+        son_sinir = m
+    if son_sinir:
+        oncesi = oncesi[son_sinir.end():]
+    kelimeler = [m.group() for m in _TOKEN_RE.finditer(oncesi)]
+    oncesi = " ".join(kelimeler[-_KOMSU_KELIME:])
+
+    return oncesi + " " + sonrasi
 
 
 def anma_var(text):
@@ -169,9 +194,10 @@ OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
 # sayılıyordu). Türemiş ad hâlâ dışarıda kalır: "analizör" → "ör".
 _AD_EK = re.compile(
     r"^(?:[yns]?[ıiuü]n?[ıiuü]?|[yns]?[ae]|[dt][ae]n?|"
-    r"[ıiuü][mn][ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
-#            ^ -imiz/-imizi ve -iniz/-inizi (2. çoğul iyelik, 9. tur:
-#              "güvenlik analizinizi yapın" salt-okunur denetimdir)
+    r"[ıiuü]?[mn][ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
+#            ^ -imiz/-imizi, -iniz/-inizi (ünsüzle biten: "analizinizi")
+#              ve ünlüyle bitende kaynaştırmalı -niz/-nizi
+#              ("incelemenizi", "araştırmanızı" — 9. ve 10. tur)
 
 
 def _okuma_adi_mi(tokenlar, i):
@@ -196,8 +222,15 @@ def _okuma_adi_mi(tokenlar, i):
     return False
 
 
+# Ad ile yardımcı fiil arasına niteleyici girebilir ("analizini DETAYLI
+# yap") — hemen-ardındalık şartı bu doğal cümleyi yazma sayıyordu
+# (inceleme 10. tur). Pencere dar tutulur: uzaktaki fiil birleşik fiil
+# değildir ("analiz raporunu oku ve testleri yap" iş emri kalır).
+_ARAYA_GIREN = 2
+
+
 def _hafif_fiil_yerleri(text):
-    """Okuma adının hemen ardındaki yardımcı fiillerin (başlangıç, bitiş)."""
+    """Okuma adının ardındaki yardımcı fiillerin (başlangıç, bitiş)."""
     tokenlar = list(_TOKEN_RE.finditer(text))
     yerler = []
     for i in range(1, len(tokenlar)):
@@ -206,7 +239,8 @@ def _hafif_fiil_yerleri(text):
                    _POZ_EK.match(simdi.group()[len(f):])
                    for f in HAFIF_FIILLER):
             continue
-        if _okuma_adi_mi(tokenlar, i - 1):
+        if any(_okuma_adi_mi(tokenlar, j)
+               for j in range(max(0, i - 1 - _ARAYA_GIREN), i)):
             yerler.append((simdi.start(), simdi.end()))
     return yerler
 
