@@ -21,6 +21,11 @@ _spec = importlib.util.spec_from_file_location(
 route = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(route)
 
+_nspec = importlib.util.spec_from_file_location(
+    "niyet", os.path.join(ROOT, "bin", "niyet.py"))
+niyet = importlib.util.module_from_spec(_nspec)
+_nspec.loader.exec_module(niyet)
+
 
 @pyyaml_gerekir
 class NiyetKapisiTest(unittest.TestCase):
@@ -163,6 +168,43 @@ class NiyetKapisiTest(unittest.TestCase):
         tc, skill, _e, _x = self.pick("login endpointini devreye al")
         self.assertEqual(tc, "code-change")
         self.assertEqual(skill, "implement-change")
+
+    # --- incele.py P1 bulguları, 4. tur (PR #43) ---
+
+    def test_ucuncu_sahis_simdiki_zaman_emir_sayilmaz(self):
+        # P1: -Iyor/-AcAk kişi ayrımı olmadan emir sayılıyordu; kodu
+        # TARİF eden cümle mutasyon olup salt-okunur denetime yazma
+        # profili açıyordu (tehlikeli yön — bu PR'ın düzelttiği kusurun
+        # ta kendisi).
+        for prompt in ("bu servis geçici dosya oluşturuyor, "
+                       "güvenlik açısından incele",
+                       "yeni sürüm config'i değiştirecek, önce incele"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
+    def test_birinci_sahis_simdiki_zaman_is_beyanidir(self):
+        # Kişi ayrımının diğer yüzü: "ekliyoruz" iş turudur, tarif değil.
+        # Niyet katmanı doğrudan sınanır — uçtan uca yönlendirme ayrı bir
+        # sınırla karışıyor: routing.yml tetik eşleşmesi ünlü düşmesini
+        # tanımaz ("ekliyoruz" ≠ "ekle" öneki), bu PR'dan ESKİ bir kusur.
+        for metin in ("bu servise cache ekliyoruz",
+                      "auth akışını yeniden yazacağız",
+                      "config'i güncelliyorum"):
+            with self.subTest(metin=metin):
+                self.assertTrue(niyet.mutasyon_niyeti(metin))
+        # Tetik tablosunun görebildiği biçimde uçtan uca da doğrulanır.
+        tc, _s, _e, _x = self.pick("auth akışını yeniden yazacağız")
+        self.assertEqual(tc, "code-change")
+
+    def test_deyim_yazma_emri_okuma_fiiliyle_yutulmaz(self):
+        # P1: sözlük dışı yazma deyiminin ("devreye al") yanındaki okuma
+        # fiili tüm isteği salt-okunur yapıyordu. Çok kelimeli yazma
+        # deyimleri sözlüğe girdi.
+        tc, skill, _e, _x = self.pick(
+            "auth endpointini devreye al ve sonucu raporla")
+        self.assertEqual(tc, "code-change")
+        self.assertIsNotNone(skill)
 
 
 if __name__ == "__main__":

@@ -34,12 +34,15 @@ OKU_ISARETLERI = ("incele", "araştır", "karşılaştır", "kıyasla",
 # Pozitif biçimde görülmesi tek başına mutasyon sayılan yazma fiilleri.
 # routing.yml yazma kurallarının fiil tetikleriyle ve yaygın eş
 # anlamlılarla uyumlu tutulur (incele.py P1 ×2: güzelleştir, iyileştir).
+# Çok kelimeli deyimler alt-dize aranır (incele.py P1, tur 4: sözlük dışı
+# "devreye al", yanındaki okuma fiiline yeniliyordu).
 YAZ_FIILLERI = ("yap", "uygula", "ekle", "yaz", "düzelt", "kodla",
                 "refactor", "taşı", "kaldır", "sil", "implement", "fix",
                 "oluştur", "geliştir", "değiştir", "güncelle", "tasarla",
                 "güzelleştir", "bağla", "çöz", "iyileştir", "hızlandır",
                 "optimize", "düzenle", "birleştir", "kur", "yükselt",
-                "temizle")
+                "temizle", "devreye al", "devreye sok", "hayata geçir",
+                "canlıya al", "ayağa kaldır")
 # Zayıf işaretler: şikâyet/kurulum adları. Fiil çekimi taşımazlar; güçlü
 # okuma işareti varsa okuma kazanır ("bu bug'ın nedenini araştır").
 ZAYIF_ISARETLER = ("bug", "hata", "çalışmıyor", "bozuk", "kurulum",
@@ -49,22 +52,29 @@ _TOKEN_RE = re.compile(r"[0-9a-zçğıöşü_.]+")
 
 # Kök sonrası POZİTİF emir/istek ekleri (beyaz-liste; incele.py P1:
 # kara-liste "yapısını"yı yap sanıyordu). Sırayla: yalın emir, -(y)AlIm,
-# -(y)AyIm, -(y)In(Iz), -(I)yor…, -(y)AcAk/-(y)AcAğ…, -mAlI…, -mAk,
-# -sIn…, -(y)Abil… Eşleşmeyen her devam işaret DEĞİLDİR. Geçmiş zaman
-# -DI ve sıfat-fiil -DIğ bilinçli olarak YOK (incele.py P1, tur 3):
-# "eklediğimiz kod" tamamlanmış işi anlatır, mutasyon talebi değildir.
+# -(y)AyIm, -(y)In(Iz), -mAlI…, -mAk, -sIn…, -(y)Abil…
+#
+# Eşleşmeyen her devam işaret DEĞİLDİR. Bilinçli olarak DIŞARIDA:
+# geçmiş zaman -DI ve sıfat-fiil -DIğ ("eklediğimiz kod" tamamlanmış işi
+# anlatır, tur 3) ile 3. şahıs şimdiki/gelecek zaman ("dosya oluşturuyor",
+# "config'i değiştirecek" kodu TARİF eder, tur 4). Şimdiki/gelecek zaman
+# yalnız 1. şahısta iş beyanıdır: "cache ekliyoruz", "yeniden yazacağız".
 _POZ_EK = re.compile(
     r"^(?:"
     r"|y?[ae]l[ıi]m(?:[ıi]z)?"
     r"|y?[ae]y[ıi]m"
     r"|y?[ıiuü]n(?:[ıiuü]z)?"
-    r"|[ıiuü]?yor\w*"
-    r"|y?[ae]c[ae][kğ]\w*"
+    r"|[ıiuü]yor(?:um|uz)"
+    r"|y?[ae]c[ae]ğ[ıi][zm]"
     r"|m[ae]l[ıi]\w*"
     r"|m[ae]k"
     r"|s[ıiuü]n\w*"
     r"|y?[ae]bil\w*"
     r")$")
+# Ünlüyle biten kök -Iyor önünde son ünlüsünü düşürür: ekle → "ekliyoruz".
+# Kök eşleşmesi bunu görmezse 1. şahıs biçimi hiç yakalanmaz.
+_UNLU = "aeıioöuü"
+_DUSMUS_EK = re.compile(r"^[ıiuü]yor(?:um|uz)$")
 # -mA fiil-ismi + iyelik: "düzeltmem(iz)", "düzeltmesi", "düzeltmeleri".
 # Tek başına işaret değildir; gerek/lazım ile birlikte iş talebidir.
 # Çıplak -ma/-me (olumsuz emir "yazma") bilinçli olarak DIŞARIDA.
@@ -80,13 +90,17 @@ def _tara(text, isaretler):
     for m in _TOKEN_RE.finditer(text):
         tok = m.group()
         for im in isaretler:
-            if " " in im or not tok.startswith(im):
+            if " " in im:
                 continue
-            kalan = tok[len(im):]
-            if _POZ_EK.match(kalan):
-                guclu = True
-            elif _VN_EK.match(kalan):
-                fiil_ismi = True
+            if tok.startswith(im):
+                kalan = tok[len(im):]
+                if _POZ_EK.match(kalan):
+                    guclu = True
+                elif _VN_EK.match(kalan):
+                    fiil_ismi = True
+            elif (im[-1] in _UNLU and tok.startswith(im[:-1])
+                  and _DUSMUS_EK.match(tok[len(im) - 1:])):
+                guclu = True   # ünlü düşmesi: ekle + -iyoruz → ekliyoruz
     return guclu, fiil_ismi
 
 
