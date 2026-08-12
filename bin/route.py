@@ -203,12 +203,16 @@ def _puanla(cfg, text, tokens, explicit):
         hit = [t for t in rule.get("triggers", [])
                if matches(normalize(t), text, tokens)]
         if explicit and explicit == rule.get("skill"):
-            komut.append((len(hit), rule, hit))
+            komut.append((len(hit), rule.get("specificity", 1), rule, hit))
         if hit:
             scored.append((len(hit), rule.get("specificity", 1), rule, hit))
     # Puan → özgüllük → routing.yml sırası (kararlı sonuç).
     scored.sort(key=lambda s: (-s[0], -s[1]))
-    komut.sort(key=lambda k: -k[0])
+    # Puanlamayla AYNI kural: sayı → özgüllük (eşitlikte özgül kazanır).
+    # Yalnız sayıya bakmak, komut adının kendisinin genel kurala tetik
+    # sayıldığı durumda ('/implement-change' → 'implement') olay kuralını
+    # yeniyordu — inceleme bulgusu, 2026-08-12.
+    komut.sort(key=lambda k: (-k[0], -k[1]))
     return scored, komut
 
 
@@ -224,7 +228,7 @@ def route(prompt, cfg, pdir=None):
 
     scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
     if komut_kurallari:
-        rule, hit = komut_kurallari[0][1], komut_kurallari[0][2]
+        rule, hit = komut_kurallari[0][2], komut_kurallari[0][3]
         return (rule.get("task_class", "research"), rule,
                 [s for s in _extras(cfg, text, tokens) if s != rule["skill"]],
                 hit or [f"/{explicit}"], explicit)

@@ -314,6 +314,18 @@ class RouteTest(unittest.TestCase):
         tc, skill, _e, _x = self.pick("/implement-change kullanıcı endpointi ekle")
         self.assertEqual((tc, skill), ("code-change", "implement-change"))
 
+    def test_acik_komut_kural_seciminde_ozgulluk_de_sayilir(self):
+        """Komut kuralı seçimi tetik SAYISI + ÖZGÜLLÜK ister, yalnız sayı değil.
+
+        İnceleme bulgusu (PR #40): '/implement-change prod çöktü' isteminde
+        komut adındaki 'implement' kelimesi GENEL kurala tetik sayılıyor;
+        tek olay tetiği ile berabere kalınca tablo sırası kazanıyor ve
+        specificity-3 olay kuralı yeniliyordu. Acil iş normal kod işi gibi
+        sınıflanıyordu — puanlamayla aynı kural: eşitlikte özgül kazanır.
+        """
+        tc, skill, _e, _x = self.pick("/implement-change prod çöktü")
+        self.assertEqual((tc, skill), ("incident", "implement-change"))
+
 
 if __name__ == "__main__":
     unittest.main()
