@@ -205,11 +205,18 @@ def _sinirli(sonuc, pdir):
     kapsam dışıdır, dışlama değil — `profil_disinda`nın aynı üç-durum
     ayrımı. Eklenti skill'ini öneriden düşürmek router'ı kullanıcının
     aracına karşı çalıştırırdı.
+
+    "Yönetilen" iki kanaldan sorulur (inceleme 7. tur, PR #49): skill bir
+    profilde geçiyorsa `skill_izinli`, projenin profilinden bilinçle
+    ÇIKARILMIŞSA `profil_disinda` doğru döner. Yalnız birincisine bakmak
+    yerel dışlamayı sessizce tavsiyeye çevirirdi — ikisi de False ise ad
+    gerçekten kapsam dışıdır.
     """
     task_class, primary, extras, hits, explicit = sonuc
-    sinirli_extras = [s for s in extras
-                      if sinifta_izinli(s, task_class, pdir)
-                      or not skill_izinli(s, pdir)]
+    sinirli_extras = [
+        s for s in extras
+        if sinifta_izinli(s, task_class, pdir)
+        or not (skill_izinli(s, pdir) or profil_disinda(s, pdir))]
     return task_class, primary, sinirli_extras, hits, explicit
 
 

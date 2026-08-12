@@ -91,10 +91,29 @@ _VN_EK = re.compile(r"^m[ae](?:m|m[ıiuü]z|n|n[ıiuü]z|s[ıi]|l[ae]r[ıi])$")
 # alıntı sanılıp silinirdi.
 _ALINTI = re.compile(
     r"(?<![0-9a-zçğıöşüA-ZÇĞİÖŞÜ])'[^']*'|\"[^\"]*\"|`[^`]*`|“[^”]*”")
+# Tırnak tek başına "anma" demek DEĞİLDİR: kullanıcı kendi emrini de
+# tırnaklayabilir ("auth açığını düzelt" ve yaptıklarını raporla) ve o
+# istek yazmadır (inceleme 7. tur). Anma POZİTİF kanıt ister — alıntının
+# neyin alıntısı olduğunu söyleyen bir ad ya da fiil. Modülün geri
+# kalanıyla aynı ilke: beyaz-liste, kara-liste değil.
+_ANMA_ISARETI = re.compile(
+    r"ifade|cümle|metin|çıktı|kelime|satır|mesaj|yorum|log|hata mesaj|"
+    r"diyor|geçiyor|yazıyor|deniyor|ibare|terim|başlık|alıntı")
+
+
+def anma_var(text):
+    """Alıntı, ANILAN metin olarak mı sunuluyor (yoksa kullanıcının emri)?"""
+    return bool(_ANMA_ISARETI.search(text))
 
 
 def alintisiz(text):
-    """Tırnak içi bölümleri boşlukla değiştirir (konumlar korunur)."""
+    """Anılan alıntıları boşlukla değiştirir (konumlar korunur).
+
+    Anma işareti yoksa tırnak korunur: kullanıcının kendi emrini
+    tırnaklaması niyeti yok etmemeli.
+    """
+    if not anma_var(text):
+        return text
     return _ALINTI.sub(lambda m: " " * len(m.group()), text)
 
 
@@ -107,18 +126,48 @@ HAFIF_FIILLER = ("yap", "gerçekleştir")
 OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
                 "değerlendirme", "tarama", "karşılaştırma", "kıyaslama",
                 "gözden geçirme", "keşif", "özet")
+# Ad kökünden sonra YALNIZ ad çekimi gelebilir (hâl/iyelik/çoğul). Önek
+# eşleşmesi yetmez: "analizör" türemiş bir ADDIR, "analiz" değil — ve
+# "statik analizör yap" gerçek bir geliştirme emridir (inceleme 7. tur).
+_AD_EK = re.compile(
+    r"^(?:[ıiuü]|[ıiuü]n|[ıiuü]n[ıiuü]|s[ıiuü]|s[ıiuü]n[ıiuü]|"
+    r"[ıiuü]m[ıiuü]z|[ıiuü]m[ıiuü]z[ıiuü]|[ae]|d[ae]|d[ae]n|t[ae]|t[ae]n|"
+    r"l[ae]r|l[ae]r[ıiuü]|l[ae]r[ıiuü]n[ıiuü]|n[ıiuü]n|n[ıiuü])?$")
+
+
+def _okuma_adi_mi(tokenlar, i):
+    """tokenlar[i] (ve gerekirse öncesi) bir okuma adı mı?
+
+    Çok kelimeli ad ("gözden geçirme") tek token'la karşılaştırılamaz;
+    kural yazılmıştı ama HİÇ eşleşmiyordu (inceleme 7. tur). Ad, son
+    kelimesiyle eşleşir ve önceki kelime(ler) birebir aranır.
+    """
+    tok = tokenlar[i].group()
+    for ad in OKUMA_ADLARI:
+        *bas, son_kelime = ad.split()
+        if not (tok.startswith(son_kelime)
+                and _AD_EK.match(tok[len(son_kelime):])):
+            continue
+        if not bas:
+            return True
+        if i >= len(bas) and all(
+                tokenlar[i - len(bas) + k].group() == bas[k]
+                for k in range(len(bas))):
+            return True
+    return False
 
 
 def _hafif_fiil_yerleri(text):
     """Okuma adının hemen ardındaki yardımcı fiillerin (başlangıç, bitiş)."""
     tokenlar = list(_TOKEN_RE.finditer(text))
     yerler = []
-    for onceki, simdi in zip(tokenlar, tokenlar[1:]):
+    for i in range(1, len(tokenlar)):
+        simdi = tokenlar[i]
         if not any(simdi.group().startswith(f) and
                    _POZ_EK.match(simdi.group()[len(f):])
                    for f in HAFIF_FIILLER):
             continue
-        if any(onceki.group().startswith(ad) for ad in OKUMA_ADLARI):
+        if _okuma_adi_mi(tokenlar, i - 1):
             yerler.append((simdi.start(), simdi.end()))
     return yerler
 

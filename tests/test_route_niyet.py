@@ -8,6 +8,7 @@ eşiğine dayandığı için ayrıldı; tablo/komut testleri orada yaşar.
 import importlib.util
 import os
 import sys
+import tempfile
 import unittest
 
 # Keşif `tests/`i sys.path'e koyar, `python3 -m unittest tests.test_x` koymaz.
@@ -37,6 +38,51 @@ class NiyetKapisiTest(unittest.TestCase):
         task_class, primary, extras, _hits, explicit = route.route(
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
+
+    # --- incele.py P1 bulguları, 7. tur (PR #49) ---
+
+    def test_yerel_profilin_bilincli_dislamasi_onerilmez(self):
+        # P1: süzme "skill_izinli=False → kapsam dışı" varsayıyordu; oysa
+        # projenin YÖNETTİĞİ ama profilinden bilinçli ÇIKARDIĞI skill de
+        # False döner. İkisini ayırmayan süzme, dışlamayı tavsiyeye çevirir.
+        with tempfile.TemporaryDirectory() as tmp:
+            pd = os.path.join(tmp, ".agents", "capability-profiles")
+            os.makedirs(pd)
+            with open(os.path.join(pd, "research.yml"), "w",
+                      encoding="utf-8") as fh:
+                fh.write("task_class: research\nskills:\n"
+                         "  - research-with-evidence\n")
+            sonuc = ("research", None, ["security-review", "dataviz"], [], None)
+            _tc, _p, extras, _h, _x = route._sinirli(sonuc, tmp)
+            # security-review kanonikte YÖNETİLEN bir skill ama bu projenin
+            # profilinde yok → bilinçli dışlama, önerilmez.
+            self.assertNotIn("security-review", extras)
+            # dataviz sistemin yönetmediği eklenti → kapsam dışı, dokunulmaz.
+            self.assertIn("dataviz", extras)
+
+    def test_okuma_adi_turemis_kelimeyi_yutmaz(self):
+        # P1: okuma adları önekle eşleşiyordu — "analizör" ("analiz"+"ör")
+        # okuma adı sanılıp gerçek geliştirme emrini okumaya çeviriyordu.
+        tc, _s, _e, _x = self.pick("statik analizör yap")
+        self.assertEqual(tc, "code-change")
+
+    def test_cok_kelimeli_okuma_adi_eslesir(self):
+        # P1: "gözden geçirme" tek önceki token'la karşılaştırıldığı için
+        # HİÇ eşleşemiyordu — kural yazılmıştı ama çalışmıyordu.
+        tc, _s, _e, _x = self.pick("kod tabanının gözden geçirmesini yap")
+        self.assertEqual(tc, "research")
+
+    def test_tirnak_ancak_anma_isaretiyle_yok_sayilir(self):
+        # P1: tırnak içi her emir koşulsuz "anılan metin" sayılıyordu;
+        # kullanıcı KENDİ emrini tırnaklarsa istek yazmadır. Anma işareti
+        # (ifade, çıktı, cümle…) POZİTİF kanıt olarak aranır.
+        tc, _s, _e, _x = self.pick(
+            '"auth açığını düzelt" ve yaptıklarını raporla')
+        self.assertEqual(tc, "code-change")
+        # 5. tur çiti korunur: anma işareti varsa alıntı yine yok sayılır.
+        tc2, _s2, _e2, _x2 = self.pick(
+            "router çıktısındaki 'kodu düzelt ve uygula' ifadesini incele")
+        self.assertEqual(tc2, "research")
 
     # --- niyet ayrımı: salt-okunur inceleme vs mutasyon (2026-08-12) ---
     # Bağımsız inceleme (Codex) iki turda da doğruladı: tek aşamalı kelime
