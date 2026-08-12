@@ -148,3 +148,33 @@ class KuralsizKomutTest(unittest.TestCase):
         # Her profilde izinli olmak, "profilde yok" ile karıştırılmamalı
         self.assertFalse(route.profil_disinda("aurasprime", ROOT))
         self.assertIsNotNone(route.kuralsiz_komut_kurali("aurasprime", ROOT))
+
+
+@pyyaml_gerekir
+class OnSinifNihaiSinifTest(unittest.TestCase):
+    """Router'ın sınıfı ÖN sınıftır; nihai sınıf diff'ten gelir (AGENTS.md).
+
+    İnceleme bulgusu (PR #41): 'AurasPrime sınıfı devirden önce anahtar
+    kelimeyle sabitleniyor.' Tasarım cevabı: sabitlemiyor, TAHMİN ediyor ve
+    tahmin bağlayıcı değil — üç halka bunu kapatır: (1) hook çıktısı riski
+    'ön risk' diye etiketler, (2) AGENTS.md 'nihai sınıf diff'ten' der,
+    (3) incele.py merge kapısında riski diff yollarından yeniden hesaplar.
+    Bu test o zinciri KIRILMAZ kılar: halkalardan biri koparsa (etiket
+    kalkar, incele diff'e bakmaz olur) burada kırmızı görünür.
+    """
+
+    def test_hook_riski_on_risk_diye_etiketler(self):
+        cfg = route.load_rules()
+        context, _s = route.render("/aurasprime kullanıcı endpointi ekle",
+                                   cfg, pdir=ROOT)
+        self.assertIn("ön risk", context)
+
+    def test_nihai_risk_diff_yollarindan_hesaplanir(self):
+        spec = importlib.util.spec_from_file_location(
+            "incele", os.path.join(ROOT, "bin", "incele.py"))
+        incele = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(incele)
+        # Router ne tahmin ederse etsin: bin/ dosyasına dokunan diff approval,
+        # yalnız docs'a dokunan diff auto — otorite diff'tir.
+        self.assertEqual(incele.risk_sinifi(["bin/route.py"]), "approval")
+        self.assertEqual(incele.risk_sinifi(["docs/notlar.md"]), "auto")
