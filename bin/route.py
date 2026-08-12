@@ -35,7 +35,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
-                             skill_installed, skill_task_class)
+                             skill_installed, skill_izinli, skill_task_class)
 except Exception:                                    # pragma: no cover
     skill_task_class = None
 
@@ -46,6 +46,9 @@ except Exception:                                    # pragma: no cover
         return None
 
     def profil_disinda(skill, pdir):
+        return False
+
+    def skill_izinli(skill, pdir):
         return False
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
@@ -170,6 +173,23 @@ def soru_turu(text):
                 or SORU_BASI.match(text))
 
 
+def _komut_kurali_cozumle(explicit, cfg, scored, pdir):
+    """Kuralsız /komutun sentetik kuralı, sınıfı ve riski çözülmüş hâlde.
+
+    Meta-skill sınıfını işten alır (kural `task_class` boş döner): kelime
+    puanlamasının sınıfı korunur, risk de o sınıftan türetilir — yoksa
+    dağıtıcı bir skill, devrettiği kod işini salt-okunur profile mahkûm eder.
+    """
+    sentetik = kuralsiz_komut_kurali(explicit, pdir or project_dir())
+    if not sentetik:
+        return None
+    sinif = (sentetik.get("task_class")
+             or (scored[0][2].get("task_class") if scored else None)
+             or cfg.get("fallback", {}).get("task_class", "research"))
+    return dict(sentetik, task_class=sinif,
+                risk="auto" if sinif == "research" else "approval")
+
+
 def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -196,7 +216,7 @@ def route(prompt, cfg, pdir=None):
 
     extras = _extras(cfg, text, tokens)
 
-    sentetik = kuralsiz_komut_kurali(explicit, pdir or project_dir())
+    sentetik = _komut_kurali_cozumle(explicit, cfg, scored, pdir)
     if sentetik:
         return (sentetik["task_class"], sentetik,
                 [s for s in extras if s != explicit], [f"/{explicit}"],

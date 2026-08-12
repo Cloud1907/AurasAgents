@@ -2,6 +2,7 @@ schema_version: 1
 task_class: incident
 description: "Üretim olayı teşhisi + dar kapsamlı güvenli düzeltme"
 skills:
+  - aurasprime            # her sınıfta izinli: dağıtır, sınıfı işten alır
   - research-with-evidence
   - implement-change
   - security-review
