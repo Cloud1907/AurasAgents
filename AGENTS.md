@@ -84,6 +84,9 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 
 - `bin/hooks/pre-push`: kernel doğrulaması geçmeden push edilemez
   (kurulum: `bash bin/install-hooks.sh`; bilinçli atlama: `git push --no-verify`).
+  Secret taraması iki katmanlıdır: index (push anındaki içerik) +
+  `scan_gecmis.py` (push aralığındaki her commit'in EKLENEN satırları —
+  eklenip silinen sır da yakalanır); muafiyet sözleşmesi ikisinde tektir.
 - CI `evidence` job'ı: aynı doğrulamayı bağımsız makinede tekrarlar.
 - UserPromptSubmit hook'u: skill yönlendirmesini her isteğe enjekte eder.
   Proje hook'u (`.claude/settings.json`, repoyla taşınır) + kullanıcı-global
