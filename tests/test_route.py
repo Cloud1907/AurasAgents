@@ -326,6 +326,19 @@ class RouteTest(unittest.TestCase):
         tc, skill, _e, _x = self.pick("/implement-change prod çöktü")
         self.assertEqual((tc, skill), ("incident", "implement-change"))
 
+    def test_olay_cumledeki_genel_fiillere_yenilmez(self):
+        """Acil cümledeki doğal fiiller olay sınıfını düşürmemeli.
+
+        İnceleme bulgusu (PR #40): 'prod çöktü, düzelt ve uygula' isteminde
+        genel kural 2 tetik (düzelt, uygula) toplayıp tek olay tetiğini
+        sayıyla eziyordu. Acil istek doğal olarak emir fiilleri içerir;
+        sayı üstünlüğü özgüllüğü ezmemeli. Puan = tetik sayısı × özgüllük.
+        """
+        for istem in ("prod çöktü, düzelt ve uygula",
+                      "canlıda hata var hemen düzelt"):
+            tc, _s, _e, _x = self.pick(istem)
+            self.assertEqual(tc, "incident", istem)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,10 +8,11 @@
 # Eşleşme kuralı: istek küçük harfe indirilir, kelimelere bölünür; bir tetik
 # kelime, isteğin bir kelimesinin BAŞINDA geçiyorsa eşleşir (Türkçe eklerin
 # üstesinden gelmek için: "ekle" → "ekleyelim", "eklemek"). Boşluk içeren
-# tetikler alt-dize olarak aranır. Puan = eşleşen tetik sayısı; en yüksek
-# puanlı kural birincil, diğerleri ek skill olur. Puan eşitliğinde
-# `specificity` (varsayılan 1) yüksek olan kazanır: alan-özgül kural,
-# genel kuralı yener. Açık /komut her şeyi yener.
+# tetikler alt-dize olarak aranır. Puan = eşleşen tetik sayısı × specificity
+# (varsayılan 1); en yüksek puanlı kural birincil, diğerleri ek skill olur.
+# Çarpım bilinçli: doğal cümledeki genel fiiller ("düzelt ve uygula") tek
+# özgül tetiği sayıyla ezememeli. Puan eşitliğinde specificity bozar.
+# Açık /komut her şeyi yener.
 
 schema_version: 1
 

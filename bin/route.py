@@ -202,16 +202,18 @@ def _puanla(cfg, text, tokens, explicit):
     for rule in cfg.get("rules", []):
         hit = [t for t in rule.get("triggers", [])
                if matches(normalize(t), text, tokens)]
+        spec = rule.get("specificity", 1)
+        # Puan = tetik sayısı × özgüllük. Salt sayı, doğal cümledeki genel
+        # fiillerin ('düzelt ve uygula') tek olay tetiğini ezmesine yol
+        # açıyordu; salt sıralamada özgüllük yalnız eşitlik bozuyordu.
+        # Çarpım eşitlik davranışını korur, özgül kurala sayı farkını
+        # kapatma gücü verir (inceleme bulguları, 2026-08-12).
         if explicit and explicit == rule.get("skill"):
-            komut.append((len(hit), rule.get("specificity", 1), rule, hit))
+            komut.append((len(hit) * spec, spec, rule, hit))
         if hit:
-            scored.append((len(hit), rule.get("specificity", 1), rule, hit))
+            scored.append((len(hit) * spec, spec, rule, hit))
     # Puan → özgüllük → routing.yml sırası (kararlı sonuç).
     scored.sort(key=lambda s: (-s[0], -s[1]))
-    # Puanlamayla AYNI kural: sayı → özgüllük (eşitlikte özgül kazanır).
-    # Yalnız sayıya bakmak, komut adının kendisinin genel kurala tetik
-    # sayıldığı durumda ('/implement-change' → 'implement') olay kuralını
-    # yeniyordu — inceleme bulgusu, 2026-08-12.
     komut.sort(key=lambda k: (-k[0], -k[1]))
     return scored, komut
 
