@@ -356,6 +356,45 @@ class RouteTest(unittest.TestCase):
             tc, _s, _e, _x = self.pick(istem)
             self.assertNotEqual(tc, "incident", istem)
 
+    def test_guvenlik_arastirmasinda_risk_yuzeyi_kaybolmaz(self):
+        """Fiiller birincil skill'i seçer; alan kelimesi risk yüzeyini EKLER.
+
+        İnceleme bulgusu: 'güvenlik durumunu incele ve karşılaştır' iki
+        araştırma fiiliyle research'e gidiyor ve güvenlik bağlamı düşüyordu.
+        Çözüm puan çarpımı değil (denendi, salınım üretti) — always_add:
+        'güvenlik' risk-yüzeyi kelimesidir, birincil ne olursa olsun
+        security-review daima eklenir.
+        """
+        _tc, skill, extras, _x = self.pick("güvenlik durumunu incele ve karşılaştır")
+        self.assertEqual(skill, "research-with-evidence")
+        self.assertIn("security-review", extras)
+
+    def test_acik_komutta_da_olay_eskalasyonu_calisir(self):
+        """Komut SKILL seçimidir, SINIF seçimi değil — eskalasyon çalışır.
+
+        İnceleme bulgusu: '/implement-change prod çöktü; düzelt, uygula,
+        kodla ve test yaz' komut yolunda eskalasyon atlanıp code-change
+        kalıyordu. Kullanıcının seçtiği şey skill; sınıf bağlamdan gelir.
+        Sınır: seçilen skill incident profilinde İZİNLİ değilse (grilling
+        gibi) kullanıcı sınıfı korunur — read-only skill'e yazma profili
+        giydirilmez.
+        """
+        tc, skill, _e, _x = self.pick(
+            "/implement-change prod çöktü; düzelt, uygula, kodla ve test yaz")
+        self.assertEqual((tc, skill), ("incident", "implement-change"))
+        # incident profilinde olmayan skill'de sınıf korunur
+        tc, _s, _e, _x = self.pick("/grilling prod çöktü planı netleştir")
+        self.assertEqual(tc, "research")
+
+    def test_primarysiz_olayin_riski_auto_gorunmez(self):
+        # 'prod çöktü, bakabilir misin?' → sınıf incident, zorunlu skill yok;
+        # başlıktaki risk sınıftan türemeli, 'auto' yanlış güven verir.
+        cfg = route.load_rules()
+        context, _s = route.render("prod çöktü, bakabilir misin?", cfg,
+                                   pdir=ROOT)
+        self.assertIn("Sınıf: incident", context)
+        self.assertIn("Risk: approval", context)
+
 
 if __name__ == "__main__":
     unittest.main()

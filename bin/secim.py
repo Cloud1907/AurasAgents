@@ -75,7 +75,7 @@ def _puanla(cfg, text, tokens, explicit):
     return scored, komut
 
 
-def _eskale(sonuc, scored):
+def _eskale(sonuc, scored, olayda_izinli=None):
     """Olay tetiği görüldüyse sınıfı incident'a yükselt (yalnız yukarı).
 
     AGENTS.md: 'eskalasyon yalnız yukarı olur.' Olay, sınıflar içinde en
@@ -83,13 +83,21 @@ def _eskale(sonuc, scored):
     yoktur — sayı yarışı kazanılamaz (PR #40'ta üç turda ölçüldü). Soru
     biçimi zorunlu skill dayatmayı engeller ama SINIFI düşürmez: çökmüş
     prod hakkındaki soru da olay bağlamında ele alınır.
+
+    Açık /komut SKILL seçimidir, SINIF seçimi değil — eskalasyon komutta da
+    çalışır. Tek sınır izin sınırı: seçilen skill incident profilinde izinli
+    değilse (grilling gibi read-only) kullanıcının sınıfı korunur — skill'e
+    profili olmayan bir sınıf giydirilmez (inceleme bulgusu, 2026-08-12).
     """
     olay_var = any(r.get("task_class") == "incident" for _p, _s, r, _h in scored)
     if not olay_var:
         return sonuc
     task_class, primary, extras, hits, explicit = sonuc
-    if task_class == "incident" or explicit:
-        return sonuc  # zaten olay, ya da kullanıcı komutla seçimini yapmış
+    if task_class == "incident":
+        return sonuc
+    skill = (primary or {}).get("skill")
+    if skill and olayda_izinli and not olayda_izinli(skill):
+        return sonuc
     if primary:
         primary = dict(primary, risk="approval")
     return "incident", primary, extras, hits, explicit

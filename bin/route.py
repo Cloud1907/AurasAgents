@@ -37,7 +37,8 @@ try:
     import davranis
     from secim import _eskale, _puanla, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
-                             skill_installed, skill_izinli, skill_task_class)
+                             sinifta_izinli, skill_installed, skill_izinli,
+                             skill_task_class)
 except Exception:                                    # pragma: no cover
     skill_task_class = None
 
@@ -51,6 +52,9 @@ except Exception:                                    # pragma: no cover
         return False
 
     def skill_izinli(skill, pdir):
+        return False
+
+    def sinifta_izinli(skill, task_class, pdir):
         return False
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
@@ -173,8 +177,10 @@ def route(prompt, cfg, pdir=None):
         explicit = m.group(1)
 
     scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
+    pd = pdir or project_dir()
     return _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
-                        pdir), scored)
+                        pd), scored,
+                   olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
 
 
 def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
@@ -278,8 +284,12 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
 
 def _davranis_satirlari(prompt, cfg, primary, task_class):
     """Her turda enjekte edilen davranış sözleşmesi (metinler: davranis.py)."""
-    return davranis.sozlesme(sahip(prompt, cfg, primary), task_class,
-                             (primary or {}).get("risk", "auto"))
+    # Risk kuraldan; kural yoksa SINIFTAN türer. Primary'siz incident'a
+    # 'auto' yazmak yanlış güven verirdi (inceleme bulgusu, 2026-08-12):
+    # research dışı her sınıf temkinli tarafta approval'dır.
+    risk = ((primary or {}).get("risk")
+            or ("auto" if task_class == "research" else "approval"))
+    return davranis.sozlesme(sahip(prompt, cfg, primary), task_class, risk)
 
 
 def _kaydet(prompt, cfg, pdir):
