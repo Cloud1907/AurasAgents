@@ -326,18 +326,35 @@ class RouteTest(unittest.TestCase):
         tc, skill, _e, _x = self.pick("/implement-change prod çöktü")
         self.assertEqual((tc, skill), ("incident", "implement-change"))
 
-    def test_olay_cumledeki_genel_fiillere_yenilmez(self):
-        """Acil cümledeki doğal fiiller olay sınıfını düşürmemeli.
+    def test_olay_sinifi_eskalasyonu_sayiya_bakmaz(self):
+        """Olay tetiği görüldüyse sınıf incident'a ESKALE olur — sayı yarışı yok.
 
-        İnceleme bulgusu (PR #40): 'prod çöktü, düzelt ve uygula' isteminde
-        genel kural 2 tetik (düzelt, uygula) toplayıp tek olay tetiğini
-        sayıyla eziyordu. Acil istek doğal olarak emir fiilleri içerir;
-        sayı üstünlüğü özgüllüğü ezmemeli. Puan = tetik sayısı × özgüllük.
+        İnceleme bulguları (PR #40, ardışık 3 tur): sayı-tabanlı her formül
+        yenildi — önce 2 genel fiil tek olay tetiğini ezdi, çarpım eşiği
+        kaydırınca 4 fiil ezdi. Yarış kazanılamaz (grilling dersi, PR #39).
+        Eskalasyon varlığa bakar, sayıya değil: AGENTS.md 'eskalasyon yalnız
+        yukarı' ilkesinin routing karşılığı.
         """
         for istem in ("prod çöktü, düzelt ve uygula",
+                      "prod çöktü; düzelt, uygula, kodla ve test yaz",
                       "canlıda hata var hemen düzelt"):
             tc, _s, _e, _x = self.pick(istem)
             self.assertEqual(tc, "incident", istem)
+
+    def test_soru_bicimi_olay_sinifini_dusurmez(self):
+        # Soru zorunlu skill dayatmayı engeller, SINIFI düşürmez: çökmüş
+        # prod hakkında soru da olay bağlamında ele alınır.
+        tc, skill, _e, _x = self.pick("prod çöktü, bakabilir misin?")
+        self.assertEqual(tc, "incident")
+        self.assertIsNone(skill)
+
+    def test_olay_tetikleri_gundelik_isle_karismaz(self):
+        # 'kesinti' öneki 'kesintisiz'i, 'servis durdu' alt-dizesi 'servis
+        # durdurma'yı yakalıyordu — tetikler somut olay ifadeleri olmalı.
+        for istem in ("kesintisiz dağıtım pipeline'ı ekle",
+                      "servis durdurma butonu ekle"):
+            tc, _s, _e, _x = self.pick(istem)
+            self.assertNotEqual(tc, "incident", istem)
 
 
 if __name__ == "__main__":

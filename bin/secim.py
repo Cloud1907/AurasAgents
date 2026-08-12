@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Seçim ilkeleri — soru/emir ayrımı, kural puanlama, sınıf eskalasyonu.
+
+route.py'nin akış iskeletinden ayrı tutulur: burada POLİTİKA yaşar (neye
+göre seçilir), orada akış (hangi sırayla denenir). Her ilke kendi ölçülmüş
+gerekçesini docstring/yorumunda taşır — politika değişikliği gerekçesiz
+yapılmaz.
+"""
+import re
+
+TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
+
+
+def _normalize(text):
+    return text.translate(TR_LOWER).lower()
+
+
+def _matches(trigger, text, tokens):
+    if " " in trigger:
+        return trigger in text
+    return any(tok.startswith(trigger) for tok in tokens)
+
+
+# --- Soru turu tespiti (2026-08-07) --------------------------------------
+# Bulgu: bir oturumda 12+ tur yanlış sınıflandı. "bizim hafıza tarafı
+# başarılı mı?" → code-change/approval + zorunlu kernel-work; "ne
+# yapmalıyız?" → implement-change. Türkçe önek eşleşmesi DOĞRU çalışıyordu
+# ("yapmalıyız" ile "yap" aynı fiildir); kusur tur TİPİNİN okunmamasıydı.
+#
+# Soru turunda zorunlu skill dayatmak iki zarar üretir: (1) her sohbet turu
+# "onay riskli iş" görünür ve gerçek approval sinyali değersizleşir,
+# (2) ajan atlama gerekçesini kayda geçirmek zorunda kalır — bürokrasi.
+#
+# Asimetri bilinçli: yanlış "soru" ucuzdur (router zaten bloklamaz, tur
+# kapısı kanıtı yine ister), yanlış "code-change/approval" gürültülüdür.
+SORU_SONU = re.compile(r"\?\s*$")
+SORU_EKI = re.compile(
+    r"(?:^|\s)(m[ıiuü]|m[ıiuü]s[ıi]n|m[ıiuü]y[ıi]m|m[ıiuü]sunuz)\b")
+SORU_BASI = re.compile(
+    r"^(ne|neden|niye|nas[ıi]l|hangi|kim|ka[çc]|nerede|sence|acaba)\b")
+
+
+def soru_turu(text):
+    """Bu tur bir SORU mu, yoksa iş emri mi?
+
+    Soru işareti, ayrı duran soru eki (…iyi mi) ya da cümle BAŞINDA soru
+    kelimesi arar. Soru kelimesi cümle ORTASINDAysa emir sayılır:
+    "actions'a bak neden koşmadı" bir iştir, soru değil.
+    """
+    return bool(SORU_SONU.search(text) or SORU_EKI.search(text)
+                or SORU_BASI.match(text))
+
+
+def _puanla(cfg, text, tokens, explicit):
+    """(tetik-puanlı kurallar, açık komutun kuralları) — ikisi de sıralı.
+
+    Aynı skill birden çok kuralda olabilir (implement-change hem code-change
+    hem incident). Açık /komut ilk eşleşende dururken diğeri ERİŞİLEMEZ
+    kalıyordu; bağlam (tetik isabeti) seçsin.
+    """
+    scored, komut = [], []
+    for rule in cfg.get("rules", []):
+        hit = [t for t in rule.get("triggers", [])
+               if _matches(_normalize(t), text, tokens)]
+        spec = rule.get("specificity", 1)
+        if explicit and explicit == rule.get("skill"):
+            komut.append((len(hit), spec, rule, hit))
+        if hit:
+            scored.append((len(hit), spec, rule, hit))
+    # Puan → özgüllük → routing.yml sırası (kararlı sonuç). Sınıf yarışı
+    # burada ÇÖZÜLMEZ: olay sınıfı puanla değil eskalasyonla gelir
+    # (_eskale) — sayı-tabanlı her formül ölçümde yenildi (2026-08-12).
+    scored.sort(key=lambda s: (-s[0], -s[1]))
+    komut.sort(key=lambda k: (-k[0], -k[1]))
+    return scored, komut
+
+
+def _eskale(sonuc, scored):
+    """Olay tetiği görüldüyse sınıfı incident'a yükselt (yalnız yukarı).
+
+    AGENTS.md: 'eskalasyon yalnız yukarı olur.' Olay, sınıflar içinde en
+    yüksek bahisli olandır; tetiği varken kaç genel fiil eşleştiğinin önemi
+    yoktur — sayı yarışı kazanılamaz (PR #40'ta üç turda ölçüldü). Soru
+    biçimi zorunlu skill dayatmayı engeller ama SINIFI düşürmez: çökmüş
+    prod hakkındaki soru da olay bağlamında ele alınır.
+    """
+    olay_var = any(r.get("task_class") == "incident" for _p, _s, r, _h in scored)
+    if not olay_var:
+        return sonuc
+    task_class, primary, extras, hits, explicit = sonuc
+    if task_class == "incident" or explicit:
+        return sonuc  # zaten olay, ya da kullanıcı komutla seçimini yapmış
+    if primary:
+        primary = dict(primary, risk="approval")
+    return "incident", primary, extras, hits, explicit
+
+

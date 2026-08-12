@@ -35,6 +35,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import davranis
+    from secim import _eskale, _puanla, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
                              skill_installed, skill_izinli, skill_task_class)
 except Exception:                                    # pragma: no cover
@@ -144,36 +145,6 @@ def sahip(prompt, cfg, primary=None):
     return (primary or {}).get("owner")
 
 
-# --- Soru turu tespiti (2026-08-07) --------------------------------------
-# Bulgu: bir oturumda 12+ tur yanlış sınıflandı. "bizim hafıza tarafı
-# başarılı mı?" → code-change/approval + zorunlu kernel-work; "ne
-# yapmalıyız?" → implement-change. Türkçe önek eşleşmesi DOĞRU çalışıyordu
-# ("yapmalıyız" ile "yap" aynı fiildir); kusur tur TİPİNİN okunmamasıydı.
-#
-# Soru turunda zorunlu skill dayatmak iki zarar üretir: (1) her sohbet turu
-# "onay riskli iş" görünür ve gerçek approval sinyali değersizleşir,
-# (2) ajan atlama gerekçesini kayda geçirmek zorunda kalır — bürokrasi.
-#
-# Asimetri bilinçli: yanlış "soru" ucuzdur (router zaten bloklamaz, tur
-# kapısı kanıtı yine ister), yanlış "code-change/approval" gürültülüdür.
-SORU_SONU = re.compile(r"\?\s*$")
-SORU_EKI = re.compile(
-    r"(?:^|\s)(m[ıiuü]|m[ıiuü]s[ıi]n|m[ıiuü]y[ıi]m|m[ıiuü]sunuz)\b")
-SORU_BASI = re.compile(
-    r"^(ne|neden|niye|nas[ıi]l|hangi|kim|ka[çc]|nerede|sence|acaba)\b")
-
-
-def soru_turu(text):
-    """Bu tur bir SORU mu, yoksa iş emri mi?
-
-    Soru işareti, ayrı duran soru eki (…iyi mi) ya da cümle BAŞINDA soru
-    kelimesi arar. Soru kelimesi cümle ORTASINDAysa emir sayılır:
-    "actions'a bak neden koşmadı" bir iştir, soru değil.
-    """
-    return bool(SORU_SONU.search(text) or SORU_EKI.search(text)
-                or SORU_BASI.match(text))
-
-
 def _komut_kurali_cozumle(explicit, cfg, scored, pdir):
     """Kuralsız /komutun sentetik kuralı, sınıfı ve riski çözülmüş hâlde.
 
@@ -191,33 +162,6 @@ def _komut_kurali_cozumle(explicit, cfg, scored, pdir):
                 risk="auto" if sinif == "research" else "approval")
 
 
-def _puanla(cfg, text, tokens, explicit):
-    """(tetik-puanlı kurallar, açık komutun kuralları) — ikisi de sıralı.
-
-    Aynı skill birden çok kuralda olabilir (implement-change hem code-change
-    hem incident). Açık /komut ilk eşleşende dururken diğeri ERİŞİLEMEZ
-    kalıyordu; bağlam (tetik isabeti) seçsin.
-    """
-    scored, komut = [], []
-    for rule in cfg.get("rules", []):
-        hit = [t for t in rule.get("triggers", [])
-               if matches(normalize(t), text, tokens)]
-        spec = rule.get("specificity", 1)
-        # Puan = tetik sayısı × özgüllük. Salt sayı, doğal cümledeki genel
-        # fiillerin ('düzelt ve uygula') tek olay tetiğini ezmesine yol
-        # açıyordu; salt sıralamada özgüllük yalnız eşitlik bozuyordu.
-        # Çarpım eşitlik davranışını korur, özgül kurala sayı farkını
-        # kapatma gücü verir (inceleme bulguları, 2026-08-12).
-        if explicit and explicit == rule.get("skill"):
-            komut.append((len(hit) * spec, spec, rule, hit))
-        if hit:
-            scored.append((len(hit) * spec, spec, rule, hit))
-    # Puan → özgüllük → routing.yml sırası (kararlı sonuç).
-    scored.sort(key=lambda s: (-s[0], -s[1]))
-    komut.sort(key=lambda k: (-k[0], -k[1]))
-    return scored, komut
-
-
 def route(prompt, cfg, pdir=None):
     """(task_class, primary, extras, hits, explicit) döndürür."""
     text = normalize(prompt)
@@ -229,6 +173,12 @@ def route(prompt, cfg, pdir=None):
         explicit = m.group(1)
 
     scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
+    return _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
+                        pdir), scored)
+
+
+def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
+    """Kural seçimi — eskalasyon uygulanmamış ham sonuç."""
     if komut_kurallari:
         rule, hit = komut_kurallari[0][2], komut_kurallari[0][3]
         return (rule.get("task_class", "research"), rule,
