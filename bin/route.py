@@ -188,9 +188,29 @@ def route(prompt, cfg, pdir=None):
 
     scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
     pd = pdir or project_dir()
-    return _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
-                        pd), scored,
-                   olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
+    sonuc = _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
+                         pd), scored,
+                    olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
+    return _sinirli(sonuc, pd)
+
+
+def _sinirli(sonuc, pdir):
+    """Öneri listesini turun NİHAİ sınıfına göre süz (eskalasyondan sonra).
+
+    Profil "izin sınırı"dır (AGENTS.md); ÖNERİ de o sınıra tabidir.
+    Salt-okunur tura düşen yazma kuralını "Ek skill" diye sunmak sınırı
+    tavsiyeye çevirirdi (inceleme 5. tur, PR #43).
+
+    Yalnız sistemin YÖNETTİĞİ skill süzülür: profillerde hiç geçmeyen ad
+    kapsam dışıdır, dışlama değil — `profil_disinda`nın aynı üç-durum
+    ayrımı. Eklenti skill'ini öneriden düşürmek router'ı kullanıcının
+    aracına karşı çalıştırırdı.
+    """
+    task_class, primary, extras, hits, explicit = sonuc
+    sinirli_extras = [s for s in extras
+                      if sinifta_izinli(s, task_class, pdir)
+                      or not skill_izinli(s, pdir)]
+    return task_class, primary, sinirli_extras, hits, explicit
 
 
 def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):

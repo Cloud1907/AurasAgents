@@ -51,9 +51,11 @@ class NiyetKapisiTest(unittest.TestCase):
             "sistemini eleştirel incele")
         self.assertEqual(tc, "research")
         self.assertEqual(skill, "research-with-evidence")
-        # Yazma kuralı kaybolmaz, öneriye düşer: iş gerçekten mutasyona
-        # dönerse ajan kernel-work'ü oradan yükler.
-        self.assertIn("kernel-work", extras)
+        # İlk tasarım kernel-work'ü "Ek skill" olarak öneride bırakıyordu;
+        # inceleme 5. turu bunu izin sınırı ihlali saydı ve haklıydı —
+        # salt-okunur turda yazma skill'i önerilmez (bkz.
+        # test_salt_okunur_turda_oneri_de_izin_sinirina_tabidir).
+        self.assertNotIn("kernel-work", extras)
 
     def test_inceleme_istemi_duzelt_kelimesiyle_mutasyona_donmez(self):
         # Ölçülen vaka 2: Codex'in kendi inceleme istemi içindeki "düzelt"
@@ -74,12 +76,13 @@ class NiyetKapisiTest(unittest.TestCase):
 
     def test_okunur_niyette_okunur_kural_yoksa_zorunlu_skill_yok(self):
         # Düşük güven: niyet okuma ama hiçbir okuma kuralı eşleşmedi —
-        # zorunlu skill üretilmez, eşleşen yazma kuralları öneri kalır.
+        # zorunlu skill üretilmez. Eşleşen yazma kuralları da ÖNERİLMEZ:
+        # öneri de profilin izin sınırına tabidir (inceleme 5. tur).
         tc, skill, extras, _x = self.pick(
             "çekirdek profillerini gözden geçir")
         self.assertIsNone(skill)
         self.assertEqual(tc, "research")
-        self.assertIn("kernel-work", extras)
+        self.assertNotIn("kernel-work", extras)
 
     # --- incele.py P1 bulguları (PR #43, 2026-08-12) — kalıcı regresyon ---
 
@@ -125,7 +128,7 @@ class NiyetKapisiTest(unittest.TestCase):
         tc, skill, extras, _x = self.pick("router yapısını eleştirel incele")
         self.assertEqual(tc, "research")
         self.assertEqual(skill, "research-with-evidence")
-        self.assertIn("kernel-work", extras)
+        self.assertNotIn("kernel-work", extras)   # öneri de sınıra tabi
 
     def test_edilgen_n_biçimi_yazma_isareti_sayilmaz(self):
         # P1: edilgen listesi -ıl/-il ile sınırlıydı; ünlüyle biten kökün
@@ -168,6 +171,62 @@ class NiyetKapisiTest(unittest.TestCase):
         tc, skill, _e, _x = self.pick("login endpointini devreye al")
         self.assertEqual(tc, "code-change")
         self.assertEqual(skill, "implement-change")
+
+    # --- incele.py P1 bulguları, 6. tur (PR #43) ---
+
+    def test_hafif_fiil_okuma_adiyla_mutasyon_sayilmaz(self):
+        # P1: "yap" bağlamdan bağımsız mutasyon sayılıyordu. Türkçede
+        # "analiz yap" birleşik fiildir; anlamı taşıyan AD'dır, "yap"
+        # yalnız yardımcıdır — istek okumadır.
+        for prompt in ("login akışının güvenlik analizini yap",
+                       "kod tabanının incelemesini yap",
+                       "bağımlılıkların değerlendirmesini yapalım"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
+    def test_hafif_fiil_citi_gercek_is_emrini_yutmaz(self):
+        # Negatif kontrol: önündeki ad okuma adı değilse "yap" yazmadır.
+        for prompt, beklenen in (
+                ("API endpointine stres testi yap", "code-change"),
+                ("raporda önerilen düzeltmeyi yap", "code-change"),
+                ("login akışını yap", "code-change")):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, beklenen)
+
+    # --- incele.py P1 bulguları, 5. tur (PR #43) ---
+
+    def test_salt_okunur_turda_oneri_de_izin_sinirina_tabidir(self):
+        # P1: salt-okunur sınıfa indirilen yazma kuralları "Ek skill"
+        # olarak öneriliyordu — capability profili izin sınırıdır, öneri
+        # de o sınıra tabidir; yoksa sınır tavsiyeye döner.
+        for prompt in ("AurasAgents router, AurasPrime, kanıt kapıları ve "
+                       "hafıza sistemini eleştirel incele",
+                       "çekirdek profillerini gözden geçir"):
+            with self.subTest(prompt=prompt):
+                tc, _s, extras, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+                disarida = [s for s in extras
+                            if route.skill_izinli(s, ROOT)
+                            and not route.sinifta_izinli(s, tc, ROOT)]
+                self.assertFalse(disarida, f"profil dışı öneri: {disarida}")
+
+    def test_edilgen_deyim_yazma_emri_sayilmaz(self):
+        # P1: çok kelimeli deyim biçim aranmadan alt-dize eşleşiyordu —
+        # "devreye alınması" edilgen ad, emir değil.
+        tc, _s, _e, _x = self.pick(
+            "auth endpointinin devreye alınması gereken notları raporla")
+        self.assertEqual(tc, "research")
+
+    def test_alintilanan_yazma_emri_niyet_sayilmaz(self):
+        # P1: yalnızca ANILAN emir gerçek niyetten ayrılmıyordu. Tırnak
+        # içi metin niyet taramasından çıkarılır (sınırlı ama mekanik
+        # çare; cümleyi ANLAMAK bu katmanın işi değil — grilling
+        # not_routed kararının aynı gerekçesi).
+        tc, _s, _e, _x = self.pick(
+            "router çıktısındaki 'kodu düzelt ve uygula' ifadesini incele")
+        self.assertEqual(tc, "research")
 
     # --- incele.py P1 bulguları, 4. tur (PR #43) ---
 

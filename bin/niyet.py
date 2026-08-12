@@ -81,11 +81,78 @@ _DUSMUS_EK = re.compile(r"^[ıiuü]yor(?:um|uz)$")
 _VN_EK = re.compile(r"^m[ae](?:m|m[ıiuü]z|n|n[ıiuü]z|s[ıi]|l[ae]r[ıi])$")
 
 
+# Tırnak/backtick içi metin ANILAN emirdir, niyet değil (inceleme 5. tur:
+# "router çıktısındaki 'kodu düzelt' ifadesini incele"). Mekanik ve sınırlı
+# çare — cümleyi ANLAMAK bu katmanın işi değil; aynı gerekçe grilling'in
+# not_routed kararında da yazılıdır.
+# Kesme işareti tuzağı: Türkçede ek ayracıdır ("router'ı", "endpoint'i").
+# Açan tek tırnak bu yüzden yalnız harf/rakamla BİTİŞİK DEĞİLSE tırnak
+# sayılır — yoksa "router'ı düzelt ve endpoint'i ekle" cümlesinin ortası
+# alıntı sanılıp silinirdi.
+_ALINTI = re.compile(
+    r"(?<![0-9a-zçğıöşüA-ZÇĞİÖŞÜ])'[^']*'|\"[^\"]*\"|`[^`]*`|“[^”]*”")
+
+
+def alintisiz(text):
+    """Tırnak içi bölümleri boşlukla değiştirir (konumlar korunur)."""
+    return _ALINTI.sub(lambda m: " " * len(m.group()), text)
+
+
+# Birleşik fiil: "analiz yap" gibi kalıplarda anlamı AD taşır, "yap"
+# yalnız yardımcıdır — istek okumadır (inceleme 6. tur: "login akışının
+# güvenlik analizini yap" yazma sayılıp approval üretiyordu). Yalnız
+# yardımcının ÖNÜNDEKİ ad okuma adıysa geçerlidir: "stres testi yap" ve
+# "düzeltmeyi yap" iş emri olarak kalır.
+HAFIF_FIILLER = ("yap", "gerçekleştir")
+OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
+                "değerlendirme", "tarama", "karşılaştırma", "kıyaslama",
+                "gözden geçirme", "keşif", "özet")
+
+
+def _hafif_fiil_yerleri(text):
+    """Okuma adının hemen ardındaki yardımcı fiillerin (başlangıç, bitiş)."""
+    tokenlar = list(_TOKEN_RE.finditer(text))
+    yerler = []
+    for onceki, simdi in zip(tokenlar, tokenlar[1:]):
+        if not any(simdi.group().startswith(f) and
+                   _POZ_EK.match(simdi.group()[len(f):])
+                   for f in HAFIF_FIILLER):
+            continue
+        if any(onceki.group().startswith(ad) for ad in OKUMA_ADLARI):
+            yerler.append((simdi.start(), simdi.end()))
+    return yerler
+
+
+def _hafif_fiil_maskesi(text):
+    """Okuma adının ardından gelen yardımcı fiili taramadan çıkarır."""
+    parcalar = list(text)
+    for bas, son in _hafif_fiil_yerleri(text):
+        for i in range(bas, son):
+            parcalar[i] = " "
+    return "".join(parcalar)
+
+
+def _deyim_gecer(text, deyim):
+    """Çok kelimeli deyim POZİTİF emir biçiminde mi geçiyor?
+
+    Alt-dize eşleşmesi yetmez: "devreye alınması" edilgen addır, emir
+    değil (inceleme 5. tur). Son kelime fiildir; ona kök+ek analizinin
+    aynısı uygulanır, öncesi birebir aranır.
+    """
+    *bas, fiil = deyim.split()
+    onek = " ".join(bas)
+    for m in re.finditer(re.escape(onek) + r"\s+([0-9a-zçğıöşü_.]+)", text):
+        tok = m.group(1)
+        if tok.startswith(fiil) and _POZ_EK.match(tok[len(fiil):]):
+            return True
+    return False
+
+
 def _tara(text, isaretler):
     """(güçlü, fiil_ismi) — işaretlerin pozitif biçimde görülme bayrakları."""
     guclu = fiil_ismi = False
     for im in isaretler:
-        if " " in im and im in text:
+        if " " in im and _deyim_gecer(text, im):
             guclu = True
     for m in _TOKEN_RE.finditer(text):
         tok = m.group()
@@ -118,7 +185,8 @@ def _zayif_var(text):
 
 def mutasyon_niyeti(text):
     """Bu tur kod/dosya DEĞİŞTİRMEK mi istiyor? Biçim karar verir."""
-    yaz, yaz_fiil_ismi = _tara(text, YAZ_FIILLERI)
+    text = alintisiz(text)
+    yaz, yaz_fiil_ismi = _tara(_hafif_fiil_maskesi(text), YAZ_FIILLERI)
     if yaz:
         return True
     if okuma_niyeti(text):
@@ -132,8 +200,14 @@ def okuma_niyeti(text):
     """Pozitif okuma emri var mı? Kapı yalnız bu doğrulanınca devreye
     girer (incele.py P1, tur 3): niyet belirsizken ("devreye al" gibi
     tanınmayan fiil) tetik tablosunun otoritesi korunur — sözlüğün
-    kapsamadığı her fiili okumaya saymak zorunlu skill'i yutar."""
-    return _tara(text, OKU_ISARETLERI)[0]
+    kapsamadığı her fiili okumaya saymak zorunlu skill'i yutar.
+
+    Birleşik fiil ("analizini yap") de POZİTİF okuma emridir: anlamı ad
+    taşır, ad ise fiil morfolojisine uymaz — ayrıca sorulur.
+    """
+    temiz = alintisiz(text)
+    return bool(_tara(temiz, OKU_ISARETLERI)[0]
+                or _hafif_fiil_yerleri(temiz))
 
 
 def kural_niyeti(rule):
