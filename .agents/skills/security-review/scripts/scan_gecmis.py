@@ -108,6 +108,33 @@ def gecmis_tara(kok, rev_args, exclude=()):
     return bulgular, commit_sayisi, None
 
 
+def mesaj_tara(kok, rev_args):
+    """Commit MESAJLARINDAKİ sırlar — mesaj da push'la uzağa gider.
+
+    Kanıtlanmış vaka (güvenlik denetimi, 2026-08-12): `git commit -m
+    "fix: anahtar sk_live_..."` diff'te görünmez, eklenen-satır taraması
+    temiz diyordu. %x01/%x02 ayraçları mesaj metninde pratikte geçmez;
+    satır tabanlı ayrıştırma mesajın kendisiyle karışamaz.
+
+    Yol tabanlı muafiyet mesaja UYGULANAMAZ (mesajın yolu yok); yanlış
+    pozitifin kaçışı placeholder filtresi, son çare --no-verify (bilinçli).
+    """
+    p = subprocess.run(
+        ["git", "-C", kok, "log", "--format=%H%x01%B%x02", *rev_args],
+        capture_output=True, text=True, errors="replace")
+    if p.returncode != 0:
+        return None, p.stderr.strip() or "git log (mesaj) başarısız"
+    bulgular = []
+    for blok in p.stdout.split("\x02"):
+        sha, ayrac, mesaj = blok.strip("\n").partition("\x01")
+        if not ayrac:
+            continue
+        for i, satir in enumerate(mesaj.splitlines(), 1):
+            for kural, deger in ss.scan_line(satir):
+                bulgular.append((sha.strip()[:12], i, kural, _onizle(deger)))
+    return bulgular, None
+
+
 KULLANIM = ("kullanım: scan_gecmis.py --push-range <remote_sha> <local_sha> "
             "[--exclude GLOB] <repo_kök>")
 
@@ -152,6 +179,10 @@ def main(argv):
     if hata:
         print(f"HATA: {hata}", file=sys.stderr)
         return 2
+    mesaj_bulgular, hata = mesaj_tara(kok, rev_args)
+    if hata is not None:
+        print(f"HATA: mesaj taraması koşamadı: {hata}", file=sys.stderr)
+        return 2
     bulgular, bastirilan = ss.muafiyet_uygula(bulgular, kok, desenler)
     if bastirilan:
         print(f"scan_gecmis: {len(bastirilan)} bulgu proje muafiyetiyle "
@@ -159,18 +190,25 @@ def main(argv):
         for tam, satir, kural, _o, sha in bastirilan:
             rel = os.path.relpath(tam, kok)
             print(f"  muaf: {sha} {rel}:{satir}  [{kural}]")
+    return _raporla(kok, commit_sayisi, bulgular, mesaj_bulgular)
+
+
+def _raporla(kok, commit_sayisi, bulgular, mesaj_bulgular):
     if commit_sayisi == 0:
         # Boş aralık meşrudur (aynı SHA'ya push) — ama görünür söylenir.
         print("scan_gecmis: aralıkta yeni commit yok — geçmiş taraması boş ✓")
         return 0
-    if not bulgular:
+    if not bulgular and not mesaj_bulgular:
         print(f"scan_gecmis: temiz — {commit_sayisi} commit tarandı, eklenen "
-              "satırlarda secret deseni yok ✓")
+              "satırlarda ve mesajlarda secret deseni yok ✓")
         return 0
-    print(f"scan_gecmis: push aralığında {len(bulgular)} olası secret ✗")
+    print(f"scan_gecmis: push aralığında {len(bulgular) + len(mesaj_bulgular)}"
+          " olası secret ✗")
     for tam, satir, kural, onizleme, sha in bulgular:
         rel = os.path.relpath(tam, kok)
         print(f"  {sha} {rel}:{satir}  [{kural}]  → {onizleme}")
+    for sha, satir, kural, onizleme in mesaj_bulgular:
+        print(f"  {sha} (commit mesajı):{satir}  [{kural}]  → {onizleme}")
     print("SONUÇ: FAIL — sır GEÇMİŞTE: commit'i yeniden yaz (rebase/amend), "
           "anahtarı döndür (rotate); index'i temizlemek yetmez.")
     return 1

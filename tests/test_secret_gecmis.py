@@ -132,6 +132,22 @@ class GecmisTaramaTest(unittest.TestCase):
                               "--exclude", "*/eval/*", td)
             self.assertEqual(kod, 0, cikti)
 
+    def test_commit_mesajindaki_sir_yakalanir(self):
+        """Mesaj da push'la uzağa gider — diff taraması onu görmez.
+
+        Güvenlik denetimi kanıtı (2026-08-12): `git commit -m "fix: anahtar
+        sk_live_..."` eklenen-satır taramasından temiz geçiyordu.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            taban = depo_kur(td)
+            with open(os.path.join(td, "ek.py"), "w") as fh:
+                fh.write("y = 2\n")
+            git(td, "add", "-A")
+            git(td, "commit", "-q", "-m", f"fix: anahtar {ORNEK_ANAHTAR} kullan")
+            kod, cikti = tara("--push-range", taban, "HEAD", td)
+            self.assertEqual(kod, 1, f"mesajdaki sır kaçtı:\n{cikti}")
+            self.assertIn("commit mesaj", cikti)
+
     def test_bos_aralik_temiz_ama_gorunur(self):
         """Aynı SHA'ya push (yeni commit yok) bulgu üretmez, kapı asılmaz."""
         with tempfile.TemporaryDirectory() as td:
