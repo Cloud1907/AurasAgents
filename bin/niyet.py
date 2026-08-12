@@ -96,14 +96,24 @@ _ALINTI = re.compile(
 # istek yazmadır (inceleme 7. tur). Anma POZİTİF kanıt ister — alıntının
 # neyin alıntısı olduğunu söyleyen bir ad ya da fiil. Modülün geri
 # kalanıyla aynı ilke: beyaz-liste, kara-liste değil.
+# Kelime SINIRI zorunlu (inceleme 8. tur): sınırsız arama "login"
+# içindeki "log"u anma sanıp kullanıcının kendi emrini yok ediyordu.
+# Kök + ek serbest ("ifadesini"), ama kök kelime başında olmalı; "log"
+# tam kelime aranır çünkü çok kısa ve yaygın bir alt-dizedir.
 _ANMA_ISARETI = re.compile(
-    r"ifade|cümle|metin|çıktı|kelime|satır|mesaj|yorum|log|hata mesaj|"
-    r"diyor|geçiyor|yazıyor|deniyor|ibare|terim|başlık|alıntı")
+    r"\b(?:ifade|cümle|metin|çıktı|kelime|satır|mesaj|yorum|ibare|terim|"
+    r"başlık|alıntı|diyor|geçiyor|yazıyor|deniyor)|\blog\b")
 
 
 def anma_var(text):
-    """Alıntı, ANILAN metin olarak mı sunuluyor (yoksa kullanıcının emri)?"""
-    return bool(_ANMA_ISARETI.search(text))
+    """Alıntı, ANILAN metin olarak mı sunuluyor (yoksa kullanıcının emri)?
+
+    İşaret alıntının DIŞINDA aranır: alıntının kendi içindeki "ifade"
+    kelimesi, alıntıyı anma olarak nitelemeye yetmez — yoksa metin kendi
+    kendine izin verirdi (inceleme 8. tur).
+    """
+    disari = _ALINTI.sub(" ", text)
+    return bool(_ANMA_ISARETI.search(disari))
 
 
 def alintisiz(text):
@@ -129,10 +139,12 @@ OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
 # Ad kökünden sonra YALNIZ ad çekimi gelebilir (hâl/iyelik/çoğul). Önek
 # eşleşmesi yetmez: "analizör" türemiş bir ADDIR, "analiz" değil — ve
 # "statik analizör yap" gerçek bir geliştirme emridir (inceleme 7. tur).
+# Kaynaştırma ünsüzü (y/n/s) ünlüyle biten adda zorunludur: araştırma +
+# -ı → "araştırmayı" (inceleme 8. tur — onsuz salt-okunur istek yazma
+# sayılıyordu). Türemiş ad hâlâ dışarıda kalır: "analizör" → "ör".
 _AD_EK = re.compile(
-    r"^(?:[ıiuü]|[ıiuü]n|[ıiuü]n[ıiuü]|s[ıiuü]|s[ıiuü]n[ıiuü]|"
-    r"[ıiuü]m[ıiuü]z|[ıiuü]m[ıiuü]z[ıiuü]|[ae]|d[ae]|d[ae]n|t[ae]|t[ae]n|"
-    r"l[ae]r|l[ae]r[ıiuü]|l[ae]r[ıiuü]n[ıiuü]|n[ıiuü]n|n[ıiuü])?$")
+    r"^(?:[yns]?[ıiuü]n?[ıiuü]?|[yns]?[ae]|[dt][ae]n?|"
+    r"[ıiuü]m[ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
 
 
 def _okuma_adi_mi(tokenlar, i):

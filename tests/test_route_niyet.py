@@ -39,6 +39,26 @@ class NiyetKapisiTest(unittest.TestCase):
             prompt, self.cfg)
         return task_class, (primary or {}).get("skill"), extras, explicit
 
+    # --- incele.py P1 bulguları, 8. tur (PR #49) ---
+
+    def test_anma_isareti_alinti_disinda_ve_kelime_siniriyla_aranir(self):
+        # P1: işaret TÜM metinde ve kelime sınırı olmadan aranıyordu —
+        # "login" içindeki "log" anma sanılıp kullanıcının kendi emrini
+        # yok ediyordu. İşaret alıntının DIŞINDA ve tam kelime olmalı.
+        tc, _s, _e, _x = self.pick(
+            '"login açığını düzelt" ve yaptıklarını raporla')
+        self.assertEqual(tc, "code-change")
+
+    def test_unlu_biten_okuma_adi_kaynastirma_ekini_alir(self):
+        # P1: _AD_EK ünlüyle biten adın -yı/-yi çekimini tanımıyordu;
+        # "araştırmayı yap" salt-okunur istekken yazma sayılıyordu.
+        for prompt in ("gerekli araştırmayı yap",
+                       "bu değerlendirmeyi yap",
+                       "kapsamlı taramayı yapalım"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
     # --- incele.py P1 bulguları, 7. tur (PR #49) ---
 
     def test_yerel_profilin_bilincli_dislamasi_onerilmez(self):
