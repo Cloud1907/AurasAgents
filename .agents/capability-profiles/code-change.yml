@@ -4,6 +4,9 @@ description: "Contract'lı kod değişikliği — sistemin ana iş sınıfı"
 skills:
   # Bu küme routing.yml ile CI'da eşleşmek ZORUNDA (validate test_routing):
   # profil izin sınırıdır, routing o sınır içinden seçim yapar.
+  # aurasprime HER sınıfta izinli: işi kendi yapmaz, dağıtır — sınıfı
+  # devrettiği işten gelir (bkz. skill_kayit.skill_task_class).
+  - aurasprime
   - implement-change
   - security-review
   - kernel-work

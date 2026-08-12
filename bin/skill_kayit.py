@@ -38,13 +38,45 @@ def skill_task_class(skill, pdir):
     skill'i bilinçli dışarıda bırakmış olabilir. O durumda kanoniğe düşmek,
     yerel capability kısıtlamasını sessizce geçersiz kılardı — profilin
     otoritesi projede kalır.
+
+    HER profilde izinli skill de None döner ama anlamı farklıdır: o bir
+    meta-skill'dir (ör. aurasprime — işi kendi yapmaz, dağıtır) ve sınıfı
+    işten gelir. Sınıfı kilitlemek, devrettiği kod işini salt-okunur profile
+    mahkûm ederdi. İzinli mi sorusu ayrı fonksiyondadır (`skill_izinli`);
+    ikisini karıştırmak "her yerde izinli"yi "hiçbir yerde izinli değil"
+    sanmaya yol açar.
     """
     try:
         import yaml  # route.load_rules ile aynı biçim: yoksa sessiz çekil
     except ImportError:
         return None
     kok = pdir if _profil_dizini_var(pdir) else KANONIK
-    return _profilden_sinif(skill, kok, yaml)
+    sinirlar, toplam = _profil_siniflari(skill, kok, yaml)
+    # toplam > 1 şartı: tek profilli projede "hepsinde var" bir meta sinyali
+    # değildir, sınıf belirsizliği yoktur.
+    if not sinirlar or (toplam > 1 and len(sinirlar) == toplam):
+        return None
+    return sinirlar[0]
+
+
+def skill_izinli(skill, pdir):
+    """Skill en az bir capability profilinde izinli mi (sınır sorusu)."""
+    try:
+        import yaml
+    except ImportError:
+        return False
+    kok = pdir if _profil_dizini_var(pdir) else KANONIK
+    return bool(_profil_siniflari(skill, kok, yaml)[0])
+
+
+def sinifta_izinli(skill, task_class, pdir):
+    """Skill, verilen sınıfın profilinde izinli mi (eskalasyon sınırı)."""
+    try:
+        import yaml
+    except ImportError:
+        return False
+    kok = pdir if _profil_dizini_var(pdir) else KANONIK
+    return task_class in _profil_siniflari(skill, kok, yaml)[0]
 
 
 def profil_disinda(skill, pdir):
@@ -71,7 +103,7 @@ def profil_disinda(skill, pdir):
                                                skill)))
     if not yonetilen:
         return False
-    return skill_task_class(skill, pdir) is None
+    return not skill_izinli(skill, pdir)
 
 
 def _profil_dizini_var(kok):
@@ -83,13 +115,14 @@ def _profil_dizini_var(kok):
         return False
 
 
-def _profilden_sinif(skill, kok, yaml):
-    """Tek bir kökün profillerinde skill'i arar."""
+def _profil_siniflari(skill, kok, yaml):
+    """Skill'i izinli sayan TÜM profillerin sınıfları (dosya adı sırasıyla)."""
     pd = os.path.join(kok, ".agents", "capability-profiles")
     try:
         adlar = sorted(os.listdir(pd))
     except OSError:
-        return None
+        return [], 0
+    bulunan, toplam = [], 0
     for ad in adlar:
         if not ad.endswith(".yml"):
             continue
@@ -101,9 +134,10 @@ def _profilden_sinif(skill, kok, yaml):
                 data = yaml.safe_load(fh) or {}
         except (OSError, yaml.YAMLError):
             continue
+        toplam += 1
         if skill in (data.get("skills") or []):
-            return data.get("task_class")
-    return None
+            bulunan.append(data.get("task_class"))
+    return bulunan, toplam
 
 
 def kuralsiz_komut_kurali(explicit, pdir):
@@ -123,11 +157,14 @@ def kuralsiz_komut_kurali(explicit, pdir):
     taraf skill) zorunlu kılınmaz: sınırı tanımlı değilse sınıfını ve riskini
     uydurmak, izin sınırının kendisini uydurmaktır. Router yine "kullanıcı
     açıkça /X istedi" der — çağrı kaybolmaz, yalnız zorunluluk iddia edilmez.
+
+    Meta-skill (her profilde izinli) sınıfını işten alır: kural üretilir ama
+    `task_class` boş bırakılır, çağıran kelime puanlamasının sınıfını korur.
     """
     if not (explicit and skill_installed(explicit, pdir)):
         return None
-    sinif = skill_task_class(explicit, pdir)
-    if not sinif:
+    if not skill_izinli(explicit, pdir):
         return None
+    sinif = skill_task_class(explicit, pdir)
     return {"skill": explicit, "task_class": sinif,
             "risk": "auto" if sinif == "research" else "approval"}

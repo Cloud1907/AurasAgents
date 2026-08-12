@@ -34,8 +34,11 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 # router bloklamaz, eksik yardımı yokluğa çevirir.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
+    import davranis
+    from secim import _eskale, _puanla, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
-                             skill_installed, skill_task_class)
+                             sinifta_izinli, skill_installed, skill_izinli,
+                             skill_task_class)
 except Exception:                                    # pragma: no cover
     skill_task_class = None
 
@@ -46,6 +49,12 @@ except Exception:                                    # pragma: no cover
         return None
 
     def profil_disinda(skill, pdir):
+        return False
+
+    def skill_izinli(skill, pdir):
+        return False
+
+    def sinifta_izinli(skill, task_class, pdir):
         return False
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
@@ -140,34 +149,21 @@ def sahip(prompt, cfg, primary=None):
     return (primary or {}).get("owner")
 
 
-# --- Soru turu tespiti (2026-08-07) --------------------------------------
-# Bulgu: bir oturumda 12+ tur yanlış sınıflandı. "bizim hafıza tarafı
-# başarılı mı?" → code-change/approval + zorunlu kernel-work; "ne
-# yapmalıyız?" → implement-change. Türkçe önek eşleşmesi DOĞRU çalışıyordu
-# ("yapmalıyız" ile "yap" aynı fiildir); kusur tur TİPİNİN okunmamasıydı.
-#
-# Soru turunda zorunlu skill dayatmak iki zarar üretir: (1) her sohbet turu
-# "onay riskli iş" görünür ve gerçek approval sinyali değersizleşir,
-# (2) ajan atlama gerekçesini kayda geçirmek zorunda kalır — bürokrasi.
-#
-# Asimetri bilinçli: yanlış "soru" ucuzdur (router zaten bloklamaz, tur
-# kapısı kanıtı yine ister), yanlış "code-change/approval" gürültülüdür.
-SORU_SONU = re.compile(r"\?\s*$")
-SORU_EKI = re.compile(
-    r"(?:^|\s)(m[ıiuü]|m[ıiuü]s[ıi]n|m[ıiuü]y[ıi]m|m[ıiuü]sunuz)\b")
-SORU_BASI = re.compile(
-    r"^(ne|neden|niye|nas[ıi]l|hangi|kim|ka[çc]|nerede|sence|acaba)\b")
+def _komut_kurali_cozumle(explicit, cfg, scored, pdir):
+    """Kuralsız /komutun sentetik kuralı, sınıfı ve riski çözülmüş hâlde.
 
-
-def soru_turu(text):
-    """Bu tur bir SORU mu, yoksa iş emri mi?
-
-    Soru işareti, ayrı duran soru eki (…iyi mi) ya da cümle BAŞINDA soru
-    kelimesi arar. Soru kelimesi cümle ORTASINDAysa emir sayılır:
-    "actions'a bak neden koşmadı" bir iştir, soru değil.
+    Meta-skill sınıfını işten alır (kural `task_class` boş döner): kelime
+    puanlamasının sınıfı korunur, risk de o sınıftan türetilir — yoksa
+    dağıtıcı bir skill, devrettiği kod işini salt-okunur profile mahkûm eder.
     """
-    return bool(SORU_SONU.search(text) or SORU_EKI.search(text)
-                or SORU_BASI.match(text))
+    sentetik = kuralsiz_komut_kurali(explicit, pdir or project_dir())
+    if not sentetik:
+        return None
+    sinif = (sentetik.get("task_class")
+             or (scored[0][2].get("task_class") if scored else None)
+             or cfg.get("fallback", {}).get("task_class", "research"))
+    return dict(sentetik, task_class=sinif,
+                risk="auto" if sinif == "research" else "approval")
 
 
 def route(prompt, cfg, pdir=None):
@@ -180,23 +176,24 @@ def route(prompt, cfg, pdir=None):
     if m:
         explicit = m.group(1)
 
-    scored = []
-    for rule in cfg.get("rules", []):
-        hit = [t for t in rule.get("triggers", [])
-               if matches(normalize(t), text, tokens)]
-        # Açık /komut o kuralı doğrudan seçer (tetik aramaya gerek yok).
-        if explicit and explicit == rule.get("skill"):
-            return (rule.get("task_class", "research"), rule,
-                    [s for s in _extras(cfg, text, tokens)
-                     if s != rule["skill"]], hit or [f"/{explicit}"], explicit)
-        if hit:
-            scored.append((len(hit), rule.get("specificity", 1), rule, hit))
-    # Puan → özgüllük → routing.yml sırası (kararlı sonuç).
-    scored.sort(key=lambda s: (-s[0], -s[1]))
+    scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
+    pd = pdir or project_dir()
+    return _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
+                        pd), scored,
+                   olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
+
+
+def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
+    """Kural seçimi — eskalasyon uygulanmamış ham sonuç."""
+    if komut_kurallari:
+        rule, hit = komut_kurallari[0][2], komut_kurallari[0][3]
+        return (rule.get("task_class", "research"), rule,
+                [s for s in _extras(cfg, text, tokens) if s != rule["skill"]],
+                hit or [f"/{explicit}"], explicit)
 
     extras = _extras(cfg, text, tokens)
 
-    sentetik = kuralsiz_komut_kurali(explicit, pdir or project_dir())
+    sentetik = _komut_kurali_cozumle(explicit, cfg, scored, pdir)
     if sentetik:
         return (sentetik["task_class"], sentetik,
                 [s for s in extras if s != explicit], [f"/{explicit}"],
@@ -225,6 +222,13 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     task_class, primary, extras, hits, explicit = route(prompt, cfg, pdir)
     profile = os.path.join(".agents", "capability-profiles", f"{task_class}.yml")
     lines = ["[AurasAgents router]"]
+
+    # Karşılama katmanı: açık /komut yoksa işi önce AurasPrime karşılar.
+    # Derinlik skill dosyasındadır; burada yalnız DAVRANIŞ enjekte edilir —
+    # her turda skill yüklemek maliyet, karşılama kararını skill'in kendi
+    # negatif tetikleri verir (küçük iş ve takip turunda tören yapılmaz).
+    if not explicit:
+        lines.append(davranis.KARSILAMA)
 
     if explicit and profil_disinda(explicit, pdir):
         lines.append(
@@ -266,39 +270,7 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
         "Yönlendirme yanlışsa tek cümleyle gerekçelendir ve kullanıcıya söyle "
         "— sessizce atlama.")
 
-    # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
-    owner = sahip(prompt, cfg, primary)
-    if owner:
-        lines.append(
-            f"👤 Sahip disiplin: {owner} — bu işi o alanın dünya standardı "
-            "uzmanı gibi ele al. Disiplin bir ETİKETTİR: derinlik rol "
-            "dosyasında değil, yüklediğin SKILL'de yaşar. Sahiplik tektir; "
-            "aynı işi roller arasında bölme. Ayrı ajan yalnız iki durumda: "
-            "bağımsız doğrulama ve izole araştırma.")
-    else:
-        lines.append(
-            "👤 Sahip disiplin: BELİRSİZ — işin hangi disiplinin işi olduğunu "
-            "ilk cümlede sen belirle ya da kullanıcıya sor; uydurma.")
-
-    # İtiraz yükümlülüğü: uzman susarak uymaz, gerekçeyle itiraz eder.
-    lines.append(
-        "İTİRAZ YÜKÜMLÜLÜĞÜ: isteğin yanlış/eksik/riskli olduğunu düşünüyorsan "
-        "uygulamadan ÖNCE tek paragraf itiraz yaz (neyi, neden, alternatif ne). "
-        "Sessiz uyum kabul edilmez; itiraz ettikten sonra kullanıcı ısrar "
-        "ederse kararı uygula ve bunu belirt.")
-
-    # Görünürlük sözleşmesi: kullanıcı ne olduğunu yazışmadan anlamalı.
-    # Kullanıcının şikâyeti buydu ("hangi skill çağrıldı görmüyorum") — bu
-    # yüzden biçim temenni değil, her turda enjekte edilen zorunluluk.
-    lines.append(
-        "Cevabına ŞU BAŞLIKLA BAŞLA (kullanıcı yazışmada ne olduğunu görmeli):\n"
-        "🧭 Skill: <yüklediğin skill | 'yok — <tek cümle gerekçe>'>"
-        f"  ·  Sınıf: {task_class}  ·  Risk: "
-        f"{(primary or {}).get('risk', 'auto')}\n"
-        f"👤 Sahip: {owner or 'belirsiz'}\n"
-        "🔧 Yaptım: <tek cümle, somut — hangi dosya/komut/sonuç>\n"
-        "Alt-ajan çağırdıysan ek satır: 🤖 Ajan: <rol> — <ne için>\n"
-        "Sohbet/soru turunda da başlığı yaz; skill yoksa 'yok' de.")
+    lines += _davranis_satirlari(prompt, cfg, primary, task_class)
 
     context = "\n".join(lines)
     picked = primary["skill"] if primary else "—"
@@ -308,6 +280,16 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     if extras:
         summary += f" (+{len(extras)})"
     return context, summary
+
+
+def _davranis_satirlari(prompt, cfg, primary, task_class):
+    """Her turda enjekte edilen davranış sözleşmesi (metinler: davranis.py)."""
+    # Risk kuraldan; kural yoksa SINIFTAN türer. Primary'siz incident'a
+    # 'auto' yazmak yanlış güven verirdi (inceleme bulgusu, 2026-08-12):
+    # research dışı her sınıf temkinli tarafta approval'dır.
+    risk = ((primary or {}).get("risk")
+            or ("auto" if task_class == "research" else "approval"))
+    return davranis.sozlesme(sahip(prompt, cfg, primary), task_class, risk)
 
 
 def _kaydet(prompt, cfg, pdir):
