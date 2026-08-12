@@ -127,6 +127,62 @@ def _test_tasiyor(metin):
     return False
 
 
+# --- modül düzeyinde GÖRÜNÜR atlama: meşru mu, yoksa beyan mı ---------------
+#
+# Bir modülün başına `raise unittest.SkipTest("...")` yazmak, içindeki bütün
+# testleri süitten çıkarır ve çıkış kodunu 0 bırakır. Keşif bekçisi bunu
+# çökmeden ayırmayı öğrendikten sonra (PR #47) yeni bir sessizlik doğdu: HER
+# atlama koşulsuz "ortam bağımlılığı" sayılıyordu. Yani kapı, kendi
+# kapattığı kaçağın kapısını yeniden açıyordu — beyan kanıt yerine geçiyordu.
+#
+# Ölçüt bu yüzden dizge değil YOKLAMADIR: meşru atlamanın sebebi
+# `tests/ortam.py`nin `MESRU_ATLAMALAR` kaydında ilan edilir ve kayıt her
+# sebebi bir ön-koşul yoklamasına bağlar. Bekçi atlamayı ancak yoklama "bu
+# makinede o bağımlılık gerçekten yok" derse meşru sayar. Kayıtlı bir sebebi
+# kopyalayan modül, bağımlılığın VAR olduğu bir makinede blok alır.
+#
+# SINIR (abartma yasak — AGENTS.md, "Kapıların gerçek sınıfı"): bağımlılığın
+# gerçekten eksik olduğu bir makinede kopyalanan sebep geçer. Orada iddia
+# zaten doğrudur; bu bekçi yalanı değil, ortamla ÇELİŞKİYİ yakalar. Kazanç
+# şudur: yeni bir meşru atlama, tek ve gözden geçirilen bir yerde ilan
+# edilmeden var olamaz.
+ATLAMA_MESAJI = {
+    "kayitsiz": ("sebebi tests/ortam.py'deki MESRU_ATLAMALAR kaydında YOK — "
+                 "modül düzeyinde atlama beyanla meşrulaşmaz; ön-koşulu "
+                 "oraya yoklamasıyla birlikte yaz ya da atlamayı kaldır"),
+    "yanlis": ("sebep kayıtlı ama bu makinede ön-koşul SAĞLANIYOR — atlamayı "
+               "ortam açıklamıyor, testler koşmalı"),
+    "okunamadi": ("tests/ortam.py'deki MESRU_ATLAMALAR kaydı okunamadı — "
+                  "'okunamadı' ile 'meşru' aynı şey değildir (fail-closed)"),
+}
+
+
+def atlama_hukmu(atlanan, ortam_kaydi):
+    """[(ad, sebep, hüküm)] — her modül atlaması ortam kaydına bağlanıyor mu.
+
+    `atlanan`: keşfin bulduğu (modül adı, atlama sebebi) çiftleri.
+    `ortam_kaydi`: {sebep: yoklama_sonucu} — `tests/ortam.py`nin ilan ettiği
+    ön-koşullar, süitin KOŞTUĞU yorumlayıcıda yoklanmış hâliyle. True =
+    bağımlılık gerçekten yok. `None` = kayıt okunamadı; hiçbir atlama meşru
+    sayılmaz, çünkü okunamayan kayıt boş kayıt değildir.
+
+    Hüküm "ortam" ise atlama meşrudur (bilgi satırı); diğer hepsi BLOK'tur ve
+    gerekçesi `ATLAMA_MESAJI`de yazılıdır.
+    """
+    hukumler = []
+    for ad, sebep in atlanan:
+        if ortam_kaydi is None:
+            hukum = "okunamadi"
+        elif sebep not in ortam_kaydi:
+            hukum = "kayitsiz"
+        elif not ortam_kaydi[sebep]:
+            hukum = "yanlis"
+        else:
+            hukum = "ortam"
+        hukumler.append((ad, sebep, hukum))
+    return hukumler
+
+
 def toplanmayan_testler(kok, toplanan):
     """[dosya_adi] — TestCase tanımlayan ama keşfe HİÇ girmeyen tests/*.py.
 

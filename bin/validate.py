@@ -648,7 +648,17 @@ def test_tasinan_testin_ihtiyaclari_da_tasinir(kd):
 # `print` yüzünden bekçiyi sahte kırmızıya düşürürdü (Codex bulgusu, PR #26).
 _KESIF_ISARET = "AURAS_KESIF:"
 _KESIF_KODU = """\
-import json, unittest
+import json, sys, unittest
+sys.path.insert(0, "tests")
+try:
+    import ortam
+    # Kayıt keşiften ÖNCE yoklanıp dondurulur: keşif her test modülünü import
+    # eder ve sonradan yüklenen bir modül kaydı değiştirebilseydi bekçi tam da
+    # denetlediği koda bağımlı olurdu. Yoklama süitin KOŞTUĞU yorumlayıcıda
+    # çalışmalı — "bu makinede PyYAML var mı" sorusunu ancak o cevaplayabilir.
+    kayit = {s: bool(y()) for s, y in ortam.MESRU_ATLAMALAR.items()}
+except Exception:
+    kayit = None       # okunamadı != boş; hüküm tarafı fail-closed davranır
 sayim, hatali, atlanan = {}, [], []
 def gez(s):
     for t in s:
@@ -659,14 +669,43 @@ def gez(s):
             # unittest ilkini _FailedTest, ikincisini ModuleSkipped yapar.
             # Ayırmazsak sistemin kendi önerdiği çare ("koşullu atlamaya
             # çevir") uygulandığında bile kırmızı kalır (Agent Ofis, 2026-08-12).
-            (atlanan if type(t).__name__ == "ModuleSkipped" else hatali
-             ).append(t.id().rsplit(".", 1)[-1])
+            ad = t.id().rsplit(".", 1)[-1]
+            if type(t).__name__ == "ModuleSkipped":
+                # Sebep de taşınır: onsuz atlamanın MEŞRU olup olmadığı
+                # sınanamaz ve her atlama beyanla geçerdi. unittest sebebi
+                # atlama sarmalayıcısının üstünde saklar.
+                fn = getattr(type(t), t._testMethodName, None)
+                atlanan.append([ad, getattr(fn, "__unittest_skip_why__", "")])
+            else:
+                hatali.append(ad)
         else:
             m = type(t).__module__
             sayim[m] = sayim.get(m, 0) + 1
 gez(unittest.TestLoader().discover("tests"))
-print("%s" + json.dumps({"sayim": sayim, "hatali": hatali, "atlanan": atlanan}))
+print("%s" + json.dumps({"sayim": sayim, "hatali": hatali,
+                         "atlanan": atlanan, "ortam": kayit}))
 """ % _KESIF_ISARET
+
+
+def _atlanan_modul_adlari(kb, veri):
+    """Modül düzeyinde atlananları hükme bağlar; görülen adları döndürür.
+
+    Meşru atlama BİLGİ satırıdır — kapsam daraldı ama gizlenmedi. Ortam
+    kaydına bağlanmayan atlama BLOK'tur: aksi hâlde "Ran N", modül başına
+    yazılan tek bir `raise unittest.SkipTest` ile beyan üzerine daraltılır
+    (Codex bağımsız incelemesi, PR #47, P1). Ölçüt `kapsam_bekcisi`de.
+    """
+    adlar = set()
+    for ad, sebep, hukum in kb.atlama_hukmu(veri.get("atlanan", []),
+                                            veri.get("ortam")):
+        adlar.add(ad)
+        if hukum == "ortam":
+            print(f"  ↷ tests/{ad}.py görünür biçimde atlandı ({sebep}) — "
+                  f"testleri KOŞMADI, kapsam o kadar dar")
+        else:
+            err(f"tests/{ad}.py modül düzeyinde atlandı, testleri süitten "
+                f"düştü: {kb.ATLAMA_MESAJI[hukum]} (sebep: {sebep!r})")
+    return adlar
 
 
 def test_test_kapsami_daralmaz():
@@ -677,9 +716,11 @@ def test_test_kapsami_daralmaz():
     Çıktının hiçbir satırı 34 testin HİÇ KOŞMADIĞINI söylemiyordu — sayının
     kendisi yanıltıcıydı. Kırmızı test bağırır; yok olan test bağırmaz.
 
-    Bu bekçi iki sessizliği kapar: (1) import'ta çöküp süitten düşen modül,
+    Bu bekçi üç sessizliği kapar: (1) import'ta çöküp süitten düşen modül,
     (2) keşif desenine uymadığı için hiç toplanmayan dosya — ikincisinde
-    çıkış kodu 0'dır, yani mevcut `returncode == 0` kontrolü onu göremez.
+    çıkış kodu 0'dır, yani mevcut `returncode == 0` kontrolü onu göremez,
+    (3) modül düzeyinde GÖRÜNÜR atlama: görünür olması meşru olması demek
+    değildir; sebep `tests/ortam.py` kaydında yoklanmadan geçemez.
 
     Bekçinin SINIRI: dosya bazında çalışır. Bir modülün İÇİNDEN silinen tek
     testi göremez; onu ancak kanıt-tarafı bir sayaç yakalayabilir.
@@ -707,13 +748,8 @@ def test_test_kapsami_daralmaz():
             f"tests/ortam.py üstünden koşullu atlamaya çevir")
     # Çöken modül keşif tarafından GÖRÜLDÜ; sorunu import'tur, adı değil —
     # ikinci kez ve yanlış çareyle raporlanmasın.
-    for ad in veri.get("atlanan", []):
-        # Görünür atlama kapsamı daraltır ama gizlemez — bilgi olarak yazılır,
-        # kapı bloklamaz. Sessiz geçmek "Ran N" düşüşünü açıklamasız bırakırdı.
-        print(f"  ↷ tests/{ad}.py görünür biçimde atlandı (ortam bağımlılığı) "
-              f"— testleri KOŞMADI, kapsam o kadar dar")
     gorulen = (set(veri["sayim"]) | set(veri["hatali"])
-               | set(veri.get("atlanan", [])))
+               | _atlanan_modul_adlari(kb, veri))
     for f in kb.toplanmayan_testler(ROOT, gorulen):
         err(f"tests/{f} TestCase tanımlıyor ama keşfe hiç girmiyor — testleri "
             f"koşmuyor ve çıkış kodu 0 kalıyor (görünmez kapsam kaybı). "
