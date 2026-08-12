@@ -631,18 +631,23 @@ def test_tasinan_testin_ihtiyaclari_da_tasinir(kd):
 _KESIF_ISARET = "AURAS_KESIF:"
 _KESIF_KODU = """\
 import json, unittest
-sayim, hatali = {}, []
+sayim, hatali, atlanan = {}, [], []
 def gez(s):
     for t in s:
         if isinstance(t, unittest.TestSuite):
             gez(t)
         elif type(t).__module__ == "unittest.loader":
-            hatali.append(t.id().rsplit(".", 1)[-1])
+            # ÇÖKME ile GÖRÜNÜR ATLAMA aynı yere düşer ama aynı şey değildir:
+            # unittest ilkini _FailedTest, ikincisini ModuleSkipped yapar.
+            # Ayırmazsak sistemin kendi önerdiği çare ("koşullu atlamaya
+            # çevir") uygulandığında bile kırmızı kalır (Agent Ofis, 2026-08-12).
+            (atlanan if type(t).__name__ == "ModuleSkipped" else hatali
+             ).append(t.id().rsplit(".", 1)[-1])
         else:
             m = type(t).__module__
             sayim[m] = sayim.get(m, 0) + 1
 gez(unittest.TestLoader().discover("tests"))
-print("%s" + json.dumps({"sayim": sayim, "hatali": hatali}))
+print("%s" + json.dumps({"sayim": sayim, "hatali": hatali, "atlanan": atlanan}))
 """ % _KESIF_ISARET
 
 
@@ -684,7 +689,13 @@ def test_test_kapsami_daralmaz():
             f"tests/ortam.py üstünden koşullu atlamaya çevir")
     # Çöken modül keşif tarafından GÖRÜLDÜ; sorunu import'tur, adı değil —
     # ikinci kez ve yanlış çareyle raporlanmasın.
-    gorulen = set(veri["sayim"]) | set(veri["hatali"])
+    for ad in veri.get("atlanan", []):
+        # Görünür atlama kapsamı daraltır ama gizlemez — bilgi olarak yazılır,
+        # kapı bloklamaz. Sessiz geçmek "Ran N" düşüşünü açıklamasız bırakırdı.
+        print(f"  ↷ tests/{ad}.py görünür biçimde atlandı (ortam bağımlılığı) "
+              f"— testleri KOŞMADI, kapsam o kadar dar")
+    gorulen = (set(veri["sayim"]) | set(veri["hatali"])
+               | set(veri.get("atlanan", [])))
     for f in kb.toplanmayan_testler(ROOT, gorulen):
         err(f"tests/{f} TestCase tanımlıyor ama keşfe hiç girmiyor — testleri "
             f"koşmuyor ve çıkış kodu 0 kalıyor (görünmez kapsam kaybı). "
