@@ -2,6 +2,9 @@ schema_version: 1
 task_class: research
 description: "Kaynaklı araştırma/keşif — kod değişikliği yok"
 skills:
+  # Kendisi iş yapmaz: anlar, seçer, brief yazar — bu yüzden salt-okunur
+  # sınır doğru. Devrettiği işin sınıfı devirden SONRA belirlenir.
+  - aurasprime
   - research-with-evidence
   - grilling  # opt-in plan sorgusu; dosya yazmaz, read-only sınıra uyar
   # Okuma-niyetli denetim ("güvenlik açısından incele") bu profile iner

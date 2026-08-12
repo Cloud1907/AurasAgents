@@ -36,6 +36,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import surec  # noqa: E402
 from surec import INCELEME_BUTCESI, zaman_asimi_notu  # noqa: E402,F401
+from hukum import (BULGU, SONUC, bulgulari_ayikla,  # noqa: E402,F401
+                   tutarli_mi)
 
 
 # --- Risk sınıflandırma (AGENTS.md risk politikası, path kuralı) -----------
@@ -62,42 +64,6 @@ def risk_sinifi(dosyalar):
     return "approval"
 
 
-# --- Codex çıktısını ayrıştır ---------------------------------------------
-BULGU = re.compile(r"\[\s*(P[012])\s*\]\s*(.+)")
-SONUC = re.compile(r"SONU[CÇ]\s*:\s*(.+)", re.I)
-
-
-def bulgulari_ayikla(metin):
-    """(bulgular, sonuc_satiri, okunabildi).
-
-    okunabildi=False ise karar ENGEL olur: "ayrıştıramadım" ile "temiz"
-    aynı şey DEĞİLDİR. Sessiz geçiş bu sistemin en sık hatası.
-    """
-    bulgular = {"P0": [], "P1": [], "P2": []}
-    for satir in (metin or "").splitlines():
-        m = BULGU.search(satir)
-        if m:
-            bulgular[m.group(1)].append(m.group(2).strip()[:160])
-    s = SONUC.search(metin or "")
-    return bulgular, (s.group(1).strip() if s else ""), bool(s)
-
-
-# --- Codex bulgularına yanıt (2026-08-07, kapı kendi PR'ını bloklad) -------
-
-def tutarli_mi(bulgular, sonuc):
-    """P1 · Hüküm satırı ile ayrıştırılan bulgular birbirini tutuyor mu.
-
-    Önce herhangi bir `SONUC:` metni geçerli inceleme sayılıyordu; bozuk ya da
-    uydurulmuş bir hüküm sessizce kabul ediliyordu.
-    """
-    sayi = sum(len(v) for v in bulgular.values())
-    temiz_diyor = "TEMIZ" in (sonuc or "").upper()
-    if temiz_diyor:
-        return sayi == 0
-    m = re.search(r"(\d+)\s*bulgu", sonuc or "", re.I)
-    if m:
-        return int(m.group(1)) == sayi
-    return sayi > 0
 
 
 # Diff, inceleyiciye TALİMAT veriyorsa hüküm güvenilmez. Yalnız EKLENEN

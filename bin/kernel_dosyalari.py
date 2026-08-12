@@ -24,13 +24,14 @@ import subprocess
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
     "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
-    "bin/skill_kayit.py",   # route.py'nin bağımlılığı — birlikte taşınmalı
+    "bin/skill_kayit.py", "bin/davranis.py", "bin/secim.py",   # route.py'nin bağımlılığı — birlikte taşınmalı
     "bin/niyet.py",         # route.py'nin niyet kapısı — taşınmazsa kapı susar
-    "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
+    "bin/memory_hygiene.py", "bin/hatirla.py", "bin/run_event.py", "bin/durum.py",
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
     "bin/kapsam_bekcisi.py",
     "bin/kalite.py",
-    "bin/auras_geri.py", "bin/incele.py", "bin/surec.py",
+    "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
+    "bin/surec.py",
     "bin/codex-review.sh",
     "bin/install-hooks.sh", "bin/hooks/pre-push",
     "schemas/evidence.schema.json",

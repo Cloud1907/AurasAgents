@@ -84,6 +84,9 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 
 - `bin/hooks/pre-push`: kernel doğrulaması geçmeden push edilemez
   (kurulum: `bash bin/install-hooks.sh`; bilinçli atlama: `git push --no-verify`).
+  Secret taraması iki katmanlıdır: index (push anındaki içerik) +
+  `scan_gecmis.py` (push aralığındaki her commit'in EKLENEN satırları —
+  eklenip silinen sır da yakalanır); muafiyet sözleşmesi ikisinde tektir.
 - CI `evidence` job'ı: aynı doğrulamayı bağımsız makinede tekrarlar.
 - UserPromptSubmit hook'u: skill yönlendirmesini her isteğe enjekte eder.
   Proje hook'u (`.claude/settings.json`, repoyla taşınır) + kullanıcı-global
@@ -156,7 +159,7 @@ Bu tablo her kapının NE OLDUĞUNU söyler; abartma yasaktır.
 
 | Kapı | Sınıf | Neyi engelleyemez |
 |---|---|---|
-| `bin/kapi.py` (tur/Stop) | yerel workflow guard | Agent olay kaydını silebilir/yazabilir, doğrulayıcıyı değiştirebilir; kayıt yoksa kapı sessizce geçer |
+| `bin/kapi.py` (tur/Stop) | yerel workflow guard | Agent olay kaydını silebilir/yazabilir; kayıt yoksa sessizce geçer. Aynı borçla ikinci kapanışı BLOKLAMAZ — yalnız "⚠️ kanıt borcuyla kapandı" izi bırakır (tek blok + görünür feragat) |
 | `bin/hooks/pre-push` | yerel workflow guard | `git push --no-verify` ile atlanır; kanca kurulu değilse hiç koşmaz |
 | `bin/incele.py` (merge) | süreç kuralı | `gh pr merge` ile doğrudan birleştirmeyi engellemez |
 | CI `evidence` job'ı | bağımsız makine kanıtı | Required check olmadığından merge'ü durduramaz |

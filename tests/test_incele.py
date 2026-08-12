@@ -49,31 +49,6 @@ class RiskSinifiTest(unittest.TestCase):
             incele.risk_sinifi(["docs/a.md", "src/auth/login.py"]), "approval")
 
 
-class AyiklamaTest(unittest.TestCase):
-    def test_bulgular_ve_sonuc_okunur(self):
-        metin = ("[P0] api.py:12 — yetki kontrolü yok — başka kullanıcının "
-                 "kaydı okunur\n[P2] stil notu\nSONUC: 2 bulgu (en yuksek: P0)")
-        b, s, ok = incele.bulgulari_ayikla(metin)
-        self.assertTrue(ok)
-        self.assertEqual(len(b["P0"]), 1)
-        self.assertEqual(len(b["P2"]), 1)
-        self.assertIn("2 bulgu", s)
-
-    def test_temiz_cikti(self):
-        b, s, ok = incele.bulgulari_ayikla("Inceleme tamam.\nSONUC: TEMIZ")
-        self.assertTrue(ok)
-        self.assertEqual(b, TEMIZ)
-        self.assertEqual(s.upper(), "TEMIZ")
-
-    def test_sonuc_satiri_yoksa_okunamadi(self):
-        # En tehlikeli hâl: çıktı bozuk ama "bulgu yok" diye geçmek
-        _b, _s, ok = incele.bulgulari_ayikla("codex hata verdi, bağlantı yok")
-        self.assertFalse(ok)
-
-    def test_bos_cikti_okunamadi(self):
-        self.assertFalse(incele.bulgulari_ayikla("")[2])
-
-
 class KararTest(unittest.TestCase):
     def test_auto_temiz_yesil_merge(self):
         k, _g = incele.karar("auto", TEMIZ, True, True)
@@ -101,6 +76,12 @@ class KararTest(unittest.TestCase):
 
     def test_ci_kirmizi_engel(self):
         self.assertEqual(incele.karar("auto", TEMIZ, False, True)[0], "engel")
+
+    def test_tutarsizlik_karari_engelle(self):
+        # Hüküm bulgularla tutmuyorsa hüküm güvenilmezdir (bkz. test_hukum).
+        k, g = incele.karar("auto", TEMIZ, True, True, tutarli=False)
+        self.assertEqual(k, "engel")
+        self.assertIn("tutarsız", g.lower())
 
     def test_okunamayan_inceleme_fail_closed(self):
         # 'Ayrıştıramadım' ASLA 'temiz' sayılmaz
@@ -180,27 +161,6 @@ class EnjeksiyonTest(unittest.TestCase):
     def test_enjeksiyon_approval_riskte_de_insan(self):
         k, _g = incele.karar("approval", TEMIZ, True, True, enjeksiyon=True)
         self.assertEqual(k, "insan")
-
-
-class TutarlilikTest(unittest.TestCase):
-    """P1 · incele.py:79 — herhangi bir SONUC metni geçerli sayılıyordu."""
-
-    def test_temiz_diyip_bulgu_listeleyen_cikti_tutarsiz(self):
-        b = {"P0": ["yetki yok"], "P1": [], "P2": []}
-        self.assertFalse(incele.tutarli_mi(b, "TEMIZ"))
-
-    def test_bulgu_var_diyip_hic_listelemeyen_cikti_tutarsiz(self):
-        self.assertFalse(incele.tutarli_mi(TEMIZ, "2 bulgu (en yuksek: P0)"))
-
-    def test_uyumlu_cikti_tutarli(self):
-        b = {"P0": ["x"], "P1": [], "P2": []}
-        self.assertTrue(incele.tutarli_mi(b, "1 bulgu (en yuksek: P0)"))
-        self.assertTrue(incele.tutarli_mi(TEMIZ, "TEMIZ"))
-
-    def test_tutarsizlik_karari_engelle(self):
-        k, g = incele.karar("auto", TEMIZ, True, True, tutarli=False)
-        self.assertEqual(k, "engel")
-        self.assertIn("tutarsız", g.lower())
 
 
 class CiKarariTest(unittest.TestCase):

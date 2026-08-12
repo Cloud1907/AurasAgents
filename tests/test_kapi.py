@@ -277,3 +277,46 @@ class KapiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BlokTuruKapatmazTest(unittest.TestCase):
+    """Bloklanan tur KAPANMIŞ sayılmaz — kanıt borcu susarak silinemez.
+
+    Ölçülen açık (Codex incelemesi, 2026-08-12): blok kararından ÖNCE 'stop'
+    yazılıyordu; ikinci deneme boş tur penceresi görüp SIFIR bulguyla temiz
+    geçiyordu. 'Bir kez uyaran' kapı ile 'sessizce temizlenen' kapı arasında
+    fark büyüktür: ilki zayıflık, ikincisi yanlış güvendir.
+    """
+
+    def kos(self, log, payload="{}"):
+        p = subprocess.run(
+            [sys.executable, os.path.join(ROOT, "bin", "kapi.py"),
+             "--log", log],
+            input=payload, capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(p.returncode, 0)
+        return p.stdout
+
+    def olaylar(self, log):
+        with open(log, encoding="utf-8") as fh:
+            return [json.loads(s) for s in fh if s.strip()]
+
+    def test_blok_stop_yazmaz_ikinci_deneme_sessiz_gecmez(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = os.path.join(td, "e.jsonl")
+            with open(log, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps({"kind": "edit", "file": "src/app.py"}) + "\n")
+
+            # 1. deneme: BLOK — ve tur kapanmadı (stop YOK)
+            self.assertIn('"decision": "block"', self.kos(log))
+            self.assertNotIn("stop", [o.get("kind") for o in self.olaylar(log)],
+                             "bloklanan tur 'stop' yazdı — borç silindi")
+
+            # 2. deneme (kanıt hâlâ yok): kapan kurulmaz ama SESSİZ de geçilmez
+            cikti = self.kos(log)
+            self.assertNotIn('"decision": "block"', cikti)
+            self.assertIn("⚠️", cikti, "ikinci deneme sessiz geçti — açık bu")
+            # tur şimdi gerçekten kapandı
+            self.assertIn("stop", [o.get("kind") for o in self.olaylar(log)])
+
+            # 3. deneme: yeni tur, temiz pencere → sessiz
+            self.assertEqual(self.kos(log).strip(), "")

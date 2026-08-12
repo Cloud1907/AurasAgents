@@ -33,9 +33,10 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
-# Kişisel veri kapısı da fail-closed: tarayıcı yoksa push engellenir.
-# İkisi de kurulmalı, yoksa bu testler kapının doğru davranışına takılır.
-TARAYICILAR = (SCAN_REL, PII_REL)
+GECMIS_REL = ".agents/skills/security-review/scripts/scan_gecmis.py"
+# Her kapı fail-closed: tarayıcı yoksa push engellenir. Üçü de kurulmalı,
+# yoksa bu testler kapının doğru davranışına takılır.
+TARAYICILAR = (SCAN_REL, PII_REL, GECMIS_REL)
 
 # git'in kancaya miras bıraktığı, depo çözümlemesini YÖNLENDİREN değişkenler.
 # Kapı bunları temizlemezse hem kendi kökünü hem alt süreçlerininkini
