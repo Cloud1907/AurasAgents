@@ -103,3 +103,30 @@ def _eskale(sonuc, scored, olayda_izinli=None):
     return "incident", primary, extras, hits, explicit
 
 
+def _sinirli(sonuc, profil_disi):
+    """Turun NİHAİ sınıfının izin sınırını uygula (eskalasyondan sonra).
+
+    Sınır hem ZORUNLU skill'e hem öneriye işler (inceleme 11. tur):
+    süzme yalnız öneriye uygulanınca, profilinden çıkarılmış bir skill
+    öneri olarak elenirken dayatma olarak geçebiliyordu — sınırın en çok
+    gerektiği yerde en zayıf hâli. Profil dışı zorunluluk düşürülür
+    (skill yok sayılır, istek BLOKLANMAZ: router kapı değildir).
+
+    Profil "izin sınırı"dır (AGENTS.md); ÖNERİ de o sınıra tabidir.
+    Salt-okunur tura düşen yazma kuralını "Ek skill" diye sunmak sınırı
+    tavsiyeye çevirirdi (inceleme 5. tur, PR #43).
+
+    Yalnız sistemin YÖNETTİĞİ skill süzülür: profillerde hiç geçmeyen ad
+    kapsam dışıdır, dışlama değil — `profil_disinda`nın aynı üç-durum
+    ayrımı. Eklenti skill'ini öneriden düşürmek router'ı kullanıcının
+    aracına karşı çalıştırırdı.
+
+    Yönetilenlik ayrımı çağırana bırakılır (`profil_disi(skill, sinif)`
+    geri çağrısı) — `_eskale`nin `olayda_izinli`siyle aynı desen: politika
+    burada, profil okuma route.py'de kalır.
+    """
+    task_class, primary, extras, hits, explicit = sonuc
+    if profil_disi((primary or {}).get("skill"), task_class):
+        primary = None
+    extras = [s for s in extras if not profil_disi(s, task_class)]
+    return task_class, primary, extras, hits, explicit

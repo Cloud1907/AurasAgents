@@ -35,7 +35,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import davranis
-    from secim import _eskale, _puanla, soru_turu
+    from secim import _eskale, _puanla, _sinirli, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
                              sinifta_izinli, skill_installed, skill_izinli,
                              skill_task_class)
@@ -66,6 +66,9 @@ try:
 except Exception:                                    # pragma: no cover
     def niyet_kapisi(text, scored, extras):
         return scored, extras
+
+    def _sinirli(sonuc, profil_disi):
+        return sonuc
 
 # Türkçe küçük harf: I → ı (str.lower() bunu yapmaz).
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
@@ -188,9 +191,24 @@ def route(prompt, cfg, pdir=None):
 
     scored, komut_kurallari = _puanla(cfg, text, tokens, explicit)
     pd = pdir or project_dir()
-    return _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
-                        pd), scored,
-                   olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
+    sonuc = _eskale(_sec(cfg, text, tokens, explicit, scored, komut_kurallari,
+                         pd), scored,
+                    olayda_izinli=lambda s: sinifta_izinli(s, "incident", pd))
+    return _sinirli(sonuc,
+                    lambda sk, tc: _profil_disi(sk, tc, pd))
+
+
+def _profil_disi(skill, task_class, pdir):
+    """Skill bu sınıfta izinsiz mi (yönetiliyorsa ve sınıfta yoksa)?
+
+    "Yönetilen" iki kanaldan sorulur (inceleme 7. tur): bir profilde
+    geçiyorsa `skill_izinli`, projenin profilinden bilinçle ÇIKARILMIŞSA
+    `profil_disinda` doğru döner. İkisi de False ise ad gerçekten kapsam
+    dışıdır (eklenti skill'i) ve karışılmaz.
+    """
+    if not skill or sinifta_izinli(skill, task_class, pdir):
+        return False
+    return skill_izinli(skill, pdir) or profil_disinda(skill, pdir)
 
 
 def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):

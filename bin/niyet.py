@@ -81,11 +81,212 @@ _DUSMUS_EK = re.compile(r"^[ıiuü]yor(?:um|uz)$")
 _VN_EK = re.compile(r"^m[ae](?:m|m[ıiuü]z|n|n[ıiuü]z|s[ıi]|l[ae]r[ıi])$")
 
 
+# Tırnak/backtick içi metin ANILAN emirdir, niyet değil (inceleme 5. tur:
+# "router çıktısındaki 'kodu düzelt' ifadesini incele"). Mekanik ve sınırlı
+# çare — cümleyi ANLAMAK bu katmanın işi değil; aynı gerekçe grilling'in
+# not_routed kararında da yazılıdır.
+# Kesme işareti tuzağı: Türkçede ek ayracıdır ("router'ı", "endpoint'i").
+# Açan tek tırnak bu yüzden yalnız harf/rakamla BİTİŞİK DEĞİLSE tırnak
+# sayılır — yoksa "router'ı düzelt ve endpoint'i ekle" cümlesinin ortası
+# alıntı sanılıp silinirdi.
+_ALINTI = re.compile(
+    r"(?<![0-9a-zçğıöşüA-ZÇĞİÖŞÜ])'[^']*'|\"[^\"]*\"|`[^`]*`|“[^”]*”"
+    r"|‘[^’]*’")   # eğri tek tırnak (inceleme 9. tur): klavye farkı
+                   # aynı cümleyi farklı sınıfa yollamamalı
+# Tırnak tek başına "anma" demek DEĞİLDİR: kullanıcı kendi emrini de
+# tırnaklayabilir ("auth açığını düzelt" ve yaptıklarını raporla) ve o
+# istek yazmadır (inceleme 7. tur). Anma POZİTİF kanıt ister — alıntının
+# neyin alıntısı olduğunu söyleyen bir ad ya da fiil. Modülün geri
+# kalanıyla aynı ilke: beyaz-liste, kara-liste değil.
+# Kelime SINIRI zorunlu (inceleme 8. tur): sınırsız arama "login"
+# içindeki "log"u anma sanıp kullanıcının kendi emrini yok ediyordu.
+# Kök + ek serbest ("ifadesini"), ama kök kelime başında olmalı; "log"
+# tam kelime aranır çünkü çok kısa ve yaygın bir alt-dizedir.
+_ANMA_ISARETI = re.compile(
+    r"\b(?:ifade|cümle|metin|çıktı|kelime|satır|mesaj|yorum|ibare|terim|"
+    r"başlık|alıntı|diyor|geçiyor|yazıyor|deniyor)|\blog\b")
+
+
+# Anma işareti alıntının KENDİ komşuluğunda aranır (inceleme 9. tur):
+# tek bir işaretin metindeki bütün alıntıları silmesi, ikinci alıntıdaki
+# gerçek emri yok ediyordu.
+#
+# Komşuluk KELİMEYLE ölçülür, karakterle değil (inceleme 10. tur):
+# karakter penceresi bağlaç kısalınca ("ardından" → "sonra") işareti
+# komşu alıntıya sızdırıyordu — eşik kullanıcının kelime seçimine göre
+# oynayan bir kapı, kapı değildir. Ayrıca pencere noktalama sınırında
+# kesilir: ";" sonrası yeni bir cümledir, önceki nitelemeyi taşımaz.
+_KOMSU_KELIME = 2
+_SINIR = re.compile(r"[;:.!?\n]")
+
+
+def _anma_komsulugu(text, bas, son, sinirlar):
+    """Alıntıyı niteleyebilecek komşuluk: sonrası + hemen öncesi.
+
+    İKİ YÖN de aynı ölçüyle sınırlıdır: son/ilk iki kelime, cümle sınırı
+    aşılmadan. 10. turda yalnız öncesi sınırlanmıştı; sonrası cümle
+    sonuna kadar serbest kalınca uzaktaki bir işaret ("… ve yaptıklarını
+    MESAJ olarak raporla") alıntıya bağlanıp kullanıcının emrini
+    siliyordu (inceleme 11. tur). Niteleme yakınlıktır; asimetrik
+    pencere, bir yönde sessiz bir açık demektir.
+    """
+    onceki_son = max((s for _b, s in sinirlar if s <= bas), default=0)
+    sonraki_bas = min((b for b, _s in sinirlar if b >= son), default=len(text))
+    oncesi = _kirp(text[onceki_son:bas], bas=False)
+    sonrasi = _kirp(text[son:sonraki_bas], bas=True)
+    return oncesi + " " + sonrasi
+
+
+def _kirp(parca, bas):
+    """Cümle sınırında kes, sonra baştan/sondan _KOMSU_KELIME kelime al."""
+    if bas:
+        kesme = _SINIR.search(parca)
+        if kesme:
+            parca = parca[:kesme.start()]
+    else:
+        son_sinir = None
+        for m in _SINIR.finditer(parca):
+            son_sinir = m
+        if son_sinir:
+            parca = parca[son_sinir.end():]
+    kelimeler = [m.group() for m in _TOKEN_RE.finditer(parca)]
+    secilen = kelimeler[:_KOMSU_KELIME] if bas else kelimeler[-_KOMSU_KELIME:]
+    return " ".join(secilen)
+
+
+def anma_var(text):
+    """Metinde ANILAN (kullanıcının emri olmayan) bir alıntı var mı?"""
+    return any(_anma_alintilari(text))
+
+
+def _anma_alintilari(text):
+    """Anma işaretiyle nitelenmiş alıntıların (başlangıç, bitiş) listesi.
+
+    İşaret alıntının DIŞINDA aranır — alıntının kendi içindeki "ifade"
+    kelimesi onu anma yapmaya yetmez, yoksa metin kendine izin verirdi
+    (inceleme 8. tur).
+    """
+    sinirlar = [(m.start(), m.end()) for m in _ALINTI.finditer(text)]
+    return [(bas, son) for bas, son in sinirlar
+            if _ANMA_ISARETI.search(_anma_komsulugu(text, bas, son, sinirlar))]
+
+
+def alintisiz(text):
+    """ANILAN alıntıları boşlukla değiştirir (konumlar korunur).
+
+    Anma işareti taşımayan alıntı korunur: kullanıcının kendi emrini
+    tırnaklaması niyeti yok etmemeli.
+    """
+    parcalar = list(text)
+    for bas, son in _anma_alintilari(text):
+        for i in range(bas, son):
+            parcalar[i] = " "
+    return "".join(parcalar)
+
+
+# Birleşik fiil: "analiz yap" gibi kalıplarda anlamı AD taşır, "yap"
+# yalnız yardımcıdır — istek okumadır (inceleme 6. tur: "login akışının
+# güvenlik analizini yap" yazma sayılıp approval üretiyordu). Yalnız
+# yardımcının ÖNÜNDEKİ ad okuma adıysa geçerlidir: "stres testi yap" ve
+# "düzeltmeyi yap" iş emri olarak kalır.
+HAFIF_FIILLER = ("yap", "gerçekleştir")
+OKUMA_ADLARI = ("analiz", "inceleme", "denetim", "araştırma",
+                "değerlendirme", "tarama", "karşılaştırma", "kıyaslama",
+                "gözden geçirme", "keşif", "özet")
+# Ad kökünden sonra YALNIZ ad çekimi gelebilir (hâl/iyelik/çoğul). Önek
+# eşleşmesi yetmez: "analizör" türemiş bir ADDIR, "analiz" değil — ve
+# "statik analizör yap" gerçek bir geliştirme emridir (inceleme 7. tur).
+# Kaynaştırma ünsüzü (y/n/s) ünlüyle biten adda zorunludur: araştırma +
+# -ı → "araştırmayı" (inceleme 8. tur — onsuz salt-okunur istek yazma
+# sayılıyordu). Türemiş ad hâlâ dışarıda kalır: "analizör" → "ör".
+_AD_EK = re.compile(
+    r"^(?:[yns]?[ıiuü]n?[ıiuü]?|"
+    r"[ıiuü]?[mn][ıiuü]z[ıiuü]?|l[ae]r[ıiuü]?(?:n[ıiuü])?)?$")
+#            ^ -imiz/-imizi, -iniz/-inizi (ünsüzle biten: "analizinizi")
+#              ve ünlüyle bitende kaynaştırmalı -niz/-nizi
+#              ("incelemenizi", "araştırmanızı" — 9. ve 10. tur)
+#
+# Ayrılma/bulunma/yönelme hâli (-dAn/-dA/-A) BİLİNÇLİ olarak dışarıda
+# (inceleme 11. tur): birleşik fiilin nesnesi yalın ya da belirtme
+# hâlindedir. "analizDEN sonra düzeltmeyi yap" cümlesinde ad, "yap"ın
+# nesnesi değil zaman belirtecidir — istek gerçek bir iş emridir.
+
+
+def _okuma_adi_mi(tokenlar, i):
+    """tokenlar[i] (ve gerekirse öncesi) bir okuma adı mı?
+
+    Çok kelimeli ad ("gözden geçirme") tek token'la karşılaştırılamaz;
+    kural yazılmıştı ama HİÇ eşleşmiyordu (inceleme 7. tur). Ad, son
+    kelimesiyle eşleşir ve önceki kelime(ler) birebir aranır.
+    """
+    tok = tokenlar[i].group()
+    for ad in OKUMA_ADLARI:
+        *bas, son_kelime = ad.split()
+        if not (tok.startswith(son_kelime)
+                and _AD_EK.match(tok[len(son_kelime):])):
+            continue
+        if not bas:
+            return True
+        if i >= len(bas) and all(
+                tokenlar[i - len(bas) + k].group() == bas[k]
+                for k in range(len(bas))):
+            return True
+    return False
+
+
+# Ad ile yardımcı fiil arasına niteleyici girebilir ("analizini DETAYLI
+# yap") — hemen-ardındalık şartı bu doğal cümleyi yazma sayıyordu
+# (inceleme 10. tur). Pencere dar tutulur: uzaktaki fiil birleşik fiil
+# değildir ("analiz raporunu oku ve testleri yap" iş emri kalır).
+_ARAYA_GIREN = 2
+
+
+def _hafif_fiil_yerleri(text):
+    """Okuma adının ardındaki yardımcı fiillerin (başlangıç, bitiş)."""
+    tokenlar = list(_TOKEN_RE.finditer(text))
+    yerler = []
+    for i in range(1, len(tokenlar)):
+        simdi = tokenlar[i]
+        if not any(simdi.group().startswith(f) and
+                   _POZ_EK.match(simdi.group()[len(f):])
+                   for f in HAFIF_FIILLER):
+            continue
+        if any(_okuma_adi_mi(tokenlar, j)
+               for j in range(max(0, i - 1 - _ARAYA_GIREN), i)):
+            yerler.append((simdi.start(), simdi.end()))
+    return yerler
+
+
+def _hafif_fiil_maskesi(text):
+    """Okuma adının ardından gelen yardımcı fiili taramadan çıkarır."""
+    parcalar = list(text)
+    for bas, son in _hafif_fiil_yerleri(text):
+        for i in range(bas, son):
+            parcalar[i] = " "
+    return "".join(parcalar)
+
+
+def _deyim_gecer(text, deyim):
+    """Çok kelimeli deyim POZİTİF emir biçiminde mi geçiyor?
+
+    Alt-dize eşleşmesi yetmez: "devreye alınması" edilgen addır, emir
+    değil (inceleme 5. tur). Son kelime fiildir; ona kök+ek analizinin
+    aynısı uygulanır, öncesi birebir aranır.
+    """
+    *bas, fiil = deyim.split()
+    onek = " ".join(bas)
+    for m in re.finditer(re.escape(onek) + r"\s+([0-9a-zçğıöşü_.]+)", text):
+        tok = m.group(1)
+        if tok.startswith(fiil) and _POZ_EK.match(tok[len(fiil):]):
+            return True
+    return False
+
+
 def _tara(text, isaretler):
     """(güçlü, fiil_ismi) — işaretlerin pozitif biçimde görülme bayrakları."""
     guclu = fiil_ismi = False
     for im in isaretler:
-        if " " in im and im in text:
+        if " " in im and _deyim_gecer(text, im):
             guclu = True
     for m in _TOKEN_RE.finditer(text):
         tok = m.group()
@@ -118,7 +319,8 @@ def _zayif_var(text):
 
 def mutasyon_niyeti(text):
     """Bu tur kod/dosya DEĞİŞTİRMEK mi istiyor? Biçim karar verir."""
-    yaz, yaz_fiil_ismi = _tara(text, YAZ_FIILLERI)
+    text = alintisiz(text)
+    yaz, yaz_fiil_ismi = _tara(_hafif_fiil_maskesi(text), YAZ_FIILLERI)
     if yaz:
         return True
     if okuma_niyeti(text):
@@ -132,8 +334,14 @@ def okuma_niyeti(text):
     """Pozitif okuma emri var mı? Kapı yalnız bu doğrulanınca devreye
     girer (incele.py P1, tur 3): niyet belirsizken ("devreye al" gibi
     tanınmayan fiil) tetik tablosunun otoritesi korunur — sözlüğün
-    kapsamadığı her fiili okumaya saymak zorunlu skill'i yutar."""
-    return _tara(text, OKU_ISARETLERI)[0]
+    kapsamadığı her fiili okumaya saymak zorunlu skill'i yutar.
+
+    Birleşik fiil ("analizini yap") de POZİTİF okuma emridir: anlamı ad
+    taşır, ad ise fiil morfolojisine uymaz — ayrıca sorulur.
+    """
+    temiz = alintisiz(text)
+    return bool(_tara(temiz, OKU_ISARETLERI)[0]
+                or _hafif_fiil_yerleri(temiz))
 
 
 def kural_niyeti(rule):

@@ -383,6 +383,24 @@ def test_routing(skill_names, profil_skills=None):
     check(cfg.get("fallback", {}).get("message"),
           "routing: eşleşme yoksa ne yapılacağını söyleyen fallback mesajı yok")
 
+    # always_add tablonun İKİNCİ giriş yoludur: `rules` gibi denetlenmezse
+    # profil allowlist'i buradan sessizce delinir. Router'ın öneri süzgeci
+    # (route._sinirli) sistemin YÖNETMEDİĞİ adı bilinçli olarak geçirir
+    # (eklenti skill'i kapsam dışıdır, dışlama değil) — o kapı burada
+    # kapanmazsa fail-open kalır (inceleme 9. tur, PR #49).
+    for rule in cfg.get("always_add", []):
+        sk = rule.get("skill")
+        check(len(rule.get("triggers") or []) >= 1,
+              f"always_add '{sk}': tetik yok — hiç eklenmeyecek kayıt")
+        check(sk in skill_names,
+              f"always_add '{sk}': böyle bir skill yok (kayıtlı: "
+              f"{sorted(skill_names)})")
+        if profil_skills:
+            check(any(sk in izinli for izinli in profil_skills.values()),
+                  f"always_add '{sk}': hiçbir capability profilinde yok — "
+                  "profile ekle ya da kaydı kaldır; profilsiz öneri izin "
+                  "sınırını delermiş gibi görünür")
+
     # Her skill ya yönlendirilir ya da gerekçeli olarak dışarıda bırakılır —
     # yoksa görünür ama hiç seçilmeyen ölü ağırlık olur.
     excluded = set()
