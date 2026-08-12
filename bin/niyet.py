@@ -14,7 +14,9 @@ isim gövdeleri ("yapısını" ≠ yap), olumsuz emir ("kod yazma"), edilgen
 ("eklenmesi", "düzeltilmesi") ve fiil-isimler kendiliğinden dışarıda
 kalır. İki zayıf kanal ancak GÜÇLÜ okuma emri yokken mutasyon sayılır:
 -mA fiil-ismi + gerek/lazım ("düzeltmemiz gerekiyor") ve şikâyet/kurulum
-adları ("login çalışmıyor").
+adları ("login çalışmıyor"). Kapı yalnız POZİTİF okuma emrinde devreye
+girer; niyet BELİRSİZSE ("devreye al" gibi sözlük dışı fiil) tetik
+tablosunun otoritesi aynen korunur (tur 3).
 
 Asimetri bilinçli (soru turu kararıyla aynı, route.py): yanlış "okuma"
 ucuzdur — router bloklamaz, ajan gerekirse skill'i öneriden yine yükler,
@@ -46,10 +48,11 @@ ZAYIF_ISARETLER = ("bug", "hata", "çalışmıyor", "bozuk", "kurulum",
 _TOKEN_RE = re.compile(r"[0-9a-zçğıöşü_.]+")
 
 # Kök sonrası POZİTİF emir/istek ekleri (beyaz-liste; incele.py P1:
-# kara-liste "yapısını"yı yap sanıyordu). Sırayla: yalın emir, -( y)AlIm,
-# -(y)AyIm, -(y)In(Iz), -(I)yor…, -(y)AcAk/-(y)AcAğ…, -DI geçmiş
-# (yaptım/yaptık/yaptılar) ve -DIğ sıfat-fiili (yaptığını), -mAlI…,
-# -mAk, -sIn…, -(y)Abil… Eşleşmeyen her devam işaret DEĞİLDİR.
+# kara-liste "yapısını"yı yap sanıyordu). Sırayla: yalın emir, -(y)AlIm,
+# -(y)AyIm, -(y)In(Iz), -(I)yor…, -(y)AcAk/-(y)AcAğ…, -mAlI…, -mAk,
+# -sIn…, -(y)Abil… Eşleşmeyen her devam işaret DEĞİLDİR. Geçmiş zaman
+# -DI ve sıfat-fiil -DIğ bilinçli olarak YOK (incele.py P1, tur 3):
+# "eklediğimiz kod" tamamlanmış işi anlatır, mutasyon talebi değildir.
 _POZ_EK = re.compile(
     r"^(?:"
     r"|y?[ae]l[ıi]m(?:[ıi]z)?"
@@ -57,8 +60,6 @@ _POZ_EK = re.compile(
     r"|y?[ıiuü]n(?:[ıiuü]z)?"
     r"|[ıiuü]?yor\w*"
     r"|y?[ae]c[ae][kğ]\w*"
-    r"|[dt][ıiuü](?:m|n|k|n[ıiuü]z|l[ae]r)?"
-    r"|[dt][ıiuü]ğ\w*"
     r"|m[ae]l[ıi]\w*"
     r"|m[ae]k"
     r"|s[ıiuü]n\w*"
@@ -106,11 +107,19 @@ def mutasyon_niyeti(text):
     yaz, yaz_fiil_ismi = _tara(text, YAZ_FIILLERI)
     if yaz:
         return True
-    if _tara(text, OKU_ISARETLERI)[0]:
+    if okuma_niyeti(text):
         return False  # güçlü okuma emri: zayıf kanallar okumaya yenilir
     if yaz_fiil_ismi and ("gerek" in text or "lazım" in text):
         return True   # "auth kontrolünü düzeltmemiz gerekiyor"
     return _zayif_var(text)
+
+
+def okuma_niyeti(text):
+    """Pozitif okuma emri var mı? Kapı yalnız bu doğrulanınca devreye
+    girer (incele.py P1, tur 3): niyet belirsizken ("devreye al" gibi
+    tanınmayan fiil) tetik tablosunun otoritesi korunur — sözlüğün
+    kapsamadığı her fiili okumaya saymak zorunlu skill'i yutar."""
+    return _tara(text, OKU_ISARETLERI)[0]
 
 
 def kural_niyeti(rule):
@@ -141,9 +150,10 @@ def niyet_kapisi(text, scored, extras):
     Dönüş (scored, extras): okuma niyetinde okuma kuralları öne alınır ve
     salt-okunur profile indirilir; hiç okuma kuralı yoksa scored BOŞALIR
     (route fallback'e düşer, zorunlu skill üretilmez) ve yazma
-    eşleşmeleri öneri olarak extras'a taşınır.
+    eşleşmeleri öneri olarak extras'a taşınır. Mutasyonda ve BELİRSİZ
+    niyette scored'a dokunulmaz (tablo otoritesi).
     """
-    if mutasyon_niyeti(text):
+    if mutasyon_niyeti(text) or not okuma_niyeti(text):
         return scored, extras
     okunur = [(p, sp, _okuma_sinifi(r), h) for p, sp, r, h in scored
               if kural_niyeti(r) == "read"]

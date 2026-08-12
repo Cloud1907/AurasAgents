@@ -13,10 +13,11 @@
 # `specificity` (varsayılan 1) yüksek olan kazanır: alan-özgül kural,
 # genel kuralı yener. Açık /komut her şeyi yener.
 #
-# Niyet kapısı (2026-08-12, bin/route.py): istek mutasyon işareti
-# taşımıyorsa (salt-okunur inceleme/soru) yazma-niyetli kural zorunlu
-# kılınmaz, öneriye düşer. Kuralın niyeti task_class'tan türer (research →
-# read, gerisi write); `intent: read` alanı bunu ezer.
+# Niyet kapısı (2026-08-12, bin/niyet.py): istek POZİTİF okuma emri
+# taşıyor ve mutasyon işareti taşımıyorsa yazma-niyetli kural zorunlu
+# kılınmaz, öneriye düşer; niyet belirsizse bu tablonun otoritesi aynen
+# geçerlidir. Kuralın niyeti task_class'tan türer (research → read,
+# gerisi write); `intent: read` alanı bunu ezer.
 
 schema_version: 1
 
