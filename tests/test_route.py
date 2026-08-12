@@ -64,6 +64,49 @@ class RouteTest(unittest.TestCase):
         self.assertEqual(explicit, "auras")
         self.assertEqual(skill, "auras")
 
+    # --- niyet ayrımı: salt-okunur inceleme vs mutasyon (2026-08-12) ---
+    # Bağımsız inceleme (Codex) iki turda da doğruladı: tek aşamalı kelime
+    # puanlaması salt-okunur inceleme isteğini ALAN ADLARI yüzünden yazma
+    # yetkili işe çeviriyordu. İki ölçülen vaka kalıcı regresyon:
+
+    def test_salt_okunur_inceleme_alan_adlariyla_yazma_isine_donmez(self):
+        # Ölçülen vaka 1: kernel-work tetikleri (router, kanıt, hafıza)
+        # 3 puanla "incele"yi (1 puan) ezip code-change/approval üretiyordu.
+        tc, skill, extras, _x = self.pick(
+            "AurasAgents router, AurasPrime, kanıt kapıları ve hafıza "
+            "sistemini eleştirel incele")
+        self.assertEqual(tc, "research")
+        self.assertEqual(skill, "research-with-evidence")
+        # Yazma kuralı kaybolmaz, öneriye düşer: iş gerçekten mutasyona
+        # dönerse ajan kernel-work'ü oradan yükler.
+        self.assertIn("kernel-work", extras)
+
+    def test_inceleme_istemi_duzelt_kelimesiyle_mutasyona_donmez(self):
+        # Ölçülen vaka 2: Codex'in kendi inceleme istemi içindeki "düzelt"
+        # implement-change'i zorunlu kılıyordu. Türkçe emir cümle SONUNDADIR:
+        # son niyet işareti okuma ise istek okumadır; "kod yazma" olumsuz
+        # emirdir, yazma işareti sayılmaz.
+        tc, skill, _e, _x = self.pick(
+            "route.py yönlendirmesini eleştirel incele; neyi düzeltmemiz "
+            "gerektiğini bulgu olarak raporla, kod yazma")
+        self.assertEqual(tc, "research")
+        self.assertNotEqual(skill, "implement-change")
+
+    def test_mutasyon_dogrulaninca_yazma_kurali_kalir(self):
+        # Niyet çiti iş emrini yutmamalı: son işaret yazma ise mutasyondur.
+        _tc, skill, _e, _x = self.pick(
+            "raporda bulduğun bug'ı incele ve düzelt")
+        self.assertEqual(skill, "implement-change")
+
+    def test_okunur_niyette_okunur_kural_yoksa_zorunlu_skill_yok(self):
+        # Düşük güven: niyet okuma ama hiçbir okuma kuralı eşleşmedi —
+        # zorunlu skill üretilmez, eşleşen yazma kuralları öneri kalır.
+        tc, skill, extras, _x = self.pick(
+            "çekirdek profillerini gözden geçir")
+        self.assertIsNone(skill)
+        self.assertEqual(tc, "research")
+        self.assertIn("kernel-work", extras)
+
     def test_kod_istegi_implement_change(self):
         for prompt in ("kullanıcı listesi endpoint'i ekle",
                        "şu bug'ı düzelt",
@@ -274,110 +317,8 @@ class RouteTest(unittest.TestCase):
         self.assertEqual(route.route("", self.cfg)[1], None)
 
 
+# Kuralsız /komut testleri tests/test_route_komut.py'de (dosya-boyutu
+# eşiği, 2026-08-12) — burada yalnız yönlendirme tablosu vakaları yaşar.
+
 if __name__ == "__main__":
     unittest.main()
-
-
-@pyyaml_gerekir
-class KuralsizKomutTest(unittest.TestCase):
-    """Profil izin sınırıysa, profilde OLMAYAN skill zorunlu kılınamaz."""
-
-    def kur(self, tmp, skill, profilde):
-        os.makedirs(os.path.join(tmp, ".agents", "skills", skill))
-        pd = os.path.join(tmp, ".agents", "capability-profiles")
-        os.makedirs(pd)
-        with open(os.path.join(pd, "research.yml"), "w", encoding="utf-8") as fh:
-            fh.write("task_class: research\nskills:\n")
-            if profilde:
-                fh.write(f"  - {skill}\n")
-            else:
-                fh.write("  - baska-skill\n")
-
-    def test_profilde_olmayan_kurulu_skill_zorunlu_kilinmaz(self):
-        # Yalnız globalde duran üçüncü taraf skill, izin sınırı dışındadır:
-        # sınıfını ve riskini uydurmak, sınırın kendisini uydurmaktır.
-        with tempfile.TemporaryDirectory() as tmp:
-            self.kur(tmp, "yabanci-skill", profilde=False)
-            self.assertIsNone(route.kuralsiz_komut_kurali("yabanci-skill", tmp))
-
-    def test_profildeki_skill_kural_uretir(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            self.kur(tmp, "tanimli-skill", profilde=True)
-            kural = route.kuralsiz_komut_kurali("tanimli-skill", tmp)
-            self.assertEqual(kural, {"skill": "tanimli-skill",
-                                     "task_class": "research",
-                                     "risk": "auto"})
-
-    def test_profilsiz_projede_kanonik_profile_dusulur(self):
-        """Bağlanmamış repo: profil yok ama /komut sınıfını kaybetmemeli.
-
-        Önyükleme durumu — repoyu sisteme BAĞLAYAN skill, henüz .agents/'ı
-        olmayan repoda çağrılır. Sınıf bulunamazsa dosya yazan iş salt-okunur
-        profile düşer. Tablo için zaten kanoniğe düşülüyor (routing_path);
-        profil için de aynı yol geçerli olmalı.
-        """
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, ".agents", "skills",
-                                     "project-onboarding"))
-            kural = route.kuralsiz_komut_kurali("project-onboarding", tmp)
-            self.assertEqual(kural, {"skill": "project-onboarding",
-                                     "task_class": "code-change",
-                                     "risk": "approval"})
-
-    def test_yerel_profil_kanonigi_ezer_kisitlama_korunur(self):
-        """Projenin profili VARSA otorite odur — kanonik yedek devreye girmez.
-
-        Yedeğin amacı önyükleme (profil YOK) durumudur. Profili olan ama bir
-        skill'i bilinçli DIŞARIDA bırakan projede kanoniğe düşmek, yerel
-        capability kısıtlamasını sessizce geçersiz kılar.
-        """
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, ".agents", "skills",
-                                     "implement-change"))
-            pd = os.path.join(tmp, ".agents", "capability-profiles")
-            os.makedirs(pd)
-            with open(os.path.join(pd, "research.yml"), "w",
-                      encoding="utf-8") as fh:
-                fh.write("task_class: research\nskills:\n  - baska-skill\n")
-            # implement-change kanonik code-change profilinde VAR ama bu
-            # projede yok: yerel karar kazanmalı.
-            self.assertIsNone(
-                route.skill_task_class("implement-change", tmp))
-            self.assertIsNone(
-                route.kuralsiz_komut_kurali("implement-change", tmp))
-
-    def test_profil_disi_gorev_skilli_yuklenmesi_istenmez(self):
-        """Projenin dışarıda bıraktığı skill için "onu yükle" denmez.
-
-        Sistemin YÖNETTİĞİ bir skill (.agents/skills altında var) profilde
-        yoksa bu bilinçli dışlamadır. "Kullanıcı istedi, yükle" demek,
-        kısıtlamayı tavsiyeye çevirir — sınır ancak reddedince sınırdır.
-        """
-        with tempfile.TemporaryDirectory() as tmp:
-            os.makedirs(os.path.join(tmp, ".agents", "skills", "yasak-skill"))
-            pd = os.path.join(tmp, ".agents", "capability-profiles")
-            os.makedirs(pd)
-            with open(os.path.join(pd, "research.yml"), "w",
-                      encoding="utf-8") as fh:
-                fh.write("task_class: research\nskills:\n  - baska-skill\n")
-            cfg = route.load_rules()
-            context, _s = route.render("/yasak-skill bir şey yap", cfg,
-                                       pdir=tmp)
-            self.assertNotIn("onu yükle", context)
-            self.assertIn("izin sınırı dışında", context)
-
-    def test_yonetilmeyen_komut_yine_yuklenir(self):
-        """Sistemin yönetmediği (ör. eklenti) skill'e karışılmaz.
-
-        Profilde olmaması dışlama DEĞİL, kapsam dışılıktır: /dataviz gibi
-        komutları reddetmek router'ı kullanıcının aracına karşı çalıştırırdı.
-        """
-        with tempfile.TemporaryDirectory() as tmp:
-            pd = os.path.join(tmp, ".agents", "capability-profiles")
-            os.makedirs(pd)
-            with open(os.path.join(pd, "research.yml"), "w",
-                      encoding="utf-8") as fh:
-                fh.write("task_class: research\nskills:\n  - baska-skill\n")
-            cfg = route.load_rules()
-            context, _s = route.render("/dataviz grafik çiz", cfg, pdir=tmp)
-            self.assertIn("onu yükle", context)

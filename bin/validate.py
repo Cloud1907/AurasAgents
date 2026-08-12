@@ -344,6 +344,11 @@ def test_routing(skill_names, profil_skills=None):
         trig = rule.get("triggers") or []
         check(len(trig) >= 3,
               f"routing '{skill}': en az 3 tetik ifadesi gerekli ({len(trig)} var)")
+        # Niyet kapısı alanı: yazım hatası ('intent: oku' gibi) kuralı
+        # sessizce yazma-niyetli sayar — geçersiz değer burada kesilir.
+        check(rule.get("intent") in (None, "read", "write"),
+              f"routing '{skill}': geçersiz intent '{rule.get('intent')}' "
+              "(izinli: read, write ya da alanı hiç yazma)")
         if rule.get("external"):
             continue  # skill repo dışında (kullanıcı-global) — varlığı doğrulanamaz
         check(skill in skill_names,

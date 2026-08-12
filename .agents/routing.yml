@@ -12,6 +12,11 @@
 # puanlı kural birincil, diğerleri ek skill olur. Puan eşitliğinde
 # `specificity` (varsayılan 1) yüksek olan kazanır: alan-özgül kural,
 # genel kuralı yener. Açık /komut her şeyi yener.
+#
+# Niyet kapısı (2026-08-12, bin/route.py): istek mutasyon işareti
+# taşımıyorsa (salt-okunur inceleme/soru) yazma-niyetli kural zorunlu
+# kılınmaz, öneriye düşer. Kuralın niyeti task_class'tan türer (research →
+# read, gerisi write); `intent: read` alanı bunu ezer.
 
 schema_version: 1
 
@@ -115,6 +120,10 @@ rules:
     specificity: 2
     task_class: code-change
     risk: approval
+    # Denetim salt-okunur bulgu üretir: "güvenlik açısından incele" gibi
+    # okuma-niyetli istekte de zorunlu kılınabilir. Sınıf/risk bilinçli
+    # olarak approval kalır — bulgular kod değişikliğine komşudur.
+    intent: read
     triggers:
       - güvenlik
       - auth
