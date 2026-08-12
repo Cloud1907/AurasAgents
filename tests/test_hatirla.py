@@ -2,6 +2,8 @@
 """bin/hatirla.py — hafıza çağrısı aracının testleri."""
 import importlib.util
 import os
+import re
+import subprocess
 import sys
 import unittest
 
@@ -27,15 +29,44 @@ class EslesmeTest(unittest.TestCase):
 
 class KaynakTest(unittest.TestCase):
     def test_adr_kayitlari_tarihli_gelir(self):
-        # ADR-0004 kod kalitesi ratchet'i — repoda gerçek kayıt
-        hits = hatirla.hatirla("ratchet")
-        self.assertTrue(hits, "ratchet için hiçbir kayıt bulunamadı")
+        """ADR taraması çalışıyor mu — ADR'si olan her repoda.
+
+        docs/decisions motor dizini DEĞİLDİR: bağlı projede hiç ADR
+        olmayabilir. Test o zaman atlanır (görünür), 'ratchet' gibi
+        kanoniğe özgü bir başlığı şart koşmaz.
+        """
+        adr = os.path.join(ROOT, "docs", "decisions")
+        adlar = [a for a in os.listdir(adr)] if os.path.isdir(adr) else []
+        if not adlar:
+            self.skipTest("bu repoda ADR yok — tarama denenemez")
+        kelimeler = [k for k in re.split(r"[^0-9A-Za-z]+", adlar[0])
+                     if len(k) >= 5 and not k.isdigit()]
+        if not kelimeler:
+            self.skipTest("ADR adında aranabilir kelime yok")
+        hits = hatirla.hatirla(kelimeler[0])
+        self.assertTrue(hits, f"'{kelimeler[0]}' için kayıt bulunamadı")
         self.assertTrue(any("ADR" in satir for _t, satir in hits))
 
     def test_git_kayitlari_tarihli_gelir(self):
-        hits = hatirla.hatirla("grilling")
+        """Git taraması çalışıyor mu — HANGİ repoda olursa olsun.
+
+        İlk yazımda sorgu 'grilling' idi: kanonik repoda geçen bir commit
+        konusu. Bu test her projeye taşınır (tests/ motor dizinidir) ve
+        bağlı projede o commit yoktur — 4cast kurulumunda kırmızı verdi
+        (2026-08-12). Taşınan test, kanonik repo GEÇMİŞİNİ şart koşamaz;
+        sorgu artık reponun kendi son commit'inden türetiliyor.
+        """
+        p = subprocess.run(["git", "log", "-1", "--pretty=%s"],
+                           capture_output=True, text=True, cwd=ROOT)
+        if p.returncode != 0 or not p.stdout.strip():
+            self.skipTest("git geçmişi yok — tarama denenemez")
+        kelimeler = [k for k in re.split(r"[^0-9A-Za-zçğıöşüÇĞİÖŞÜ]+", p.stdout)
+                     if len(k) >= 5]
+        if not kelimeler:
+            self.skipTest("son commit konusunda aranabilir kelime yok")
+        hits = hatirla.hatirla(kelimeler[0])
         self.assertTrue(any(satir.startswith("commit") for _t, satir in hits),
-                        f"grilling için commit kaydı yok: {hits}")
+                        f"'{kelimeler[0]}' için commit kaydı yok: {hits}")
         # her kayıt tarihli — 'tarihiyle hatırlat' sözleşmesi
         for tarih, _s in hits:
             self.assertRegex(tarih, r"^(\d{4}-\d{2}-\d{2}|\?{4}-\?{2}-\?{2})$")
