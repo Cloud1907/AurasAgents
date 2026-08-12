@@ -122,8 +122,15 @@ class PrePushTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             ortam = dict(os.environ, AURAS_PYTHON=KAPI_PYTHON)
             kod, cikti = kur(td, ortam=ortam)
-            self.assertEqual(kod, 0, cikti)
-            self.assertIn("AURAS_PYTHON ile kosuyor", cikti)
+            self.assertEqual(kod, 0, f"meşru override bloklandı:\n{cikti}")
+            # Duyurunun İÇİNDE yol da aranır. Yalnız cümleyi aramak yetmez:
+            # kapı override'ı yok sayıp yedek listeden BAŞKA bir yorumlayıcıya
+            # düşse ve duyuruyu yine de bassa, cümle-arayan iddia yeşil kalırdı
+            # — duyuru var ama yanlış şeyi duyuruyor olurdu. Ölçüldü: tam bu
+            # sabotajda cümle-arayan sürüm OK diyordu.
+            self.assertIn(f"AURAS_PYTHON ile kosuyor: {KAPI_PYTHON}", cikti,
+                          "override duyurulmadı ya da duyurulan yorumlayıcı "
+                          "verilen değil — kapı kör kalır")
 
     def test_tarayici_yoksa_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
