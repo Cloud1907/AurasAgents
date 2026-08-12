@@ -121,8 +121,10 @@ rules:
     task_class: code-change
     risk: approval
     # Denetim salt-okunur bulgu üretir: "güvenlik açısından incele" gibi
-    # okuma-niyetli istekte de zorunlu kılınabilir. Sınıf/risk bilinçli
-    # olarak approval kalır — bulgular kod değişikliğine komşudur.
+    # okuma-niyetli istekte de zorunlu kılınabilir. Okuma niyetinde sınıf
+    # salt-okunur profile İNER (incele.py P1, PR #43 — denetim yazma
+    # profili açmaz); mutasyon turunda code-change/approval geçerlidir.
+    # risk etiketi her iki durumda kuraldan gelir.
     intent: read
     triggers:
       - güvenlik

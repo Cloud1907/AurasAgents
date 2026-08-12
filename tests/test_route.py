@@ -107,6 +107,42 @@ class RouteTest(unittest.TestCase):
         self.assertEqual(tc, "research")
         self.assertIn("kernel-work", extras)
 
+    # --- incele.py P1 bulguları (PR #43, 2026-08-12) — kalıcı regresyon ---
+
+    def test_yazma_emri_sonda_raporla_olsa_da_mutasyondur(self):
+        # P1: "son işaret kazanır" çok-eylemli gerçek mutasyonu okumaya
+        # çeviriyordu. Yalın yazma emri ("ekle") varsa tur mutasyondur.
+        _tc, skill, _e, _x = self.pick(
+            "kullanıcı endpoint'ini ekle ve yaptığını raporla")
+        self.assertEqual(skill, "implement-change")
+
+    def test_routing_yazma_fiili_niyet_sozlugunde(self):
+        # P1: "güzelleştir" routing tetiğiydi ama niyet sözlüğünde yoktu —
+        # açık değişiklik emri zorunlu skill'siz kalıyordu.
+        _tc, skill, _e, _x = self.pick("dashboard ekranını güzelleştir")
+        self.assertEqual(skill, "designing-interfaces")
+
+    def test_cekimli_olumsuz_ve_edilgen_yazma_isareti_sayilmaz(self):
+        # P1: yalnız tam -ma/-me eki olumsuz sayılıyordu; "düzeltmeden"
+        # gibi çekimli olumsuz ve "düzeltilmesi" gibi edilgen biçimler
+        # yazma işareti sayılıp turu mutasyona çeviriyordu.
+        for prompt in ("önce bulgularını raporla, kodu kesinlikle "
+                       "düzeltmeden bırak",
+                       "düzeltilmesi gerekenleri listele"):
+            with self.subTest(prompt=prompt):
+                tc, skill, _e, _x = self.pick(prompt)
+                self.assertNotEqual(skill, "implement-change")
+                self.assertEqual(tc, "research")
+
+    def test_okuma_niyetinde_denetim_salt_okunur_profil_alir(self):
+        # P1: intent:read kuralı code-change sınıfını koruyunca salt-okunur
+        # denetim yazma profili açıyordu. Skill zorunlu kalır (golden),
+        # sınıf okuma profiline iner; risk etiketi kuraldan gelir.
+        tc, skill, _e, _x = self.pick(
+            "login akışını güvenlik açısından incele")
+        self.assertEqual(skill, "security-review")
+        self.assertEqual(tc, "research")
+
     def test_kod_istegi_implement_change(self):
         for prompt in ("kullanıcı listesi endpoint'i ekle",
                        "şu bug'ı düzelt",
