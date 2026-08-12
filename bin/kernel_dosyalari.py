@@ -25,7 +25,7 @@ import subprocess
 MOTOR = [
     "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
     "bin/skill_kayit.py", "bin/davranis.py", "bin/secim.py",   # route.py'nin bağımlılığı — birlikte taşınmalı
-    "bin/memory_hygiene.py", "bin/run_event.py", "bin/durum.py",
+    "bin/memory_hygiene.py", "bin/hatirla.py", "bin/run_event.py", "bin/durum.py",
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
     "bin/kapsam_bekcisi.py",
     "bin/kalite.py",
