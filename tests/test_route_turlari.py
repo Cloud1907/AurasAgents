@@ -57,6 +57,17 @@ class IncelemeTurlariTest(unittest.TestCase):
                 tc, _s, _e, _x = self.pick(prompt)
                 self.assertEqual(tc, "code-change")
 
+    def test_kelime_icindeki_nokta_cumle_sonu_degildir(self):
+        # P1 (12. turun kendi düzeltmesinden çıktı): cümle sınırı ham
+        # metinde arandığı için dosya adındaki nokta ("foo.py") cümleyi
+        # bölüyor, birleşik fiil kurulamıyor ve salt-okunur istek yazmaya
+        # dönüyordu. Nokta ancak kelimenin İÇİNDE değilse sınırdır.
+        for prompt in ("güvenlik analizini foo.py üzerinde yap",
+                       "kod incelemesini route.py için yap"):
+            with self.subTest(prompt=prompt):
+                tc, _s, _e, _x = self.pick(prompt)
+                self.assertEqual(tc, "research")
+
     def test_komut_uyarisi_turun_siniriyla_ayni_olcuyu_kullanir(self):
         # P1: _sinirli zorunlu skill'i TURUN sınıfına göre düşürürken
         # render'ın /komut dalı "herhangi bir profilde var mı" diye
