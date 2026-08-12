@@ -281,9 +281,17 @@ def _incele_yeniden_deneyerek(pr, base):
     7 tutarsız). Bir Codex çağrısı ~150s; kaçırılan tur medyan 16 dk. İkinci
     deneme de okunamazsa fail-closed korunur — 'okunamadı' hâlâ 'temiz'
     değildir, yalnız araç hatası bir insan turuna mal olmaz.
+
+    ÇAĞRI BAŞARISIZSA yeniden DENENMEZ. Zaman aşımı, sıfırdan farklı çıkış ve
+    boş yanıt biçim sorunu değildir; onları hemen tekrarlamak bir bütçe daha
+    yakar (900s → 1800s) ve asılı sürecin üstüne ikincisini yığar. Bu satır
+    ölçümle geldi: kapı kendi PR'ında (#48) 15 dk bütçeye dayandı ve yeniden
+    deneme onu 30 dk yapacaktı. Zaman aşımının çaresi tekrar değil,
+    `zaman_asimi_notu`nun yazdığı sıradır (asılı `codex exec`i öldür → bütçeyi
+    yükselt → PR'ı böl).
     """
     d = _incele_bir_kez(pr, base)
-    if d["okunabildi"] and d["tutarli"]:
+    if (d["okunabildi"] and d["tutarli"]) or d["hata"]:
         return d, False
     ikinci = _incele_bir_kez(pr, base)
     if ikinci["okunabildi"] and ikinci["tutarli"]:

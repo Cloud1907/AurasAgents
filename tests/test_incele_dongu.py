@@ -153,11 +153,13 @@ class SahteKos:
     """
 
     def __init__(self, checks="kernel\tpass\t1s\tu", head="head1",
-                 yorumlar=None, incelemeler=None, dosyalar="docs/a.md"):
+                 yorumlar=None, incelemeler=None, dosyalar="docs/a.md",
+                 inceleme_kodu=0):
         self.checks, self.head = checks, head
         self.yorumlar = yorumlar or []
         self.incelemeler = list(incelemeler or [])
         self.dosyalar = dosyalar
+        self.inceleme_kodu = inceleme_kodu   # ≠0 → codex-review.sh çöktü
         self.cagrilar = []
 
     @property
@@ -178,7 +180,9 @@ class SahteKos:
     def __call__(self, *arg, girdi=None, timeout=None):
         self.cagrilar.append(arg)
         if arg[0] == "bash":
-            return 0, (self.incelemeler.pop(0) if self.incelemeler else ""), ""
+            return (self.inceleme_kodu,
+                    (self.incelemeler.pop(0) if self.incelemeler else ""),
+                    "timed out" if self.inceleme_kodu else "")
         if "checks" in arg:
             return 0, self.checks, ""
         if "diff" in arg:
@@ -246,6 +250,31 @@ class YenidenDenemeTest(_KosYamasi):
         # Yeniden deneme bir ~150s'lik Codex çağrısıdır; bedava değildir.
         s = self.kur(incelemeler=[TEMIZ_CIKTI, TEMIZ_CIKTI])
         incele.topla("7")
+        self.assertEqual(s.inceleme_sayisi, 1)
+
+    def test_zaman_asiminda_yeniden_denenmez(self):
+        """Zaman aşımı BİÇİM sorunu değildir — tekrarlamak bütçeyi ikiye
+        katlar (900s → 1800s) ve asılı sürecin üstüne ikincisini yığar.
+
+        Bu bekçi ölçümle geldi: kapı kendi PR'ında (#48) 15 dk bütçeye
+        dayandı; yeniden deneme onu 30 dk yapacaktı. Zaman aşımının çaresi
+        tekrar değil, `zaman_asimi_notu`nun yazdığı sıradır.
+        """
+        s = self.kur(inceleme_kodu=1, incelemeler=["", ""])
+        d = incele.topla("7")
+        self.assertEqual(s.inceleme_sayisi, 1, "zaman aşımı tekrarlandı")
+        self.assertFalse(d["okunabildi"])
+        self.assertFalse(d["yeniden"])
+
+    def test_zaman_asimi_yine_de_engel(self):
+        # Tekrar etmemek, gevşemek değildir: karar hâlâ fail-closed.
+        s = self.kur(inceleme_kodu=1, incelemeler=[""])
+        d = incele.topla("7")
+        self.assertEqual(
+            incele.karar(d["risk"], d["bulgular"], d["ci_yesil"],
+                         d["okunabildi"], tutarli=d["tutarli"], tur=1)[0],
+            "engel")
+        self.assertIn("zaman aşımı", d["hata"].lower())
         self.assertEqual(s.inceleme_sayisi, 1)
 
 

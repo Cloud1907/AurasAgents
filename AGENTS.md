@@ -99,9 +99,9 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   ayırır, PR'a karar biçiminde yorum düşer. **P0 varsa merge REDDEDİLİR;
   P1 bloklamaz, kararı insana taşır.** `deny` sınıfı her zaman insana gider.
   `auto` risk + P0/P1 yok + CI yeşil ise `--merge` ile birleştirir. Çıktı
-  ayrıştırılamazsa ENGEL (fail-closed) — "okunamadı" ile "temiz" aynı şey
-  değildir; ama önce BİR KEZ daha sorulur (ENGEL'lerin dörtte biri bulgu
-  değil biçim hatasıydı). Not: bu bir süreç kuralıdır; `gh pr merge` ile
+  ayrıştırılamazsa ENGEL (fail-closed) — "okunamadı" ≠ "temiz"; biçim
+  bozuksa BİR KEZ daha sorulur, ama zaman aşımı/çağrı hatası tekrarlanmaz
+  (bütçeyi ikiye katlardı). Not: bu bir süreç kuralıdır; `gh pr merge` ile
   doğrudan birleştirmek mekanik olarak hâlâ mümkündür.
   Bütçe `INCELE_BUTCE` (varsayılan 900s) — diff boyutuna göre ölçeklenmez;
   ölçüm boyutun sürücü olmadığını gösterdi (4.4KB→147s, 9.0KB→156s). Zaman
