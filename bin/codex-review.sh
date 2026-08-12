@@ -4,6 +4,7 @@
 # Kullanim:
 #   bin/codex-review.sh                 # aktif dalin main'e gore diff'i, PR'a yorum
 #   bin/codex-review.sh 12              # 12 numarali PR'in diff'i
+#   bin/codex-review.sh 12 --base=SHA   # ARTIMLI: yalniz SHA'dan beri gelen
 #   bin/codex-review.sh --dry-run       # yorum atmaz, ekrana basar
 #
 # NOT: Bu bir RISK SINYALIDIR, makine kaniti degildir (AGENTS.md).
@@ -12,10 +13,13 @@ set -euo pipefail
 BRIDGE="$HOME/.claude/skills/codex-debate/bin/ask-codex.sh"
 DRY_RUN=0
 PR=""
+BASE=""
 
+# SIRA ONEMLI: --base=SHA rakam icerir, `*[0-9]*` dalindan ONCE eslesmeli.
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
+    --base=*) BASE="${arg#--base=}" ;;
     *[0-9]*) PR="$arg" ;;
   esac
 done
@@ -25,7 +29,24 @@ if [ ! -x "$BRIDGE" ]; then
   exit 2
 fi
 
-if [ -n "$PR" ]; then
+if [ -n "$PR" ] && [ -n "$BASE" ]; then
+  # ARTIMLI inceleme. `gh pr diff` her tur TUM birikmis diff'i verir; bir
+  # P1'i duzelten kod bir sonraki turun inceleme yuzeyi olur ve orada yeni
+  # bir P1 dogar (olcum 2026-08-12: 9 PR'da 62 tur). compare API'si secilir
+  # cunku PR head'i yerelde fetch edilmis olmayabilir.
+  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+  HEAD_SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+  DIFF=$(gh api "repos/$REPO/compare/$BASE...$HEAD_SHA" \
+           -H "Accept: application/vnd.github.v3.diff") || DIFF=""
+  if [ -z "$DIFF" ]; then
+    # Force-push BASE'i yok etmis ya da yeni commit hicbir sey degistirmemis
+    # olabilir. TAM diff'e dusmek her zaman guvenli yondur: daha GENIS
+    # inceleme, daha dar degil. Bos artimli diff'i "temiz" saymak, onceki
+    # turun bulgusunu sessizce silerdi.
+    echo "Artimli diff alinamadi/bos — tam diff'e dusuluyor." >&2
+    DIFF=$(gh pr diff "$PR")
+  fi
+elif [ -n "$PR" ]; then
   DIFF=$(gh pr diff "$PR")
 else
   BASE=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD~1)

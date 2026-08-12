@@ -32,6 +32,7 @@ MOTOR = [
     "bin/kalite.py",
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
     "bin/surec.py",
+    "bin/tur.py", "bin/risk.py",   # incele.py'nin bağımlılıkları — birlikte taşınmalı
     "bin/codex-review.sh",
     "bin/install-hooks.sh", "bin/hooks/pre-push",
     "schemas/evidence.schema.json",

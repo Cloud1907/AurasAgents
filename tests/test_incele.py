@@ -66,9 +66,10 @@ class KararTest(unittest.TestCase):
         b = {"P0": ["yetki yok"], "P1": [], "P2": []}
         self.assertEqual(incele.karar("auto", b, True, True)[0], "engel")
 
-    def test_p1_engel(self):
+    def test_p1_engel_degil_insan(self):
+        # DEĞİŞTİ 2026-08-12: P1 artık BLOKLAMAZ (bkz. P1BloklamazTest).
         b = {"P0": [], "P1": ["kaynak sızıntısı"], "P2": []}
-        self.assertEqual(incele.karar("auto", b, True, True)[0], "engel")
+        self.assertEqual(incele.karar("auto", b, True, True)[0], "insan")
 
     def test_p2_merge_engellemez(self):
         b = {"P0": [], "P1": [], "P2": ["bilgi notu"]}

@@ -96,16 +96,24 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   sinyalidir, makine kanıtı değildir.
 - Bağımsız inceleme (merge yolu): `python3 bin/incele.py <pr>` — diff'i
   Codex'e (farklı satıcı, farklı kör nokta) inceletir, bulguyu P0/P1/P2
-  ayırır, PR'a karar biçiminde yorum düşer. P0/P1 varsa merge REDDEDİLİR;
-  `deny` sınıfı her zaman insana gider. `auto` risk + temiz inceleme + CI
-  yeşil ise `--merge` ile birleştirir. İnceleme çıktısı ayrıştırılamazsa
-  ENGEL (fail-closed) — "okunamadı" ile "temiz" aynı şey değildir.
-  Not: bu bir süreç kuralıdır; `gh pr merge` ile doğrudan birleştirmek
-  mekanik olarak hâlâ mümkündür.
-  Bütçe `INCELE_BUTCE` (varsayılan 900s) — diff boyutuna göre ölçeklenmez,
-  çünkü ölçüm boyutun sürücü olmadığını gösterdi (4.4KB→147s, 9.0KB→156s).
-  Zaman aşımı ENGEL'dir ve ne yapılacağını yazar; ilk bakılacak yer asılı
-  `codex exec` sürecidir — sızan inceleme sonrakini yavaşlatır.
+  ayırır, PR'a karar biçiminde yorum düşer. **P0 varsa merge REDDEDİLİR;
+  P1 bloklamaz, kararı insana taşır.** `deny` sınıfı her zaman insana gider.
+  `auto` risk + P0/P1 yok + CI yeşil ise `--merge` ile birleştirir. Çıktı
+  ayrıştırılamazsa ENGEL (fail-closed) — "okunamadı" ile "temiz" aynı şey
+  değildir; ama önce BİR KEZ daha sorulur (ENGEL'lerin dörtte biri bulgu
+  değil biçim hatasıydı). Not: bu bir süreç kuralıdır; `gh pr merge` ile
+  doğrudan birleştirmek mekanik olarak hâlâ mümkündür.
+  Bütçe `INCELE_BUTCE` (varsayılan 900s) — diff boyutuna göre ölçeklenmez;
+  ölçüm boyutun sürücü olmadığını gösterdi (4.4KB→147s, 9.0KB→156s). Zaman
+  aşımı ENGEL'dir ve ne yapılacağını yazar; ilk bakılacak yer asılı `codex
+  exec` sürecidir — sızan inceleme sonrakini yavaşlatır.
+- İnceleme DÖNGÜSÜNÜN sonu vardır (ölçüm 2026-08-12: 9 PR'da 62 tur, ~17
+  saat, 62 hükmün 2'si temiz — her tur birikmiş diff'i yeniden inceliyordu).
+  Üç çıkış: **artımlı diff** (son incelenen SHA'dan beri; P0 görülmüş PR'da
+  KAPALI), **tur tavanı** (`INCELE_TUR_TAVANI`, varsayılan 3 — aşılınca ENGEL
+  İNSAN'a döner; asla `merge` üretmez, `deny`/kırmızı CI'ı gevşetmez), **dal
+  kıpırdamadıysa yeniden inceleme yok**. Sayaç PR yorumundaki markerda;
+  kaybolursa sıfırlanır — fazladan inceleme, açılan merge değil (`bin/tur.py`).
 - Kod kalitesi ratchet'i (ADR-0004): `bin/kalite.py` dosya/fonksiyon boyutu,
   karmaşıklık ve borç işaretlerini deterministik sayar; CI `--check` ile
   koşar. Mevcut borç kabul edilir, **büyümesi bloklanır**. Taban
