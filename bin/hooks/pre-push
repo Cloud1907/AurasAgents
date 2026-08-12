@@ -136,11 +136,9 @@ fi
 # Calisma agacinin tamami taranirsa .gitignore'lu yerel .env.local push'u
 # bloklar (OICommand'da bizzat yasandi) — kullanici --no-verify aliskanligi
 # edinir, kapi olur.
-# BILINEN SINIR (denetim 2026-08-06): kapsam INDEX'tir, push edilen COMMIT
-# ARALIGI degil. Commit A secret ekleyip commit B silerse ikisi de push
-# edilir ama index temiz gorunur → kapi gecer, secret uzaga gider. Bu sinir
-# eski tam-agac taramasinda da vardi (dosya silinmis olurdu). Kalici cozum
-# aralik taramasidir (git diff <uzak_sha>..<yerel_sha>) — ayri is.
+# Kapsam INDEX'tir; gecmise (commit araligina) sizan sirri asagidaki
+# scan_gecmis kapisi yakalar — iki tarama birbirinin yerine gecmez:
+# bu, push ANINDAKI icerigi; o, aralikta EKLENEN her satiri gorur.
 if ! "$PY" "$SCAN" --git --exclude '*/eval/*' "$ROOT"; then
   echo ""
   echo "PUSH ENGELLENDI: secret kapisi gecilemedi (bkz. yukaridaki cikti)."
@@ -193,12 +191,37 @@ if [ -e "$PROJE_KAPI" ]; then
   fi
 fi
 
-while read -r _local_ref _local_sha remote_ref _remote_sha; do
+# Gecmis (commit araligi) secret kapisi — index taramasinin kor noktasi
+# (bagimsiz inceleme, Codex 2026-08-12): commit A'da eklenip commit B'de
+# silinen sir index'te GORUNMEZ ama iki commit de push'la uzak GECMISE
+# gider ve oradan geri alinamaz. Bu kapi stdin'deki her ref icin
+# remote_sha..local_sha araligindaki EKLENEN satirlari tarar. Yeni dalda
+# (remote_sha 40 sifir) aralik "--not --remotes" olur: uzakta zaten olan
+# yeniden taranmaz. Muafiyet sozlesmesi aynidir (.agents/secret-allowlist.txt).
+GECMIS="$ROOT/.agents/skills/security-review/scripts/scan_gecmis.py"
+if [ ! -f "$GECMIS" ]; then
+  # FAIL-CLOSED: secret/PII kapisiyla ayni kural — "yok" hali "gecti" olamaz.
+  echo "PUSH ENGELLENDI: gecmis secret tarayicisi bulunamadi ($GECMIS)."
+  echo "Kurulumu tamamla (/auras) ya da bilincli atla: git push --no-verify"
+  exit 1
+fi
+SIFIR_SHA=0000000000000000000000000000000000000000
+while read -r _local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/main)
       echo "NOT: dogrudan main'e push ediyorsun (butunluklu is icin PR tercih edilir)."
       ;;
   esac
+  # Ref silme push'unda (local_sha sifir) uzaga giden yeni commit yok.
+  [ "$local_sha" = "$SIFIR_SHA" ] && continue
+  if ! "$PY" "$GECMIS" --push-range "$remote_sha" "$local_sha" \
+       --exclude '*/eval/*' "$ROOT"; then
+    echo ""
+    echo "PUSH ENGELLENDI: gecmis secret kapisi gecilemedi (bkz. yukaridaki cikti)."
+    echo "Sir GECMISTE: commit'i yeniden yaz (rebase/amend) ve anahtari dondur;"
+    echo "yanlis pozitifse gerekcesiyle .agents/secret-allowlist.txt."
+    exit 1
+  fi
 done
 
 exit 0

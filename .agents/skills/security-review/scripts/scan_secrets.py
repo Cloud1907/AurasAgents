@@ -157,8 +157,9 @@ def git_izlenen(kok):
     kapı ölür. Bu mod o yanlış bloku keser.
 
     SINIR: kapsam INDEX'tir, push edilen commit ARALIĞI değil. Bir commit'te
-    eklenip sonraki commit'te silinen secret burada görünmez (aynı sınır
-    tam-ağaç taramasında da vardı). Aralık taraması ayrı iştir.
+    eklenip sonraki commit'te silinen secret burada görünmez — o vakayı
+    pre-push'taki scan_gecmis.py (aralık taraması) yakalar; iki tarama
+    birbirinin yerine geçmez.
     """
     try:
         p = subprocess.run(["git", "-C", kok, "ls-files", "-z"],

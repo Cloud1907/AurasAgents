@@ -19,9 +19,11 @@ from ortam import KAPI_PYTHON, kapi_yorumlayicisi_gerekir  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
-# Kişisel veri tarayıcısı scan_secrets'ı içe aktarıyor (dosya keşfi ve
-# dışlama TEK kaynaktan gelmeli); izole depoda ikisi de bulunmalı.
-TARAYICILAR = (SCAN_REL, PII_REL)
+GECMIS_REL = ".agents/skills/security-review/scripts/scan_gecmis.py"
+# Kişisel veri ve geçmiş tarayıcıları scan_secrets'ı içe aktarıyor (kural ve
+# dışlama TEK kaynaktan gelmeli); izole depoda üçü de bulunmalı — kapı
+# eksik tarayıcıda fail-closed bloklar.
+TARAYICILAR = (SCAN_REL, PII_REL, GECMIS_REL)
 
 
 def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
@@ -203,10 +205,19 @@ class PrePushTest(unittest.TestCase):
                            capture_output=True)
             subprocess.run(["git", "-C", td, "add", "-A"], check=True,
                            capture_output=True)
+            # Ref satırındaki SHA'lar GERÇEK olmalı: geçmiş kapısı artık bu
+            # aralığı tarıyor ve uydurma SHA fail-closed bloklanır — o zaman
+            # test ref akışını değil, kapının başka davranışını ölçer.
+            subprocess.run(["git", "-C", td, "-c", "user.email=t@t",
+                            "-c", "user.name=t", "commit", "-q", "-m", "t"],
+                           check=True, capture_output=True)
+            sha = subprocess.run(["git", "-C", td, "rev-parse", "HEAD"],
+                                 check=True, capture_output=True,
+                                 text=True).stdout.strip()
             p = subprocess.run(
                 ["sh", os.path.join(td, "bin", "hooks", "pre-push")],
                 capture_output=True, text=True, cwd=td, timeout=60,
-                input="refs/heads/main aaa refs/heads/main bbb\n")
+                input=f"refs/heads/main {sha} refs/heads/main {sha}\n")
             self.assertEqual(p.returncode, 0)
             self.assertIn("dogrudan main", p.stdout,
                           "proje kapısı git'in ref akışını yemiş — ref'e "
