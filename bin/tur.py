@@ -34,7 +34,16 @@ SIFIR = {"tur": 0, "sha": "", "p0gecmis": False}
 
 
 def marker_uret(tur, sha, p0gecmis):
-    """Yorum gövdesine gömülen tek satırlık kayıt."""
+    """Yorum gövdesine gömülen tek satırlık kayıt.
+
+    `sha` = GERÇEKTEN incelenen commit; incelenmediyse boş geçilir ('-').
+    Zaman aşımına uğrayan tur hiçbir şey incelemez, ama SHA'sı yazılırsa
+    sonraki tur `degismedi_mi`'ye takılıp "önceki inceleme geçerli" der —
+    OLMAYAN bir incelemeye atıf. O hâlde zaman aşımından sonra aynı commit
+    bir daha incelenemez, çıkış yalnız boş commit atmaktır. Canlı ölçüm:
+    kapı kendi PR'ında (#48) tur 1'de zaman aşımına uğradı, tur 2 bu yüzden
+    Codex'i hiç çağırmadı. Bekçi: test_incelenmemis_sha_kaydedilmez.
+    """
     return (f"<!-- incele tur={tur} sha={sha or '-'} "
             f"p0gecmis={1 if p0gecmis else 0} -->")
 

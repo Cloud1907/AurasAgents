@@ -317,6 +317,38 @@ class ArtimliIncelemeTest(_KosYamasi):
         self.assertTrue(d2["p0gecmis"], "P0 geçmişi sönmemeli")
         self.assertEqual(s2.son_base, "")
 
+    def test_incelenmemis_sha_kaydedilmez(self):
+        """Marker'daki `sha` = GERÇEKTEN incelenen commit.
+
+        Zaman aşımına uğrayan tur hiçbir şey incelemez. SHA'yı yine de
+        kaydetmek, bir sonraki turu "dalda yeni commit yok — önceki inceleme
+        geçerli" hükmüne düşürüyordu: OLMAYAN bir incelemeye atıf. O hâlde
+        zaman aşımından sonra aynı commit bir daha asla incelenemezdi
+        (çıkış yalnız boş commit atmak). Canlı ölçüm, PR #48 tur 1→2.
+        """
+        g = incele.ozet_govde("auto", TEMIZ, "", "engel", "zaman aşımı", "1/1",
+                              tur=1, head_sha="abc123", p0gecmis=False,
+                              incelendi=False)
+        self.assertEqual(incele.marker_oku([g])["sha"], "")
+
+    def test_incelenen_sha_kaydedilir(self):
+        g = incele.ozet_govde("auto", TEMIZ, "TEMIZ", "merge", "ok", "1/1",
+                              tur=1, head_sha="abc123", p0gecmis=False,
+                              incelendi=True)
+        self.assertEqual(incele.marker_oku([g])["sha"], "abc123")
+
+    def test_zaman_asimi_sonrasi_ayni_commit_yeniden_incelenir(self):
+        # Uçtan uca: zaman aşımı turundan sonra dal kıpırdamasa BİLE Codex
+        # yeniden çağrılmalı — yoksa kapı kalıcı ENGEL'e kilitlenir.
+        bos = incele.ozet_govde("auto", TEMIZ, "", "engel", "zaman aşımı",
+                                "1/1", tur=1, head_sha="ayni1",
+                                p0gecmis=False, incelendi=False)
+        s = self.kur(head="ayni1", incelemeler=[TEMIZ_CIKTI], yorumlar=[bos])
+        d = incele.topla("7")
+        self.assertEqual(s.inceleme_sayisi, 1, "zaman aşımı turu kapıyı kilitledi")
+        self.assertFalse(d["degismedi"])
+        self.assertEqual(d["tur"], 2)
+
     def test_head_degismediyse_yeniden_incelenmez(self):
         # Boş artımlı diff "TEMİZ" görünür ve önceki turun bulgusunu silerdi.
         s = self.kur(head="ayni1", incelemeler=[TEMIZ_CIKTI],

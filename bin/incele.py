@@ -23,14 +23,11 @@ Karar tablosu:
   risk = auto + CI yeşil  → MERGE
   diğer                   → İNSAN (bilinmeyen yukarı eskale olur)
 
-2026-08-12 ölçümü — kapı doğru çalışıyordu ama ÇIKIŞI yoktu: 9 PR'da 62
-inceleme turu, tur arası medyan 16 dk, toplam ~17 saat; 62 hükmün yalnız
-2'si temizdi (41 P1, 2 P0, 9 ayrıştırılamadı, 7 tutarsız). Sebep tek: her
-tur TÜM birikmiş diff yeniden inceleniyordu, yani bir P1'i düzelten kod bir
-sonraki turun inceleme yüzeyi oluyor ve orada yeni bir P1 doğuyordu. PR #39
-16 turun sonunda insan override'ıyla kapandı — tavan sistemde değil insanın
-sabrındaydı. Dört çıkış eklendi: P1 bloklamaz · tur tavanı · ayrıştırma
-hatasında tek yeniden deneme · artımlı diff. Bekçi: tests/test_incele.py.
+2026-08-12 ölçümü — kapı doğru çalışıyordu ama ÇIKIŞI yoktu: 9 PR'da 62 tur,
+~17 saat, 62 hükmün yalnız 2'si temiz. Her tur TÜM birikmiş diff yeniden
+inceleniyordu: bir P1'i düzelten kod sonraki turun inceleme yüzeyi olup orada
+yeni bir P1 doğuruyordu. Dört çıkış: P1 bloklamaz · tur tavanı · biçim
+hatasında tek yeniden deneme · artımlı diff (bkz. bin/tur.py).
 
 Kullanım:
   python3 bin/incele.py 13              # incele, PR'a yorum düş, karar bas
@@ -233,7 +230,8 @@ def yorum_dus(pr, govde):
 
 def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
                enjeksiyon=False, tani="", tur=1, head_sha="",
-               p0gecmis=False, artimli=False, yeniden=False):
+               p0gecmis=False, artimli=False, yeniden=False,
+               incelendi=True):
     """PR yorumu — duvar değil, KARAR biçiminde. Okunmayan yorum yoktur."""
     simge = {"merge": "✅", "insan": "👤", "engel": "⛔"}[k]
     kapsam = "son turdan beri" if artimli else "tüm diff"
@@ -261,7 +259,8 @@ def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
               "Çapraz-vendor risk sinyali (Codex), makine kanıtı değil. "
               "Merge koşulu: CI yeşil **ve** P0 yok. P1 bloklamaz, kararı "
               "insana taşır.",
-              marker_uret(tur, head_sha, p0gecmis)]
+              # SHA yalnız GERÇEKTEN incelendiyse yazılır (bkz. marker_uret).
+              marker_uret(tur, head_sha if incelendi else "", p0gecmis)]
     return "\n".join(satir)
 
 
@@ -353,7 +352,8 @@ def main(argv=None):
                        tani="" if d["okunabildi"] else d["ham_kuyruk"],
                        tur=d["tur"], head_sha=head_sha,
                        p0gecmis=d["p0gecmis"], artimli=d["artimli"],
-                       yeniden=d["yeniden"])
+                       yeniden=d["yeniden"],
+                       incelendi=d["okunabildi"] and d["tutarli"])
     if not a.kuru:
         ok, err = yorum_dus(a.pr, govde)
         if not ok:
