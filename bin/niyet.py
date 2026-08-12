@@ -7,14 +7,14 @@ yetkili işe çeviriyordu — "router, kanıt kapıları ve hafıza sistemini
 eleştirel incele" 3 kernel-work tetiğiyle code-change/approval oldu;
 inceleme istemindeki "düzelt" implement-change'i zorunlu kıldı.
 
-Tasarım (incele.py P1 turu sonrası, PR #43): karar KONUMA değil BİÇİME
-bakar. Pozitif yazma fiili görülen tur mutasyondur ("endpoint ekle ve
-yaptığını raporla" → yazma). Pozitiflik ek morfolojisiyle ayrılır:
--ma/-me ile süren biçim olumsuz emir ya da fiil-isimdir ("kod yazma",
-"düzeltmeden", "düzeltmemiz") ve işaret sayılmaz; -malı/-meli ve
--mak/-mek pozitiftir; -ıl/-il edilgendir ("düzeltilmesi gerekenleri
-listele" iş emri değildir). Şikâyet/kurulum işaretleri (bug, çalışmıyor…)
-zayıftır: yalnız okuma işareti YOKSA mutasyon sayılır.
+Tasarım (incele.py iki P1 turu sonrası, PR #43): karar KONUMA değil
+BİÇİME bakar ve ek analizi KARA-liste değil BEYAZ-listedir — fiil kökü
+ancak bilinen POZİTİF emir/istek ekiyle sürüyorsa işaret sayılır. Böylece
+isim gövdeleri ("yapısını" ≠ yap), olumsuz emir ("kod yazma"), edilgen
+("eklenmesi", "düzeltilmesi") ve fiil-isimler kendiliğinden dışarıda
+kalır. İki zayıf kanal ancak GÜÇLÜ okuma emri yokken mutasyon sayılır:
+-mA fiil-ismi + gerek/lazım ("düzeltmemiz gerekiyor") ve şikâyet/kurulum
+adları ("login çalışmıyor").
 
 Asimetri bilinçli (soru turu kararıyla aynı, route.py): yanlış "okuma"
 ucuzdur — router bloklamaz, ajan gerekirse skill'i öneriden yine yükler,
@@ -27,63 +27,90 @@ import re
 
 OKU_ISARETLERI = ("incele", "araştır", "karşılaştır", "kıyasla",
                   "değerlendir", "denetle", "eleştir", "analiz", "rapor",
-                  "gözden geçir", "keşfet", "öğren", "açıkla", "özetle",
-                  "listele")
+                  "raporla", "gözden geçir", "keşfet", "öğren", "açıkla",
+                  "özetle", "listele")
 # Pozitif biçimde görülmesi tek başına mutasyon sayılan yazma fiilleri.
-# routing.yml yazma kurallarının fiil tetikleriyle uyumlu tutulur
-# (incele.py P1: "güzelleştir" tabloda vardı, burada yoktu).
+# routing.yml yazma kurallarının fiil tetikleriyle ve yaygın eş
+# anlamlılarla uyumlu tutulur (incele.py P1 ×2: güzelleştir, iyileştir).
 YAZ_FIILLERI = ("yap", "uygula", "ekle", "yaz", "düzelt", "kodla",
                 "refactor", "taşı", "kaldır", "sil", "implement", "fix",
                 "oluştur", "geliştir", "değiştir", "güncelle", "tasarla",
-                "güzelleştir", "bağla", "çöz")
-# Zayıf işaretler: şikâyet/kurulum adları. Fiil çekimi taşımazlar; okuma
-# işareti de varsa okuma kazanır ("bu bug'ın nedenini araştır").
+                "güzelleştir", "bağla", "çöz", "iyileştir", "hızlandır",
+                "optimize", "düzenle", "birleştir", "kur", "yükselt",
+                "temizle")
+# Zayıf işaretler: şikâyet/kurulum adları. Fiil çekimi taşımazlar; güçlü
+# okuma işareti varsa okuma kazanır ("bu bug'ın nedenini araştır").
 ZAYIF_ISARETLER = ("bug", "hata", "çalışmıyor", "bozuk", "kurulum",
                    "onboard", "sisteme al")
 # route.tokenize ile aynı karakter kümesi — ayrışırlarsa eşleşme kayar.
 _TOKEN_RE = re.compile(r"[0-9a-zçğıöşü_.]+")
-_POZITIF_DEVAM = ("malı", "meli", "mak", "mek")   # yükümlülük / mastar
-_OLUMSUZ_DEVAM = ("ma", "me")                     # olumsuz emir / fiil-isim
-_EDILGEN_DEVAM = ("ıl", "il", "ul", "ül")
+
+# Kök sonrası POZİTİF emir/istek ekleri (beyaz-liste; incele.py P1:
+# kara-liste "yapısını"yı yap sanıyordu). Sırayla: yalın emir, -( y)AlIm,
+# -(y)AyIm, -(y)In(Iz), -(I)yor…, -(y)AcAk/-(y)AcAğ…, -DI geçmiş
+# (yaptım/yaptık/yaptılar) ve -DIğ sıfat-fiili (yaptığını), -mAlI…,
+# -mAk, -sIn…, -(y)Abil… Eşleşmeyen her devam işaret DEĞİLDİR.
+_POZ_EK = re.compile(
+    r"^(?:"
+    r"|y?[ae]l[ıi]m(?:[ıi]z)?"
+    r"|y?[ae]y[ıi]m"
+    r"|y?[ıiuü]n(?:[ıiuü]z)?"
+    r"|[ıiuü]?yor\w*"
+    r"|y?[ae]c[ae][kğ]\w*"
+    r"|[dt][ıiuü](?:m|n|k|n[ıiuü]z|l[ae]r)?"
+    r"|[dt][ıiuü]ğ\w*"
+    r"|m[ae]l[ıi]\w*"
+    r"|m[ae]k"
+    r"|s[ıiuü]n\w*"
+    r"|y?[ae]bil\w*"
+    r")$")
+# -mA fiil-ismi + iyelik: "düzeltmem(iz)", "düzeltmesi", "düzeltmeleri".
+# Tek başına işaret değildir; gerek/lazım ile birlikte iş talebidir.
+# Çıplak -ma/-me (olumsuz emir "yazma") bilinçli olarak DIŞARIDA.
+_VN_EK = re.compile(r"^m[ae](?:m|m[ıiuü]z|n|n[ıiuü]z|s[ıi]|l[ae]r[ıi])$")
 
 
-def _pozitif_bicim(kalan):
-    """Kök sonrası ek, işareti POZİTİF emir/istek olarak mı bırakıyor?
-
-    "" (yalın emir "ekle"), -malı/-meli ("eklemeliyiz"), -mak/-mek
-    ("eklemek istiyorum") pozitiftir. -ma/-me ile süren her biçim olumsuz
-    emir ya da fiil-isimdir ("yazma", "yazmayın", "düzeltmeden",
-    "düzeltmemiz") — işaret değildir. -ıl/-il/-ul/-ül edilgendir
-    ("düzeltilecekleri raporla"). Kalan çekimler ("ekleyelim",
-    "ekliyoruz", "ekleyin") pozitiftir.
-    """
-    if kalan.startswith(_POZITIF_DEVAM):
-        return True
-    if kalan.startswith(_OLUMSUZ_DEVAM) or kalan.startswith(_EDILGEN_DEVAM):
-        return False
-    return True
-
-
-def _pozitif_var(text, isaretler):
-    """İşaretlerden biri metinde pozitif biçimde geçiyor mu?"""
+def _tara(text, isaretler):
+    """(güçlü, fiil_ismi) — işaretlerin pozitif biçimde görülme bayrakları."""
+    guclu = fiil_ismi = False
     for im in isaretler:
         if " " in im and im in text:
-            return True
+            guclu = True
     for m in _TOKEN_RE.finditer(text):
         tok = m.group()
         for im in isaretler:
-            if (" " not in im and tok.startswith(im)
-                    and _pozitif_bicim(tok[len(im):])):
+            if " " in im or not tok.startswith(im):
+                continue
+            kalan = tok[len(im):]
+            if _POZ_EK.match(kalan):
+                guclu = True
+            elif _VN_EK.match(kalan):
+                fiil_ismi = True
+    return guclu, fiil_ismi
+
+
+def _zayif_var(text):
+    """Şikâyet/kurulum adı geçiyor mu (ad — fiil morfolojisi uygulanmaz)."""
+    tokens = [m.group() for m in _TOKEN_RE.finditer(text)]
+    for im in ZAYIF_ISARETLER:
+        if " " in im:
+            if im in text:
                 return True
+        elif any(tok.startswith(im) for tok in tokens):
+            return True
     return False
 
 
 def mutasyon_niyeti(text):
     """Bu tur kod/dosya DEĞİŞTİRMEK mi istiyor? Biçim karar verir."""
-    if _pozitif_var(text, YAZ_FIILLERI):
+    yaz, yaz_fiil_ismi = _tara(text, YAZ_FIILLERI)
+    if yaz:
         return True
-    return (_pozitif_var(text, ZAYIF_ISARETLER)
-            and not _pozitif_var(text, OKU_ISARETLERI))
+    if _tara(text, OKU_ISARETLERI)[0]:
+        return False  # güçlü okuma emri: zayıf kanallar okumaya yenilir
+    if yaz_fiil_ismi and ("gerek" in text or "lazım" in text):
+        return True   # "auth kontrolünü düzeltmemiz gerekiyor"
+    return _zayif_var(text)
 
 
 def kural_niyeti(rule):

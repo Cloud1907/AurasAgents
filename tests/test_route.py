@@ -143,6 +143,40 @@ class RouteTest(unittest.TestCase):
         self.assertEqual(skill, "security-review")
         self.assertEqual(tc, "research")
 
+    # --- incele.py P1 bulguları, 2. tur (PR #43) — ek beyaz-listesi ---
+
+    def test_isim_govdesi_yazma_emri_sanilmaz(self):
+        # P1: startswith morfem sınırı aramıyordu — "yapısını" içindeki
+        # "yap" kökü mutasyon sayılıp kernel-work'ü zorunlu kılıyordu.
+        tc, skill, extras, _x = self.pick("router yapısını eleştirel incele")
+        self.assertEqual(tc, "research")
+        self.assertEqual(skill, "research-with-evidence")
+        self.assertIn("kernel-work", extras)
+
+    def test_edilgen_n_biçimi_yazma_isareti_sayilmaz(self):
+        # P1: edilgen listesi -ıl/-il ile sınırlıydı; ünlüyle biten kökün
+        # -n edilgeni ("eklenmesi") mutasyon sayılıyordu.
+        tc, skill, _e, _x = self.pick(
+            "eklenmesi gereken kontrolleri raporla")
+        self.assertNotEqual(skill, "implement-change")
+        self.assertEqual(tc, "research")
+
+    def test_yukumluluk_fiil_ismi_mutasyondur(self):
+        # P1: her -ma/-me devamı olumsuz sayılıyordu — "düzeltmemiz
+        # gerekiyor" açık iş talebi salt-okunur profile düşüyordu. Okuma
+        # emri varsa okuma yine kazanır (ölçülen vaka 2 çiti). Skill
+        # seçimi golden özgüllük kuralına kalır: auth işi security-review.
+        tc, skill, extras, _x = self.pick(
+            "auth kontrolünü düzeltmemiz gerekiyor")
+        self.assertEqual(tc, "code-change")
+        self.assertEqual(skill, "security-review")
+        self.assertIn("implement-change", extras)
+
+    def test_es_anlamli_yazma_fiilleri_sozlukte(self):
+        # P1: fiil listesi eksikti — "iyileştir" açık değişiklik emriydi.
+        _tc, skill, _e, _x = self.pick("dashboard ekranını iyileştir")
+        self.assertEqual(skill, "designing-interfaces")
+
     def test_kod_istegi_implement_change(self):
         for prompt in ("kullanıcı listesi endpoint'i ekle",
                        "şu bug'ı düzelt",
