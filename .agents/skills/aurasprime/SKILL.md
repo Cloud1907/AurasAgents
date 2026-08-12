@@ -1,6 +1,6 @@
 ---
 name: aurasprime
-description: Kullanıcıyı karşılayan üst düzey analist — isteği anlar, geçmiş kararları tarihiyle hatırlatır, işin büyüklüğünü ölçer, doğru skill'i seçer ve ona hedef/çıktı/sınır içeren net bir brief yazar. `/aurasprime` ile çağrıldığında kullan; özellikle istek günlük dille yazılmışsa, kapsamı belirsizse ya da hangi yeteneğe gideceği açık değilse. Zaten net ve tek adımlık işte kullanma — orada doğrudan işi yap.
+description: Kullanıcıyı karşılayan üst düzey analist — isteği anlar, geçmiş kararları tarihiyle hatırlatır, işin büyüklüğünü ölçer, doğru skill'i seçer ve ona hedef/çıktı/sınır içeren net bir brief yazar. Yeni iş isteklerinin giriş noktası olarak kullan (router karşılamayı otomatik enjekte eder, `/aurasprime` ile de çağrılır); özellikle istek günlük dille yazılmışsa, kapsamı belirsizse ya da hangi yeteneğe gideceği açık değilse. Zaten net ve tek adımlık işte, takip turlarında ve açık /komut yazılmışken kullanma — orada doğrudan işi yap.
 ---
 
 # AurasPrime — karşılama ve iş dağıtımı
@@ -16,11 +16,11 @@ analisti (belirsiz isteği net ihtiyaca çevirme). Kaynaklar ve gerekçe:
 
 ## Ne zaman geçerli
 
-- Kullanıcı `/aurasprime` ile çağırdığında. **Bugünkü tek giriş budur.**
-  Otomatik karşılama (her istekte devreye girme) router hook'una bağlanmayı
-  gerektirir ve o AYRI bir iştir; bu dosya yöntemi tanımlar, bağlantıyı
-  değil. Vaat ile mekanizmayı ayrı tutmak bilinçlidir — bağlanmadan
-  "varsayılan giriş noktasıyım" demek, olmayan bir davranışı söz vermektir.
+- İki giriş vardır ve ikisi de mekanik: açık `/aurasprime` komutu, ya da
+  router hook'unun karşılama enjeksiyonu (açık /komut yazılmayan her istekte
+  `davranis.KARSILAMA` bağlamı gelir — bekçi: tests/test_route.py
+  `test_aurasprime_her_iste_karsilar`). Vaat ile mekanizma birlikte gelir:
+  bu cümle ancak bağlama koduyla aynı diff'te değişebilir.
 - İstek günlük dille yazılmışsa, kapsamı belirsizse, ya da hangi yeteneğe
   gideceği açık değilse.
 - Birden fazla adım veya birden fazla yetenek gerektiren işlerde.

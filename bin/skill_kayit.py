@@ -69,6 +69,16 @@ def skill_izinli(skill, pdir):
     return bool(_profil_siniflari(skill, kok, yaml)[0])
 
 
+def sinifta_izinli(skill, task_class, pdir):
+    """Skill, verilen sınıfın profilinde izinli mi (eskalasyon sınırı)."""
+    try:
+        import yaml
+    except ImportError:
+        return False
+    kok = pdir if _profil_dizini_var(pdir) else KANONIK
+    return task_class in _profil_siniflari(skill, kok, yaml)[0]
+
+
 def profil_disinda(skill, pdir):
     """Sistemin YÖNETTİĞİ bir skill, otoriter profilde dışarıda mı bırakılmış?
 
