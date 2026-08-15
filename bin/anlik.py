@@ -24,6 +24,7 @@ okur. Kabuk yazımı mtime'ı her hâlükârda değiştirir; kaçırma senaryosu
 """
 import json
 import os
+import re
 import subprocess
 
 RUNTIME = os.path.join(".agents", "runtime", "anlik")
@@ -88,8 +89,22 @@ def degisenler(kok, onceki):
     return sorted(set(degisen))
 
 
+def _guvenli_ad(session):
+    """Session'ı yol bileşeni olarak GÜVENLİ hâle getirir.
+
+    Öz-denetim bulgusu (2026-08-16): session doğrulanmadan `os.path.join`e
+    veriliyordu. `session="../../ele"` anlığı runtime dizininin dışına
+    yazdırıyordu. Sömürü sınırlıydı (`session[:8]` kırpması traversal'ı iki
+    seviyeyle sınırlıyor, session_id harness'tan geliyor) ama doğrulanmamış
+    yol bileşeni, sınırın kırpmaya bağlı kaldığı hâldir — kırpma yarın
+    değişebilir.
+    """
+    temiz = re.sub(r"[^A-Za-z0-9_-]", "", str(session or ""))
+    return temiz or "bilinmeyen"
+
+
 def _yol(kok, session):
-    return os.path.join(kok, RUNTIME, f"{session}.json")
+    return os.path.join(kok, RUNTIME, f"{_guvenli_ad(session)}.json")
 
 
 def kaydet(kok, session, veri):

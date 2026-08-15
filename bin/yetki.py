@@ -47,16 +47,35 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # tutar) ve kilitlenen meşru dosya kullanıcıya kapıyı kapatmayı öğretir.
 YASAK_YOLLAR = (
     "**/.env",
+    # Ortam türevleri TEK TEK sayılır (öz-denetim bulgusu 2026-08-16:
+    # `.env.staging` gibi yaygın bir dosya kapsam dışıydı; CLAUDE.md ise
+    # "secret okuma-yazma engellenir" diyordu — vaat ile uygulama ayrışmıştı).
+    # Geniş `**/.env.*` yazılamaz: `.env.example` şablonunu da kilitlerdi ve
+    # deny kuralı istisna taşıyamaz.
     "**/.env.local",
     "**/.env.production",
     "**/.env.development",
+    "**/.env.staging",
+    "**/.env.test",
+    "**/.env.prod",
+    "**/.env.dev",
     "**/secrets/**",
     "**/secret/**",
     "**/credentials/**",
     "**/credential/**",
     "**/*.pem",
     "**/*.key",
+    # Anahtar deposu biçimleri ve ed25519/ecdsa: id_rsa kapsanmışken
+    # bunların açık kalması, aynı sınıf sırrı farklı biçimde serbest
+    # bırakıyordu.
+    "**/*.p12",
+    "**/*.pfx",
+    "**/*.jks",
+    "**/*.keystore",
     "**/id_rsa",
+    "**/id_ed25519",
+    "**/id_ecdsa",
+    "**/id_dsa",
 )
 
 # Yalnız yazma yasağı: okunması meşru, DEĞİŞTİRİLMESİ yetki genişletmedir.

@@ -47,6 +47,7 @@ MOTOR = [
     "bin/dogrula_ci.py",    # validate.py'nin CI/kanıt doğrulayıcıları
     "bin/kalite.py",
     "bin/diller.py",        # dil kapsamının tek tanımı — kapılar buradan okur
+    "bin/yuzey.py",         # yol → yükümlülük sınıflandırması (kapi.py'nin ölçüsü)
     "bin/contract.py",      # incele.py'nin contract okuması
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
     "bin/surec.py",

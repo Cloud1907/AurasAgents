@@ -31,30 +31,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 sys.path.insert(0, HERE)
-import diller  # noqa: E402  (dil kapsamının tek tanımı)
-
-# Dil kapsamı TEK kaynaktan (bin/diller.py): aynı soruyu üç ayrı listeyle
-# cevaplamak, listelerin ayrışmasıyla biter — ve ayrıştıkları ölçüldü
-# (H. Demir denetimi 2026-08-15). Bekçi: tests/test_diller.py
-KAYNAK_UZANTI = tuple(sorted(diller.KAYNAK))
-# Test dosyası imzaları.
-TEST_YOL = re.compile(r"(^|/)tests?/|(^|/)test_|_test\.|\.test\.|\.spec\.")
-# Risk yüzeyi: dokunulursa güvenlik incelemesi ister (AGENTS.md risk politikası).
-RISK_YOL = re.compile(
-    r"(auth|kimlik|oturum|session|secret|credential|\.env|migration|payment"
-    r"|odeme|ödeme|upload|permission|settings\.json|/hooks/|token)", re.I)
-# Görünür yüzey: değişirse birim testi yetmez, TIKLAMA kanıtı istenir.
-UI_UZANTI = tuple(sorted(diller.GORUNUR))
-# Yol-parçası sınırına demirli: aksi halde "security-review/", "overview/",
-# "Interview/" içindeki "view" alt dizesi eşleşir ve markdown/backend dosyası
-# görünür yüzey sanılır (2026-08-01 yanlış pozitifi — 4cast'te yakalandı).
-UI_YOL = re.compile(
-    r"(^|/)(components?|pages?|views?|screens?|web|ui|frontend)/", re.I)
-
-# Büyük değişim eşikleri (Codex: 300 satır kaba; dosya sayısı + net satır).
-E2E_CMD_RE = re.compile(r"(playwright|cypress|selenium|puppeteer|e2e)", re.I)
-BUYUK_DOSYA = 5
-BUYUK_SATIR = 150
+# Yüzey sınıflandırması ayrı modülde (bin/yuzey.py): "bu yol ne tür kanıt
+# ister" ile "kanıt yeterli mi" ayrı sorulardır.
+from yuzey import (BUYUK_DOSYA, BUYUK_SATIR, E2E_CMD_RE,  # noqa: E402
+                   KAYNAK_UZANTI, TEST_YOL, UI_UZANTI, UI_YOL,
+                   risk_yuzeyi_mi)
 
 
 def _run_event():
@@ -193,7 +174,7 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None,
           if f.lower().endswith(UI_UZANTI) or UI_YOL.search(f)]
     kaynak = [f for f in duzenlenen
               if f.lower().endswith(KAYNAK_UZANTI) and not TEST_YOL.search(f)]
-    riskli = [f for f in duzenlenen if RISK_YOL.search(f)]
+    riskli = [f for f in duzenlenen if risk_yuzeyi_mi(f)]
 
     bulgular = []
     if kaynak:
