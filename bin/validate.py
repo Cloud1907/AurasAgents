@@ -427,6 +427,12 @@ def test_routing(skill_names, profil_skills=None):
         check(any("route.py" in c for c in cmds),
               "settings.json: UserPromptSubmit hook'u route.py'yi çağırmıyor")
 
+    # Karşılamanın hafızası mekanizma mı, temenni mi? 2026-08-15'e kadar
+    # temenniydi: metin ajana "hatirla.py ile bak" diyordu, ajan bakmıyordu.
+    check("karsilama_kayitlari" in open(router, encoding="utf-8").read(),
+          "route.py: karşılama hafızayı ÇAĞIRMIYOR — hatirla.py yazılmış ama "
+          "kullanılmayan araç olur, 📌 Geçmiş modelin belleğine kalır")
+
     # Golden vaka: router gerçekten doğru skill'i seçiyor mu (regresyon kapısı).
     # Doğrulama koşumu kullanıcının aktivite kaydını kirletmemeli (izolasyon).
     with tempfile.TemporaryDirectory() as td:
@@ -448,6 +454,11 @@ def _routing_golden_cases(router, env):
         check("🧭" in proc.stdout and "🔧" in proc.stdout,
               "router: cevap başlığı biçimini dayatmıyor — kullanıcı yazışmada "
               "hangi skill'in çalıştığını göremez")
+        # Yapı denetlenir, içerik değil: bağlı projenin geçmişi başka olur,
+        # "kayıt bulunamadı" da meşru sonuçtur. Eksik olan tek şey susmaktır.
+        check("📌 Geçmiş" in proc.stdout,
+              "router: karşılamada hafıza satırı yok — geçmiş hatırlatması "
+              "kayda değil ajanın belleğine kalır")
 
 
 def test_no_external_roles():

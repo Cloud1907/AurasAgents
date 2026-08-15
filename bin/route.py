@@ -35,6 +35,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import davranis
+    import hatirla                    # karşılamanın 📌 Geçmiş satırı buradan
     from secim import _eskale, _puanla, _sinirli, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
                              sinifta_izinli, skill_installed, skill_izinli,
@@ -257,8 +258,12 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     # Derinlik skill dosyasındadır; burada yalnız DAVRANIŞ enjekte edilir —
     # her turda skill yüklemek maliyet, karşılama kararını skill'in kendi
     # negatif tetikleri verir (küçük iş ve takip turunda tören yapılmaz).
+    # Hafıza satırı ajanın takdirinde değildir: kaydı router okur, ajan yazar
+    # (2026-08-15 — "hatirla.py ile bak" talimatı her turda atlanıyordu).
     if not explicit:
         lines.append(davranis.KARSILAMA)
+        lines.append(davranis.gecmis_blogu(
+            hatirla.karsilama_kayitlari(prompt, hits)))
 
     # Ölçü, zorunlu skill'i düşüren ölçünün AYNISI olmalıdır (inceleme
     # 12. tur): burada "herhangi bir profilde var mı" sorulurken _sinirli

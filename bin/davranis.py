@@ -14,11 +14,34 @@ KARSILAMA = (
     "satırı yaz — kullanıcı seni nasıl anladığımı ve işi kime verdiğimi "
     "görmek istiyor, süreç görünmezse denetleyemez:\n"
     "📋 Anladığım: <tek cümle, kullanıcının kendi diliyle>\n"
-    "📌 Geçmiş: <TARİH + karar, `bin/hatirla.py <konu>` ile bak | 'kayıt yok'>\n"
+    "📌 Geçmiş: <aşağıda enjekte edilen kayıttan TARİH + karar | 'kayıt yok'>\n"
     "➡️ Veriyorum: <skill> — <tek cümle brief: ne · çıktı · neye dokunmayacak>\n"
     "Üç satır YETER, uzatma. Sonra işi yap. Belirsizlikte soru yağmuru açma, "
-    "varsayımını tek satır yaz. Küçük/net işte ve takip turunda bu bloğu "
-    "YAZMA — doğrudan cevapla. Derinlik: .agents/skills/aurasprime/SKILL.md")
+    "varsayımını tek satır yaz. Bloğu atlamak YALNIZ iki durumda serbest: "
+    "(a) tek cümlelik mikro iş, (b) AYNI işin takip turu. Kullanıcı yeni bir "
+    "konu açtıysa takip turu DEĞİLDİR ve işin 'net' olması atlama gerekçesi "
+    "değildir. Derinlik: .agents/skills/aurasprime/SKILL.md")
+
+# Hafıza katmanı. 2026-08-15 bulgusu: karşılama ajana "`bin/hatirla.py` ile
+# bak" diyordu ve bakmak ajanın takdirindeydi — her turda atlandı. Araç vardı,
+# ÇAĞIRAN yoktu. Artık kaydı router okur, ajan yalnız yazar: hatırlama modelin
+# belleğine değil kayda dayanır.
+GECMIS_VAR = (
+    "📌 Geçmiş (KAYITTAN okundu — 📌 satırını BUNDAN yaz, kendi belleğinden "
+    "değil; kayıt bu işle ilgisizse 'kayıt yok' de):\n{kayitlar}")
+
+GECMIS_YOK = (
+    "📌 Geçmiş: bu aramada kayıt bulunamadı — '📌 Geçmiş: kayıt yok' yaz. "
+    "Bu 'geçmişte yok' DEMEK DEĞİLDİR, yalnız bu aramada çıkmadı; uydurma.")
+
+
+def gecmis_blogu(kayitlar):
+    """Karşılamaya enjekte edilecek hafıza satırı ([(tarih, satır)])."""
+    if not kayitlar:
+        return GECMIS_YOK
+    return GECMIS_VAR.format(
+        kayitlar="\n".join(f"  {tarih}  {satir}" for tarih, satir in kayitlar))
+
 
 # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
 SAHIP_VAR = (

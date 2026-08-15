@@ -108,6 +108,58 @@ def hatirla(sorgu, sinir=8):
     return sorted(hepsi, key=lambda h: h[0], reverse=True)[:sinir]
 
 
+# Cümlede sık geçen ama hiçbir kaydı ayırt etmeyen kelimeler. Kısa liste
+# bilinçli: eşleşme zaten kaba bir sinyal aracı, tam bir dilbilgisi değil.
+DURAK = frozenset("""
+ayrıca sanki olacak bence şöyle böyle başka önce sonra biraz zaten artık
+yine tekrar hangi nasıl neden şimdi kadar için ile ama veya yani gibi daha
+bunu şunu bunun olsun yapalım diye hepsi bütün falan filan
+""".split())
+
+
+def anahtarlar(metin, tetikler=(), en_fazla=3):
+    """Hatırlama sorgusuna girecek kelimeler.
+
+    Router "bu istek neyle ilgili" hesabını zaten yaptı; tetik varsa o
+    kullanılır — tekrar tahmin etmek o hesabı çöpe atmaktır. Tetik yoksa
+    cümlenin uzun kelimelerine düşülür: cümlenin TAMAMINI sorgu yapmak
+    hiçbir şey bulmaz, çünkü hatirla() kelimelerin HEPSİNİ arar.
+    """
+    if tetikler:
+        return list(tetikler)[:en_fazla]
+    kelimeler = {k for k in re.split(r"[^0-9a-zçğıöşü]+", normalize(metin))
+                 if len(k) >= 5 and k not in DURAK}
+    return sorted(kelimeler, key=len, reverse=True)[:en_fazla]
+
+
+def hatirla_coklu(kelimeler, sinir=3):
+    """Anahtarların BİRLEŞİK sonucu — herhangi biri eşleşirse kayıt alınır.
+
+    hatirla() kesişim arar (tüm kelimeler geçmeli); karşılama katmanı ise
+    cümleyle gelir ve kesişim hep boş çıkar. Ayrı bir VEYA kapısı gerekli.
+    """
+    gorulen, hepsi = set(), []
+    for kelime in kelimeler:
+        for tarih, satir in hatirla(kelime, sinir):
+            if satir in gorulen:
+                continue
+            gorulen.add(satir)
+            hepsi.append((tarih, satir))
+    return sorted(hepsi, key=lambda h: h[0], reverse=True)[:sinir]
+
+
+def karsilama_kayitlari(prompt, tetikler=(), sinir=3):
+    """Karşılamaya enjekte edilecek tarihli kayıtlar; hata hâlinde boş liste.
+
+    Geniş yakalama bilinçlidir: router ASLA bloklamaz (kernel sözleşmesi).
+    Hatırlama bir kolaylıktır, kapı değil — çökerse tur durmaz, hafıza susar.
+    """
+    try:
+        return hatirla_coklu(anahtarlar(prompt, tetikler), sinir)
+    except Exception:                     # noqa: BLE001 — sus, çökme
+        return []
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("sorgu", nargs="+", help="aranacak kelimeler")

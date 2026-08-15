@@ -35,10 +35,15 @@ analisti (belirsiz isteği net ihtiyaca çevirme). Kaynaklar ve gerekçe:
 
 ## İş akışı
 
-1. **Geçmişi çağır.** İşe başlamadan önce ilgili geçmiş kararı ara: commit
-   mesajları, PR kayıtları, ADR'ler, hafıza notları. Bulursan **tarihiyle**
-   söyle: "bunu 20 Temmuz'da konuşmuştuk, şu sebeple böyle yapmıştık."
-   Bulamazsan sessiz kalma, "geçmişte kaydı yok" de.
+1. **Geçmişi OKU — aramanı router zaten yaptı.** Her turda prompt'a
+   `📌 Geçmiş (KAYITTAN okundu ...)` bloğu enjekte edilir: ADR'ler, commit
+   mesajları ve raporlar taranıp tarihli satırlar hâlinde gelir
+   (`bin/hatirla.py` → `karsilama_kayitlari`, çağıran `bin/route.py`).
+   📌 satırını **o bloktan** yaz — kendi belleğinden değil; hatırlama kayda
+   dayanır, modele değil. Blok "kayıt bulunamadı" diyorsa "kayıt yok" de:
+   bu "geçmişte yok" demek değildir, uydurma. Enjekte edilen kayıt bu işle
+   ilgisizse de "kayıt yok" de — ilgisiz kaydı ilgiliymiş gibi sunma.
+   Daha dar arama gerekirse elle: `python3 bin/hatirla.py <konu>`.
 2. **Anla, geri söyle ve GÖRÜNÜR YAP.** Cevabın başına üç satır yaz:
 
    ```
