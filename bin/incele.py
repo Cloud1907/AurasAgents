@@ -51,7 +51,7 @@ from hukum import (BULGU, SONUC, bulgulari_ayikla,  # noqa: E402,F401
 from tur import (TUR_TAVANI, artimli_base, degismedi_mi,  # noqa: E402,F401
                  marker_oku, marker_uret)
 from risk import (APPROVAL, AUTO, DENY, ENJEKSIYON,  # noqa: E402,F401
-                  enjeksiyon_var_mi, risk_sinifi)
+                  birlestir, enjeksiyon_var_mi, risk_sinifi, yikici_aksiyon)
 
 
 # CI "yeşil" sayılması için KANIT üreten check'in varlığı şart. Önceden
@@ -172,6 +172,43 @@ def pr_head_sha(pr):
 def pr_diff(pr):
     kod, out, _e = _kos("gh", "pr", "diff", str(pr))
     return out if kod == 0 else ""
+
+
+# Issue Form'un "Ön risk sınıfı" alanı. Contract'lı işte doldurulur; micro
+# işte contract YOKTUR ve bu ayrım korunmalıdır (AGENTS.md: diff tek cümleyle
+# tarif edilebiliyorsa form atlanır).
+_ON_RISK = re.compile(r"ön\s*risk[^\n:]*[:\s]+.*?\b(auto|approval|deny)\b",
+                      re.I | re.S)
+
+
+def on_risk_oku(govde, contractli):
+    """Contract gövdesinden ön risk: sınıf | 'yok' | 'okunamadi'.
+
+    Üç durum AYRI tutulur, çünkü ikisini karıştırmak iki ayrı hata üretir:
+    - 'yok'        → contract hiç yok (micro iş). Ön risk uygulanamaz;
+                     birleşime KATILMAZ, yoksa her micro PR approval'a
+                     çıkar ve belgelenmiş micro yolu ölür.
+    - 'okunamadi'  → contract VAR ama risk alanı okunamıyor. Fail-closed:
+                     approval. Bozuk contract otomatik merge üretemez.
+    - sınıf        → okundu, birleşime girer.
+    """
+    if not contractli:
+        return "yok"
+    m = _ON_RISK.search(govde or "")
+    return m.group(1).lower() if m else "okunamadi"
+
+
+def pr_contract(pr):
+    """(gövde, contract'lı mı) — PR gövdesi ve `contract` etiketi."""
+    kod, out, _e = _kos("gh", "pr", "view", str(pr), "--json", "body,labels")
+    if kod != 0:
+        return "", False
+    try:
+        veri = json.loads(out or "{}") or {}
+    except ValueError:
+        return "", False
+    etiketler = {(e or {}).get("name", "") for e in veri.get("labels") or []}
+    return veri.get("body") or "", "contract" in etiketler
 
 
 def pr_yorumlari(pr):
@@ -299,13 +336,35 @@ def _incele_yeniden_deneyerek(pr, base):
     return d, True
 
 
+def birlesik_risk(pr):
+    """Ön risk × yol riski × aksiyon riski — yalnız yukarı (AGENTS.md).
+
+    Üç kaynak da tek başına eksiktir:
+    - ön risk    : işin niyeti (contract'ta beyan edilir)
+    - yol riski  : diff'in dokunduğu yüzey
+    - aksiyon    : diff'in İÇERİĞİ (veri silme, yetki genişletme) — yoldan
+                   görülmez, `risk.yikici_aksiyon` içerikten okur
+    Eskiden yalnız yol riskine bakılıyordu; ön risk merge kararına hiç
+    girmiyordu (bağımsız inceleme bulgusu, 2026-08-15).
+    """
+    govde, contractli = pr_contract(pr)
+    on = on_risk_oku(govde, contractli)
+    yol = risk_sinifi(pr_dosyalari(pr))
+    aksiyon = "deny" if yikici_aksiyon(pr_diff(pr)) else "auto"
+    if on == "yok":                  # micro iş: ön risk uygulanamaz
+        return birlestir(yol, aksiyon)
+    if on == "okunamadi":            # bozuk contract otomatik merge üretemez
+        return birlestir("approval", yol, aksiyon)
+    return birlestir(on, yol, aksiyon)
+
+
 def topla(pr):
     """PR'a dair tüm dış bilgiyi tek yerde toplar (main sade kalsın)."""
     ci_yesil, ci_ozet = ci_durumu(pr)
     # İncelenen commit BURADA sabitlenir; merge sonra bunu doğrular.
     head_sha = pr_head_sha(pr)
     onceki = marker_oku(pr_yorumlari(pr))
-    ortak = {"risk": risk_sinifi(pr_dosyalari(pr)),
+    ortak = {"risk": birlesik_risk(pr),
              "ci_yesil": ci_yesil, "ci_ozet": ci_ozet, "head_sha": head_sha,
              "tur": onceki["tur"] + 1, "degismedi": False, "yeniden": False,
              "artimli": False}
