@@ -77,8 +77,20 @@ python3 bin/report.py --open
    **Kurduktan sonra DOĞRULA, hemen değil.** Ayar değişikliğinin yerleşmesi
    saniyeler alır; kurulumdan hemen sonraki push propagasyon penceresinden
    geçebilir (2026-08-16'da bizzat yaşandı — koruma doğruydu, push geçti).
-   Doğrulama: `git commit --allow-empty` + `git push --no-verify origin main`
-   → **iki gerekçeyle birden** reddedilmeli:
+
+   Doğrulama TEMİZ AĞAÇTA yapılır. `--allow-empty` boş commit'e *izin verir*,
+   index'i BOŞALTMAZ: staged dosyan varsa doğrulama commit'ine girer ve
+   propagasyon penceresinde push geçerse `main`'e iner (bağımsız inceleme
+   bulgusu, P1).
+
+   ```bash
+   git status --porcelain          # BOŞ olmalı; değilse önce: git stash -u
+   git commit --allow-empty -m "koruma dogrulama"
+   git push --no-verify origin main   # REDDEDİLMELİ
+   git reset --hard HEAD~1         # deneme commit'ini geri al
+   ```
+
+   Ret **iki gerekçeyi birden** taşımalı:
    `Changes must be made through a pull request.` ve
    `Required status check "kernel" is expected.`
    Tek gerekçe görüyorsan sınır eksiktir.
