@@ -108,8 +108,14 @@ getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
 - **Kernel senkronu çift yönlüdür (ADR-0002).** Kurulum önce kaynağı ileri
   sarar; ezme kararı manifest'e değil kanonik git geçmişine dayanır. Ters
   yön `bin/auras_geri.py`.
-- **Bilinen açık:** private repo + Free plan'da dal koruması kapalıdır;
-  `kernel` required check yapılamadığı sürece uzak bütünlük sınırı YOKTUR.
+- **Uzak bütünlük sınırı KURULDU (2026-08-16).** `main` dal koruması altında:
+  `kernel` check'i required, `enforce_admins` açık, force-push ve dal silme
+  kapalı. Doğrulandı — yerel kanca `--no-verify` ile atlanarak yapılan
+  doğrudan push uzak taraftan reddedildi (`GH006: Protected branch update
+  failed`). Bu, sistemdeki TEK kapıdır ki agent'ın yazamadığı bir yerde
+  çalışır. Bedeli: `main`'e doğrudan push artık kimse için mümkün değil,
+  akış PR'dan geçer. Break-glass = korumayı bilinçle kapatmak; GitHub bunu
+  audit log'a yazar (süreli + gerekçeli + kayıtlı).
 
 ## Kapıların gerçek sınıfı
 
@@ -122,14 +128,21 @@ Bu tablo her kapının NE OLDUĞUNU söyler; abartma yasaktır.
 | `bin/kapi.py` (tur/Stop) | yerel workflow guard | Agent olay kaydını silebilir/yazabilir; kayıt yoksa sessizce geçer. Aynı borçla ikinci kapanışı BLOKLAMAZ — yalnız "⚠️ kanıt borcuyla kapandı" izi bırakır (tek blok + görünür feragat) |
 | `bin/hooks/pre-push` | yerel workflow guard | `git push --no-verify` ile atlanır; kanca kurulu değilse hiç koşmaz |
 | `bin/incele.py` (merge) | süreç kuralı | `gh pr merge` ile doğrudan birleştirmeyi engellemez |
-| CI `evidence` job'ı | bağımsız makine kanıtı | Required check olmadığından merge'ü durduramaz |
+| CI `evidence` job'ı | bağımsız makine kanıtı | Kanıtın DOĞRU olduğunu değil, üretildiğini gösterir |
+| `main` dal koruması | **bütünlük sınırı** — tek gerçek olan | Repo yöneticisi korumayı kapatabilir (audit log'a yazılır). Kapatılırsa sistem yeniden yalnız yerel guard setidir |
 
 Yerel kapılar **güvenlik sınırı değildir**: hepsi agent'ın yazabildiği aynı
 dosya sisteminde, aynı kullanıcı yetkisiyle çalışır — ortak güven kökü
 agent'ın kendisidir. İşlevleri hatayı ucuzken yakalamaktır, kötü niyeti
-durdurmak değil. Gerçek bütünlük sınırı yalnız remote'ta, agent'ın
-değiştiremediği zorunlu check ile kurulur; o kurulana kadar bu sistem
-dürüstçe **yerel workflow guard** setidir.
+durdurmak değil.
+
+Gerçek bütünlük sınırı yalnız remote'ta, agent'ın değiştiremediği zorunlu
+check ile kurulur — ve **2026-08-16'da kuruldu**. Artık sistem "yerel
+workflow guard seti" DEĞİL; yerel guard'lar + bir bütünlük sınırıdır. Ayrım
+korunmalı: yerel kapılar hâlâ atlanabilir ve hâlâ öyle adlandırılır; yalnız
+`main`'e giden yol kapanmıştır. Koruma kapatılırsa bu paragraf da eski hâline
+döner — abartma yasağı sınırın varlığına değil, DOĞRU adlandırılmasına
+bağlıdır.
 
 Sonuç: kapı çıktısı "doğrulandı" değil "bu turda şu kanıt görüldü" demektir.
 Kanıtın kaynağı kayda yazılır (`src`: `exit` = gerçek çıkış kodu, `event` =

@@ -49,6 +49,20 @@ python3 bin/report.py --open
 ## Kurulum sonrası (GitHub tarafı — bir kez)
 
 1. Repo'yu GitHub'a push'la.
-2. Branch protection (main): "Require status checks" → `kernel` job'ı zorunlu.
+2. Branch protection (main) — bu repoda **kurulu** (2026-08-16). Yeni bir
+   projede kurmak için (repo public ya da GitHub Pro olmalı):
+
+   ```bash
+   gh api -X PUT repos/<owner>/<repo>/branches/main/protection --input - <<'JSON'
+   {"required_status_checks":{"strict":true,"contexts":["kernel"]},
+    "enforce_admins":true,"required_pull_request_reviews":null,
+    "restrictions":null,"allow_force_pushes":false,"allow_deletions":false}
+   JSON
+   ```
+
+   `enforce_admins: true` şart: `false` bırakılırsa agent kullanıcının
+   yetkisiyle korumayı geçer ve sınır yalnız kazaya karşı bir hatırlatıcıya
+   döner. Kurduktan sonra DOĞRULA — `--no-verify` ile doğrudan push
+   reddedilmeli.
 3. Codex Review app'ini repoya bağla (Review all PRs).
 4. claude.ai/code üzerinden repo'yu cloud session'a bağla.
