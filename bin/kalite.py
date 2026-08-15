@@ -25,6 +25,9 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+import diller  # noqa: E402  (dil kapsamının tek tanımı)
+
 TABAN_YOL = os.path.join(ROOT, ".agents", "kalite-baseline.json")
 AYAR_YOL = os.path.join(ROOT, ".agents", "kalite.yml")
 
@@ -34,13 +37,12 @@ VARSAYILAN = {
     "max_dal": 10,
 }
 
-KOD_UZANTI = {".py", ".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte",
-              ".cs", ".go", ".java", ".rb", ".php", ".kt", ".swift", ".rs"}
+# Dil kapsamı TEK kaynaktan (bin/diller.py) — bekçi: tests/test_diller.py
+KOD_UZANTI = set(diller.KALITE)
 # Fonksiyon gövdesi süslü parantezle sınırlanan diller. Ruby (def…end) ve
 # Python burada DEĞİL — "hepsi analiz edildi" demek dürüst olmazdı; analiz
 # edilmeyen dosya kapsam raporunda 'yalnız satır sayılan' olarak görünür.
-SUSLU = {".js", ".jsx", ".ts", ".tsx", ".vue", ".svelte", ".cs", ".go",
-         ".java", ".php", ".kt", ".swift", ".rs"}
+SUSLU = set(diller.SUSLU)
 ATLA = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist",
         "build", ".next", "obj", "coverage", "vendor", "Pods", ".mypy_cache",
         ".pytest_cache", "site-packages", ".agents/runtime"}
@@ -163,13 +165,14 @@ def olc(kok=ROOT, esik=None):
         if len(satirlar) > esik["max_dosya_satir"]:
             sayac["buyuk_dosya"] += 1
             bulgular.append((rel, 1, "buyuk_dosya",
-                             f"{len(satirlar)} satır (> {esik['max_dosya_satir']})"))
+                             f"{len(satirlar)} satır (> {esik['max_dosya_satir']})",
+                             len(satirlar)))
         n = len(BORC.findall(metin))
         sayac["borc_isareti"] += n
         d = len(DEBUG.findall(metin))
         sayac["debug_artigi"] += d
         if d:
-            bulgular.append((rel, 1, "debug_artigi", f"{d} adet"))
+            bulgular.append((rel, 1, "debug_artigi", f"{d} adet", d))
 
         uzanti = os.path.splitext(yol)[1]
         if uzanti == ".py":
@@ -183,20 +186,43 @@ def olc(kok=ROOT, esik=None):
             if uzunluk > esik["max_fonksiyon_satir"]:
                 sayac["uzun_fonksiyon"] += 1
                 bulgular.append((rel, satir, "uzun_fonksiyon",
-                                 f"{uzunluk} satır (> {esik['max_fonksiyon_satir']})"))
+                                 f"{uzunluk} satır (> {esik['max_fonksiyon_satir']})",
+                                 uzunluk))
             if dal > esik["max_dal"]:
                 sayac["karmasik_fonksiyon"] += 1
                 bulgular.append((rel, satir, "karmasik_fonksiyon",
-                                 f"{dal} dal (> {esik['max_dal']})"))
+                                 f"{dal} dal (> {esik['max_dal']})", dal))
     return {
         "sayaclar": sayac,
         "esikler": esik,
         "kapsam": {"kod_dosyasi": dosya_sayisi,
                    "fonksiyon_analizli": fonk_analizli,
                    "yalniz_satir_sayilan": dosya_sayisi - fonk_analizli},
-        "bulgular": [{"dosya": d, "satir": s, "tur": t, "detay": x}
-                     for d, s, t, x in bulgular],
+        "bulgular": [{"dosya": d, "satir": s, "tur": t, "detay": x,
+                      "buyukluk": b}
+                     for d, s, t, x, b in bulgular],
+        "buyuklukler": buyuklukler(bulgular),
     }
+
+
+def buyuklukler(bulgular):
+    """{kimlik: büyüklük} — mevcut ihlallerin BOYUTU, sayısı değil.
+
+    H. Demir denetimi (2026-08-15): ratchet yalnız eşiği aşan NESNE SAYISINI
+    kıyaslıyordu. `validate.py` ADR-0004 zamanında 601 satırdı, ölçüm günü
+    952 — %58 büyüme; `buyuk_dosya` sayacı ise hep 1 kaldı ve kapı yeşil
+    yandı. Yani "mevcut borç kabul, büyümesi bloklanır" iddiası, borcun
+    BÜYÜKLÜĞÜ için hiç çalışmıyordu.
+
+    Kimlik dosya + tür; satır numarası KASITLI olarak dışarıda: fonksiyon
+    birkaç satır kayınca kimliği değişmemeli, yoksa her düzenleme sahte
+    "yeni ihlal" üretir.
+    """
+    en = {}
+    for dosya, _satir, tur, _detay, boyut in bulgular:
+        anahtar = f"{dosya}#{tur}"
+        en[anahtar] = max(en.get(anahtar, 0), boyut)
+    return en
 
 
 def taban_oku():
@@ -207,10 +233,35 @@ def taban_oku():
         return None
 
 
+def taban_buyuklukleri():
+    """Tabandaki ihlal büyüklükleri. Alan yoksa None (eski taban biçimi)."""
+    try:
+        with open(TABAN_YOL, encoding="utf-8") as fh:
+            return json.load(fh).get("buyuklukler")
+    except (OSError, ValueError):
+        return None
+
+
 def regresyonlar(sayac, taban):
     """Ratchet: hiçbir sayaç tabandan BÜYÜK olamaz."""
     return [(k, taban.get(k, 0), v) for k, v in sorted(sayac.items())
             if v > taban.get(k, 0)]
+
+
+def buyumeler(simdiki, taban):
+    """Mevcut bir ihlal BÜYÜDÜ mü — sayı değişmese bile.
+
+    Ratchet'in eksik yarısı buydu: aynı dosya 601'den 952 satıra çıkarken
+    sayaç 1'de kaldığı için kapı hiç kırmızı yanmadı. Yeni ihlal sayaç
+    tarafından, mevcut ihlalin BÜYÜMESİ burada yakalanır.
+
+    Taban bu alanı taşımıyorsa (eski biçim) boş döner: geriye uyum, ama
+    `main` bunu görünür bir uyarıya çevirir — sessizce korumasız kalmaz.
+    """
+    if not taban:
+        return []
+    return [(k, taban[k], v) for k, v in sorted(simdiki.items())
+            if k in taban and v > taban[k]]
 
 
 def main(argv=None):
@@ -230,7 +281,9 @@ def main(argv=None):
         os.makedirs(os.path.dirname(TABAN_YOL), exist_ok=True)
         with open(TABAN_YOL, "w", encoding="utf-8") as fh:
             json.dump({"sayaclar": rapor["sayaclar"],
-                       "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz. "
+                       "buyuklukler": rapor["buyuklukler"],
+                       "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz "
+                              "VE mevcut ihlaller büyüyemez (buyuklukler). "
                               "Düşürmek serbest ve teşvik edilir."},
                       fh, ensure_ascii=False, indent=2, sort_keys=True)
             fh.write("\n")
@@ -238,13 +291,17 @@ def main(argv=None):
         return 0
 
     kotu = regresyonlar(rapor["sayaclar"], taban) if taban is not None else []
+    taban_b = taban_buyuklukleri()
+    buyuyen = buyumeler(rapor["buyuklukler"], taban_b)
     rapor["taban"] = taban
     rapor["regresyon"] = [{"sayac": k, "taban": a, "simdi": b}
                           for k, a, b in kotu]
+    rapor["buyume"] = [{"ihlal": k, "taban": a, "simdi": b}
+                       for k, a, b in buyuyen]
 
     if args.json:
         print(json.dumps(rapor, ensure_ascii=False, indent=2))
-        return 1 if (args.check and kotu) else 0
+        return 1 if (args.check and (kotu or buyuyen)) else 0
 
     kap = rapor["kapsam"]
     print(f"KALİTE: {kap['kod_dosyasi']} kod dosyası "
@@ -262,11 +319,21 @@ def main(argv=None):
             print(f"    {k}: {a} → {b}")
         print("  Ya borcu geri al ya da tabanı bilinçli yükselt "
               "(gerekçesini commit mesajına yaz).")
+    if buyuyen:
+        print("\n  RATCHET İHLALİ — mevcut borç BÜYÜDÜ (sayaç değişmese de):")
+        for k, a, b in buyuyen:
+            print(f"    {k}: {a} → {b}")
+        print("  Borcu büyütmek, onu kabul etmekle aynı şey değildir.")
+    elif taban is not None and taban_b is None:
+        # Sessiz korumasızlık yok: eski taban biçimi büyüme kontrolünü
+        # kapatır ve bunu SÖYLEMEK zorundayız.
+        print("\n  UYARI: taban 'buyuklukler' alanını taşımıyor — mevcut "
+              "borcun BÜYÜMESİ ölçülemiyor. Tazele: python3 bin/kalite.py --baseline")
     for b in rapor["bulgular"][:12]:
         print(f"    {b['dosya']}:{b['satir']}  [{b['tur']}]  {b['detay']}")
     if len(rapor["bulgular"]) > 12:
         print(f"    … {len(rapor['bulgular']) - 12} bulgu daha (--json)")
-    return 1 if (args.check and kotu) else 0
+    return 1 if (args.check and (kotu or buyuyen)) else 0
 
 
 if __name__ == "__main__":

@@ -161,6 +161,24 @@ def _kilit(fh):
             pass
 
 
+def route_olayi(task_class, routed, extras, intent, session=None, log=None):
+    """Yönlendirme kararını kayda yaz.
+
+    `session` ZORUNLU alan değildir ama yazılmazsa kapı turu hangi oturumun
+    açtığını bilemez ve eşzamanlı iki oturum birbirinin kanıtını sahiplenir
+    (ölçüm 2026-08-15: 286 route olayının 0'ı session taşıyordu — alan
+    ALLOWED listesindeydi, yazan yoktu).
+    """
+    return append({
+        "kind": "route",
+        "session": (session or "")[:8] or None,
+        "task_class": task_class,
+        "routed": routed,
+        "extras": extras,
+        "intent": intent,
+    }, log)
+
+
 # Test/doğrulama komutu imzaları — "test koştu mu" sorusunun cevabı.
 TEST_CMD_RE = re.compile(
     r"(unittest|pytest|\bnpm (run )?test|yarn test|dotnet test|go test|vitest"

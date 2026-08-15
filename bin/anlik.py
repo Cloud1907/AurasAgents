@@ -122,3 +122,32 @@ def temizle(kok, session):
         os.remove(_yol(kok, session))
     except OSError:
         pass
+
+
+def tur_basi_al(pdir, session):
+    """Tur BAŞI anlığını al ve yaz (router çağırır; asla bloklamaz).
+
+    Yalnız sisteme BAĞLI projede alınır — global yedek router yabancı repoda
+    dosya bırakmaz (`run_event.log_path` ile aynı ölçü).
+    """
+    if not (session and os.path.isfile(
+            os.path.join(pdir, ".agents", "routing.yml"))):
+        return None
+    try:
+        return kaydet(pdir, session[:8], al(pdir))
+    except OSError:
+        return None
+
+
+def tur_delta(kok, session):
+    """Tur başından beri değişmiş ama tool olayı üretmemiş yollar (kapı için).
+
+    Anlık yoksa boş döner ve kapı ESKİ ölçüye düşer — uydurma delta üretmez.
+    Sınır: anlık ne zaman değiştiğini söylemez, yalnız değiştiğini söyler.
+    """
+    if not session:
+        return []
+    try:
+        return degisenler(kok, getir(kok, session))
+    except OSError:
+        return []

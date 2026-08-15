@@ -334,52 +334,26 @@ def _kaydet(prompt, cfg, pdir, session=None, log=None):
     """Yönlendirme kararını görünür kayda yaz (best-effort; asla bloklamaz).
 
     Böylece `bin/durum.py` "ne yönlendirildi vs ne yüklendi" karşılaştırmasını
-    ajanın beyanına değil kayda dayandırır.
-
-    `session` ZORUNLU bir alan değildir ama yazılmazsa kapı turu hangi
-    oturumun açtığını bilemez ve eşzamanlı iki oturum birbirinin kanıtını
-    sahiplenir (ölçüm 2026-08-15: 286 route olayının 0'ı session taşıyordu —
-    alan `run_event.ALLOWED` listesindeydi, yazan yoktu).
+    ajanın beyanına değil kayda dayandırır. Yazım mekaniği run_event'te;
+    burada yalnız KARAR üretilir.
     """
     try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "_run_event", os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                       "run_event.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        import run_event
         task_class, primary, extras, _hits, explicit = route(prompt, cfg, pdir)
-        mod.append({
-            "kind": "route",
-            "session": (session or "")[:8] or None,
-            "task_class": task_class,
-            "routed": (primary or {}).get("skill") or (explicit if explicit else None),
-            "extras": extras,
-            "intent": prompt,
-        }, log or mod.log_path(pdir=pdir))
+        run_event.route_olayi(
+            task_class=task_class,
+            routed=(primary or {}).get("skill") or explicit or None,
+            extras=extras, intent=prompt, session=session,
+            log=log or run_event.log_path(pdir=pdir))
     except Exception:
         pass
 
 
 def _anlik_al(pdir, session):
-    """Tur BAŞI çalışma ağacı anlığı (best-effort; asla bloklamaz).
-
-    Kapı "bu turda ne değişti"yi buradan ölçer; tool olayı üretmeyen kabuk
-    yazımları ancak böyle görünür. Yalnız sisteme BAĞLI projede alınır —
-    global yedek router yabancı repoda dosya bırakmaz (run_event.log_path
-    ile aynı ölçü).
-    """
-    if not (session and os.path.isfile(
-            os.path.join(pdir, ".agents", "routing.yml"))):
-        return
+    """Tur başı anlığını aldır (mantık bin/anlik.py'de; burada yalnız çağrı)."""
     try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "_anlik", os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                   "anlik.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        mod.kaydet(pdir, session[:8], mod.al(pdir))
+        import anlik
+        anlik.tur_basi_al(pdir, session)
     except Exception:
         pass
 

@@ -1,5 +1,25 @@
 {
-  "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz. Düşürmek serbest ve teşvik edilir.",
+  "buyuklukler": {
+    ".agents/skills/designing-interfaces/scripts/contrast_check.py#karmasik_fonksiyon": 11,
+    ".agents/skills/implement-change/scripts/check_test_first.py#karmasik_fonksiyon": 13,
+    ".agents/skills/research-with-evidence/scripts/check_citations.py#karmasik_fonksiyon": 12,
+    "bin/auras_geri.py#karmasik_fonksiyon": 16,
+    "bin/kalite.py#karmasik_fonksiyon": 18,
+    "bin/kalite.py#uzun_fonksiyon": 70,
+    "bin/kapi.py#karmasik_fonksiyon": 34,
+    "bin/kapi.py#uzun_fonksiyon": 125,
+    "bin/make_evidence.py#karmasik_fonksiyon": 14,
+    "bin/make_evidence.py#uzun_fonksiyon": 73,
+    "bin/memory_hygiene.py#karmasik_fonksiyon": 13,
+    "bin/route.py#karmasik_fonksiyon": 14,
+    "bin/route.py#uzun_fonksiyon": 70,
+    "bin/run_event.py#karmasik_fonksiyon": 12,
+    "bin/run_event.py#uzun_fonksiyon": 57,
+    "bin/validate.py#buyuk_dosya": 975,
+    "bin/validate.py#karmasik_fonksiyon": 17,
+    "bin/validate.py#uzun_fonksiyon": 113
+  },
+  "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz VE mevcut ihlaller büyüyemez (buyuklukler). Düşürmek serbest ve teşvik edilir.",
   "sayaclar": {
     "borc_isareti": 4,
     "buyuk_dosya": 1,

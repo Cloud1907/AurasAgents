@@ -15,12 +15,20 @@ jobs:
   kernel:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Action'lar TAM COMMIT SHA'sına sabitlenmiştir, etikete değil.
+      # Etiket hareketlidir: `v4` yarın başka bir commit'i işaret edebilir
+      # ve deterministik olması gereken kanıt üretimi sessizce değişir.
+      # Upstream ele geçirilirse etiket saldırganın kodunu getirir.
+      # Yükseltme bilinçli karardır: yeni SHA'yı yaz, gerekçesini commit'e.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0        # check_test_first base dalı görebilsin
 
       - name: PyYAML kur
-        run: python3 -m pip install --quiet pyyaml
+        # Sürüm sabit: `pyyaml` çıplak yazıldığında her koşu farklı sürüm
+        # çekebilir ve "aynı doğrulama bağımsız makinede tekrarlanır" iddiası
+        # bozulur.
+        run: python3 -m pip install --quiet "pyyaml==6.0.3"
 
       - name: Kernel doğrulama
         run: python3 bin/validate.py
@@ -98,7 +106,7 @@ jobs:
             --check "test-first=${{ steps.testfirst.outputs.status }}"
 
       - name: Evidence artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: evidence
           path: evidence.json

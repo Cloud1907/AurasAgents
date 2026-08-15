@@ -25,8 +25,12 @@ description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md 
      ASLA ezilmez.
    - **Motor dosyaları** (bin/*, .agents/skills, profiller, routing.yml,
      workflow, şema, tests): her koşumda güncellenir — ama kullanıcı elle
-     değiştirdiyse korunur ve `KORUNDU` diye raporlanır. Kimin dokunduğu
-     `.agents/.kernel-manifest.json` hash kaydından bilinir.
+     değiştirdiyse korunur ve `KORUNDU` diye raporlanır. Ezme kararının
+     OTORİTESİ kanonik **git geçmişidir**, manifest DEĞİL (ADR-0002):
+     hedefin içeriği kanonik geçmişte hiç görülmediyse o yerel iştir.
+     Manifest yalnız hızlandırıcı bir önbellektir ve yanılabilir —
+     2026-08-05'te 4cast'te projenin kendi içeriğini "el değmemiş" sanıp
+     yerel düzeltmeyi ezmek üzereydi.
    - Hook'lar kaynak `.claude/settings.json`'dan birleştirilir; kernel yeni
      hook eklediğinde bağlı projeler bunu `/auras` ile alır.
    Kapanışta `KORUNDU` satırlarını kullanıcıya MUTLAKA söyle — sessiz geçme.

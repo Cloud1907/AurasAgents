@@ -167,10 +167,35 @@ def test_workflow():
           "workflow: workflow_dispatch yok — Actions olay teslimi bozulduğunda "
           "kanıt elle üretilemez. evidence.yml'de 'on:' altına "
           "'workflow_dispatch:' ekle")
-    text = open(path, encoding="utf-8").read()
-    check("validate.py" in text, "workflow: kernel doğrulaması koşmuyor")
-    check("make_evidence.py" in text, "workflow: evidence üretimi yok")
-    check("upload-artifact" in text, "workflow: evidence artifact yüklenmiyor")
+    # Denetim öncesi bu üç kontrol DİZGE ARAMASIYDI: `"validate.py" in text`
+    # yorum satırındaki ya da ölü daldaki bir metni de "koşuyor" sayıyordu
+    # (H. Demir bulgusu, 2026-08-15). Ölçü artık YAPI: gerçekten çalışan
+    # adımların `run`/`uses` alanlarına bakılır.
+    adimlar = []
+    for job in (data.get("jobs") or {}).values():
+        adimlar.extend((job or {}).get("steps") or [])
+    komutlar = " ".join(str((a or {}).get("run") or "") for a in adimlar)
+    kullanilan = [str((a or {}).get("uses") or "") for a in adimlar]
+    check("validate.py" in komutlar,
+          "workflow: kernel doğrulaması bir adımın `run` komutunda değil "
+          "(yorumda geçmesi koşuyor demek değildir)")
+    check("make_evidence.py" in komutlar,
+          "workflow: evidence üretimi bir adımın `run` komutunda değil")
+    check(any("upload-artifact" in u for u in kullanilan),
+          "workflow: evidence artifact yükleyen `uses` adımı yok")
+
+    # Tedarik zinciri: hareketli etiket deterministik kanıtı bozar; upstream
+    # ele geçirilirse `@v4` saldırganın commit'ini getirir.
+    for u in kullanilan:
+        if not u or "@" not in u:
+            continue
+        _ad, _sep, ref = u.partition("@")
+        check(re.fullmatch(r"[0-9a-f]{40}", ref.split()[0] if ref else ""),
+              f"workflow: '{u}' tam commit SHA'sına sabitlenmemiş — "
+              "hareketli etiket her koşuda farklı kod getirebilir")
+    check(re.search(r"pip install[^\n]*==", komutlar),
+          "workflow: Python bağımlılığı sürüme sabitlenmemiş "
+          "(`pip install pyyaml` → `pip install \"pyyaml==X.Y.Z\"`)")
 
 
 def test_evidence_roundtrip():

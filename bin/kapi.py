@@ -30,9 +30,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
-# Kaynak kod uzantıları (doküman/metin hariç — .md değişikliği test istemez).
-KAYNAK_UZANTI = (".py", ".js", ".mjs", ".ts", ".tsx", ".jsx", ".cs", ".go",
-                 ".rb", ".java", ".kt", ".php", ".swift", ".sql", ".sh")
+sys.path.insert(0, HERE)
+import diller  # noqa: E402  (dil kapsamının tek tanımı)
+
+# Dil kapsamı TEK kaynaktan (bin/diller.py): aynı soruyu üç ayrı listeyle
+# cevaplamak, listelerin ayrışmasıyla biter — ve ayrıştıkları ölçüldü
+# (H. Demir denetimi 2026-08-15). Bekçi: tests/test_diller.py
+KAYNAK_UZANTI = tuple(sorted(diller.KAYNAK))
 # Test dosyası imzaları.
 TEST_YOL = re.compile(r"(^|/)tests?/|(^|/)test_|_test\.|\.test\.|\.spec\.")
 # Risk yüzeyi: dokunulursa güvenlik incelemesi ister (AGENTS.md risk politikası).
@@ -40,8 +44,7 @@ RISK_YOL = re.compile(
     r"(auth|kimlik|oturum|session|secret|credential|\.env|migration|payment"
     r"|odeme|ödeme|upload|permission|settings\.json|/hooks/|token)", re.I)
 # Görünür yüzey: değişirse birim testi yetmez, TIKLAMA kanıtı istenir.
-UI_UZANTI = (".tsx", ".jsx", ".vue", ".svelte", ".cshtml", ".razor", ".html",
-             ".css", ".scss")
+UI_UZANTI = tuple(sorted(diller.GORUNUR))
 # Yol-parçası sınırına demirli: aksi halde "security-review/", "overview/",
 # "Interview/" içindeki "view" alt dizesi eşleşir ve markdown/backend dosyası
 # görünür yüzey sanılır (2026-08-01 yanlış pozitifi — 4cast'te yakalandı).
@@ -299,22 +302,10 @@ def imzala(duzenlenen, bulgular, ekler=()):
 
 
 def _kabuk_yazimlari(session):
-    """Tur başı anlığına göre değişmiş ama tool olayı üretmemiş yollar.
-
-    Anlık yoksa (ilk kurulum, eski oturum) boş döner ve kapı ESKİ ölçüye
-    düşer — uydurma delta üretmez. Sınır: anlık ne zaman değiştiğini
-    söylemez, yalnız değiştiğini söyler; bu yüzden "son düzenlemeden sonra
-    test" sırası kabuk yazımları için uygulanamaz, "bu turda test koştu mu"
-    ölçüsü geçerlidir.
-    """
-    if not session:
-        return []
+    """Kabuk üzerinden yazılan yollar (ölçü bin/anlik.py'de)."""
     try:
-        spec = importlib.util.spec_from_file_location(
-            "_anlik", os.path.join(HERE, "anlik.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod.degisenler(ROOT, mod.getir(ROOT, session))
+        import anlik
+        return anlik.tur_delta(ROOT, session)
     except Exception:
         return []
 

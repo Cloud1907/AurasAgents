@@ -34,6 +34,8 @@ MOTOR = [
                             # bağlı projede profil yine yalnız beyan kalır
     "bin/kapsam_bekcisi.py",
     "bin/kalite.py",
+    "bin/diller.py",        # dil kapsamının tek tanımı — kapılar buradan okur
+    "bin/contract.py",      # incele.py'nin contract okuması
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
     "bin/surec.py",
     "bin/tur.py", "bin/risk.py",   # incele.py'nin bağımlılıkları — birlikte taşınmalı

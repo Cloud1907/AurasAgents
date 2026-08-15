@@ -82,17 +82,22 @@ def turlari_cikar(olaylar, session=None):
             cur = _yeni_tur()
             turlar.append(cur)
             acik[s] = cur
-        if kind == "skill" and o.get("skill"):
-            cur["skills"].append(o["skill"])
-        elif kind == "subagent" and o.get("agent"):
-            cur["subagent"].append(o["agent"])
-        elif kind == "skipped" and o.get("skill"):
-            cur.setdefault("atlanan", {})[o["skill"]] = o.get("reason", "?")
-        elif kind == "stop":
-            cur["kapandi"] = True
+        _uygula(cur, kind, o)
     for t in turlar:
         t["durum"] = _durum(t)
     return turlar
+
+
+def _uygula(tur, kind, olay):
+    """Olayı ait olduğu tura işle (dal sayısını turlari_cikar'dan ayırır)."""
+    if kind == "skill" and olay.get("skill"):
+        tur["skills"].append(olay["skill"])
+    elif kind == "subagent" and olay.get("agent"):
+        tur["subagent"].append(olay["agent"])
+    elif kind == "skipped" and olay.get("skill"):
+        tur.setdefault("atlanan", {})[olay["skill"]] = olay.get("reason", "?")
+    elif kind == "stop":
+        tur["kapandi"] = True
 
 
 def _durum(tur):

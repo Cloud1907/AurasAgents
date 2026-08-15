@@ -47,6 +47,32 @@ def sha(kok, ref="HEAD"):
     return p.stdout.strip()
 
 
+class AurasDokumanTest(unittest.TestCase):
+    """Skill anlatımı ADR-0002 ile aynı otoriteyi göstermeli.
+
+    Bağımsız inceleme bulgusu (2026-08-15): `auras/SKILL.md` ezme kararında
+    manifest'i otorite gibi anlatıyordu; ADR-0002 ve `kernel_dosyalari.py`
+    ise manifest'i otorite OLMAKTAN çıkarıp kanonik git geçmişine geçmişti.
+    Eski anlatım kalırsa bir sonraki okuyan yanlış modeli öğrenir ve
+    manifest'e güvenen bir değişiklik yazar.
+    """
+
+    def setUp(self):
+        yol = os.path.join(ROOT, ".agents", "skills", "auras", "SKILL.md")
+        with open(yol, encoding="utf-8") as fh:
+            self.metin = fh.read()
+
+    def test_otorite_git_gecmisi_olarak_anlatilir(self):
+        self.assertIn("git geçmiş", self.metin.lower())
+        self.assertIn("ADR-0002", self.metin)
+
+    def test_manifest_otorite_diye_anlatilmaz(self):
+        """Manifest'in adı geçebilir ama karar öznesi o olamaz."""
+        for kalip in ("manifest'ten bilinir", "hash kaydından bilinir",
+                      "manifest belirler"):
+            self.assertNotIn(kalip, self.metin.lower())
+
+
 class KaynakTazeligiTest(unittest.TestCase):
     """kaynak_tazele(): kurulumdan ÖNCE kaynak sürümünü kanıtlar."""
 
