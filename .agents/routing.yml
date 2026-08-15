@@ -316,15 +316,12 @@ not_routed:
       yanlış-pozitif üretti. Yanlış açılan sorgu oturumu kullanıcının "ara
       soru sorma" tercihini ihlal ettiğinden bedeli, kaçırmanın bedelinden
       yüksek — açık komut hem kesin hem yeterli.
-  - skill: project-onboarding
-    reason: >-
-      auras ile aynı işi kapsıyor (repoyu sisteme bağlama). Tetik çakışması
-      yaratmamak için KELİME yönlendirmesinin giriş noktası auras'tır; bu
-      skill onun altında çağrılan prosedürdür. not_routed yalnız kelime
-      yolunu kapatır: /project-onboarding ile doğrudan çağrılabilir ve
-      code-change profilinde tanımlıdır (dosya yazar) — açık komut kasıtlı
-      kaçış yoludur, kullanıcının iradesi kelimeyle bastırılmaz.
-      İkisinin birleştirilmesi ayrı bir kernel işidir.
+  # 2026-08-16: `project-onboarding` BİRLEŞTİRİLDİ. İki skill tek işi
+  # (repoyu sisteme bağlama) yapıyordu; ikisi de skill listing bütçesinden
+  # yer alıyor, ikisi de ayrı eval/profil kaydı istiyor, ve hangisinin
+  # otorite olduğu her okumada yeniden karar veriliyordu. Prosedür
+  # `auras/references/onboarding-checklist.md` olarak yaşamaya devam ediyor
+  # — bilgi korundu, ikinci giriş noktası kaldırıldı.
 
 fallback:
   task_class: research

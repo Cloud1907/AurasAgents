@@ -58,6 +58,15 @@ description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md 
 - Private repo + Free plan'da GitHub dal koruması çalışmaz; koruma yerel
   pre-push kancası + CI'dır. Bunu kullanıcıya söyle, sessiz geçme.
 
+## Referanslar
+
+- `references/onboarding-checklist.md` — kurulum sonrası projeyi TANIMA ve
+  `AGENTS.md`'yi ona uyarlama prosedürü (dil/framework, komutlar, izinli
+  path'ler, pazarlıksız yasaklar). 2026-08-16'da ayrı bir skill'di
+  (`project-onboarding`); iki skill tek işi yapıyordu ve hangisinin otorite
+  olduğu her okumada yeniden kararlaştırılıyordu. Prosedür korundu, ikinci
+  giriş noktası kaldırıldı.
+
 ## Eval
 
 Kurulum sonrası ölçüt: `python3 bin/validate.py` geçiyor, ilk push'ta CI

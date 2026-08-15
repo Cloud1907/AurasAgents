@@ -144,13 +144,14 @@ class RouteTest(unittest.TestCase):
     def test_kuralsiz_komut_risk_metadatasini_kaybetmez(self):
         """Yazma sınıfındaki /komut, risk sınıfını da taşımalı.
 
-        /project-onboarding ile /auras aynı işi yapar; birinin approval
-        diğerinin sessizce 'auto' sayılması, risk politikasını komut
-        seçimine bağlı hale getirirdi.
+        Aynı işi yapan iki komuttan birinin approval diğerinin sessizce
+        'auto' sayılması, risk politikasını komut seçimine bağlardı.
+        (Vaka 2026-08-16'da `project-onboarding`den `auras`a taşındı:
+        iki onboarding skill'i tek akışta birleştirildi.)
         """
-        tc, skill, _e, _x = self.pick("/project-onboarding")
+        tc, skill, _e, _x = self.pick("/auras")
         self.assertEqual(tc, "code-change")
-        self.assertEqual(skill, "project-onboarding")
+        self.assertEqual(skill, "auras")
 
     def test_acik_komut_tetik_tasiyan_metinde_de_kazanir(self):
         """Kurallı olmayan skill'in /komutu, anahtar kelimeye yenilmez.

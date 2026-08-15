@@ -63,9 +63,9 @@ class KuralsizKomutTest(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp:
             os.makedirs(os.path.join(tmp, ".agents", "skills",
-                                     "project-onboarding"))
-            kural = route.kuralsiz_komut_kurali("project-onboarding", tmp)
-            self.assertEqual(kural, {"skill": "project-onboarding",
+                                     "designing-interfaces"))
+            kural = route.kuralsiz_komut_kurali("designing-interfaces", tmp)
+            self.assertEqual(kural, {"skill": "designing-interfaces",
                                      "task_class": "code-change",
                                      "risk": "approval"})
 

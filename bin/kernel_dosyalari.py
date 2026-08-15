@@ -16,18 +16,27 @@ Kullanım (kütüphane):
     import kernel_dosyalari as kd
     for rel, sinif in kd.karsilastir(kanonik, hedef): ...
 """
-import datetime as dt
 import hashlib
 import json
 import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Kurulum kimliği ayrı modülde (bin/manifest.py): "hangi dosyalar motorun"
+# ile "hangi sürüm kurulu" ayrı sorulardır. Buradan yeniden dışa verilir ki
+# çağıranlar (auras-init.sh, testler) tek import yüzeyi görsün.
+from manifest import (MANIFEST_SURUM, kurulu_surum,  # noqa: E402,F401
+                      manifest_dosyalari, manifest_govde)
 
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
     "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
     "bin/skill_kayit.py", "bin/davranis.py", "bin/secim.py",   # route.py'nin bağımlılığı — birlikte taşınmalı
     "bin/niyet.py",         # route.py'nin niyet kapısı — taşınmazsa kapı susar
+    "bin/anma.py",          # niyet.py'nin alıntı/anma ayrımı
+    "bin/manifest.py",      # kurulum kimliği (provenance)
     "bin/memory_hygiene.py", "bin/hatirla.py", "bin/run_event.py", "bin/durum.py",
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
     "bin/anlik.py",         # kapı'nın worktree ölçüsü — taşınmazsa kabuk
@@ -35,6 +44,7 @@ MOTOR = [
     "bin/yetki.py",         # profil → motor izin politikası; taşınmazsa
                             # bağlı projede profil yine yalnız beyan kalır
     "bin/kapsam_bekcisi.py",
+    "bin/dogrula_ci.py",    # validate.py'nin CI/kanıt doğrulayıcıları
     "bin/kalite.py",
     "bin/diller.py",        # dil kapsamının tek tanımı — kapılar buradan okur
     "bin/contract.py",      # incele.py'nin contract okuması
@@ -99,74 +109,6 @@ def yol_coz(kok, rel):
             return None
         simdi = os.path.join(simdi, esles[0])
     return simdi
-
-
-MANIFEST_REL = os.path.join(".agents", ".kernel-manifest.json")
-MANIFEST_SURUM = 2
-
-
-def _kaynak_kimligi(kaynak):
-    """(commit, repo) — kurulumun HANGİ kernel sürümünden yapıldığı."""
-    def git(*args):
-        try:
-            p = subprocess.run(["git", *args], cwd=kaynak, capture_output=True,
-                               text=True, timeout=10)
-            return p.stdout.strip() if p.returncode == 0 else ""
-        except (OSError, subprocess.SubprocessError):
-            return ""
-    return git("rev-parse", "HEAD"), git("remote", "get-url", "origin")
-
-
-def manifest_govde(dosyalar, kaynak):
-    """Manifest gövdesi: dosya özetleri + KURULUM PROVENANCE'I.
-
-    H. Demir denetimi (2026-08-15): manifest yalnız `rel → sha256` taşıyordu.
-    Bağlı bir repoya bakıp "hangi Auras sürümü kurulu, nereden, ne zaman?"
-    sorusunu cevaplamak mümkün değildi; uyumluluk kaynak klonunun git
-    geçmişine emanetti. Sürüm kimliği olmayan dağıtım, devralınamaz.
-
-    Not: bu alan ezme kararının OTORİTESİ DEĞİLDİR (ADR-0002) — otorite
-    kanonik git geçmişidir. Buradaki kayıt teşhis içindir.
-    """
-    commit, repo = _kaynak_kimligi(kaynak)
-    return {
-        "schema_version": MANIFEST_SURUM,
-        "kernel": {
-            "commit": commit,
-            "repo": repo,
-            "kurulum": dt.datetime.now(dt.timezone.utc).isoformat(
-                timespec="seconds"),
-        },
-        "dosyalar": dosyalar,
-        "not": "Ezme kararının otoritesi kanonik git geçmişidir (ADR-0002); "
-               "bu kayıt teşhis içindir.",
-    }
-
-
-def _manifest_oku(hedef):
-    try:
-        with open(os.path.join(hedef, MANIFEST_REL), encoding="utf-8") as fh:
-            veri = json.load(fh)
-    except (OSError, ValueError):
-        return {}
-    return veri if isinstance(veri, dict) else {}
-
-
-def manifest_dosyalari(hedef):
-    """{yol: sha} — v1 (düz sözlük) ve v2 (kernel+dosyalar) biçimini de okur.
-
-    v1'i okuyamamak, kurulu projeyi "hiç kurulmamış" saymak olurdu ve /auras
-    her dosyayı yeniden yazardı.
-    """
-    veri = _manifest_oku(hedef)
-    if "dosyalar" in veri:
-        return veri.get("dosyalar") or {}
-    return {k: v for k, v in veri.items() if isinstance(v, str)}
-
-
-def kurulu_surum(hedef):
-    """{commit, repo, kurulum} — v1 manifest'te boş döner (bilinmiyor)."""
-    return _manifest_oku(hedef).get("kernel") or {}
 
 
 def kurulumda_bulunur(rel):
