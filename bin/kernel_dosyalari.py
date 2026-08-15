@@ -28,6 +28,8 @@ MOTOR = [
     "bin/niyet.py",         # route.py'nin niyet kapısı — taşınmazsa kapı susar
     "bin/memory_hygiene.py", "bin/hatirla.py", "bin/run_event.py", "bin/durum.py",
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
+    "bin/anlik.py",         # kapı'nın worktree ölçüsü — taşınmazsa kabuk
+                            # yazımları bağlı projede yine görünmez olur
     "bin/kapsam_bekcisi.py",
     "bin/kalite.py",
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",

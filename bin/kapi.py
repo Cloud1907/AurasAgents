@@ -145,7 +145,8 @@ def degisen_satir_sayisi():
         return 0
 
 
-def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None):
+def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None,
+                ek_dosyalar=()):
     """(bulgular, imza) — bulgu listesi boşsa tur temiz demektir.
 
     dogrulayici: skill doğrulayıcılarının sonucu, DIŞARIDAN enjekte edilir
@@ -154,6 +155,10 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None):
 
     session: verilirse tur penceresi o oturuma daraltılır (bkz.
     bu_turun_olaylari).
+
+    ek_dosyalar: tool olayı ÜRETMEDEN değişen yollar (bkz. bin/anlik.py).
+    Kabuk üzerinden yazım — `sed -i`, `>`, `tee`, `patch` — edit olayı
+    üretmez; bu liste olmadan kapı kaynağın değiştiğini hiç görmez.
     """
     dogrulayici = dogrulayici or {}
     tur = bu_turun_olaylari(olaylar, session)
@@ -174,6 +179,12 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None):
             zorunlu.append(o["routed"])
         elif kind == "skipped" and o.get("skill"):
             atlanan.append(o["skill"])
+
+    # Tool olayı üretmeyen yazımlar (kabuk) burada katılır: kaynak kaynaktır,
+    # hangi araçla yazıldığı yükümlülüğü değiştirmez.
+    for yol in ek_dosyalar:
+        if yol not in duzenlenen:
+            duzenlenen.append(yol)
 
     ui = [f for f in duzenlenen
           if f.lower().endswith(UI_UZANTI) or UI_YOL.search(f)]
@@ -230,10 +241,16 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None):
 
     # Zorunlu skill karşılıksız kalamaz: ya yüklenir ya gerekçesi kayda geçer.
     # (Codex hükmü: gerekçe kanıt değil, denetlenebilir beyandır.)
+    # Süreç borcu UYARI, güvenlik borcu BLOK (bağımsız inceleme şartı,
+    # 2026-08-15). Gerekçe: bir blok +1 tam ajan turudur ve bağlamı yeniden
+    # okutur — kabaca 100 turluk router enjeksiyonu kadar pahalı. Yüklenmemiş
+    # bir süreç skill'i için bu bedeli ödemek token'ı korumaya değil törene
+    # harcar. Risk yüzeyi incelemesi AŞAĞIDA ayrıca BLOK'tur; yani "güvenlik
+    # borcu uyarıya indi" DEĞİLDİR — yalnız süreç borcu indi.
     karsiliksiz = [z for z in zorunlu if z not in skiller and z not in atlanan]
     if karsiliksiz:
         bulgular.append((
-            "BLOK", "zorunlu skill karşılıksız",
+            "UYARI", "zorunlu skill karşılıksız",
             f"Router {', '.join(karsiliksiz)} skill'ini zorunlu kıldı; ne "
             "yüklendi ne gerekçesi kayda geçti. Yükle ya da şunu koş: "
             "python3 bin/run_event.py --kind skipped --skill <ad> --reason "
@@ -281,6 +298,27 @@ def imzala(duzenlenen, bulgular, ekler=()):
         "|".join(parcalar).encode("utf-8")).hexdigest()[:12]
 
 
+def _kabuk_yazimlari(session):
+    """Tur başı anlığına göre değişmiş ama tool olayı üretmemiş yollar.
+
+    Anlık yoksa (ilk kurulum, eski oturum) boş döner ve kapı ESKİ ölçüye
+    düşer — uydurma delta üretmez. Sınır: anlık ne zaman değiştiğini
+    söylemez, yalnız değiştiğini söyler; bu yüzden "son düzenlemeden sonra
+    test" sırası kabuk yazımları için uygulanamaz, "bu turda test koştu mu"
+    ölçüsü geçerlidir.
+    """
+    if not session:
+        return []
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_anlik", os.path.join(HERE, "anlik.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.degisenler(ROOT, mod.getir(ROOT, session))
+    except Exception:
+        return []
+
+
 def zaten_bloklandi(olaylar, imza):
     """Aynı diff imzası daha önce bloklandıysa tekrar bloklama (kapan yok)."""
     return any(o.get("kind") == "gate" and o.get("sig") == imza
@@ -314,10 +352,12 @@ def main(argv=None):
             olaylar = []
 
         session = (payload.get("session_id") or "")[:8] or None
+        ek = _kabuk_yazimlari(session)
+        duzenlenen = duzenlenen_dosyalar(olaylar, session) + ek
         bulgular, imza = degerlendir(
             olaylar, degisen_satir_sayisi(),
-            dogrulayici_sonuclari(duzenlenen_dosyalar(olaylar, session)),
-            session=session)
+            dogrulayici_sonuclari(duzenlenen),
+            session=session, ek_dosyalar=ek)
         bloklar = [b for b in bulgular if b[0] == "BLOK"]
         # Sonsuz döngü koruması: hook zaten blokladıysa ya da aynı imza daha
         # önce bloklandıysa tekrar bloklamaz — ama SESSİZ de kalmaz (aşağıda

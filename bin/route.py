@@ -361,6 +361,29 @@ def _kaydet(prompt, cfg, pdir, session=None, log=None):
         pass
 
 
+def _anlik_al(pdir, session):
+    """Tur BAŞI çalışma ağacı anlığı (best-effort; asla bloklamaz).
+
+    Kapı "bu turda ne değişti"yi buradan ölçer; tool olayı üretmeyen kabuk
+    yazımları ancak böyle görünür. Yalnız sisteme BAĞLI projede alınır —
+    global yedek router yabancı repoda dosya bırakmaz (run_event.log_path
+    ile aynı ölçü).
+    """
+    if not (session and os.path.isfile(
+            os.path.join(pdir, ".agents", "routing.yml"))):
+        return
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_anlik", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "anlik.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.kaydet(pdir, session[:8], mod.al(pdir))
+    except Exception:
+        pass
+
+
 def main(argv=None):
     argv = argv if argv is not None else sys.argv[1:]
     pdir = project_dir()
@@ -387,6 +410,7 @@ def main(argv=None):
     except Exception:
         return 0  # yönlendirme yardımdır; asla isteği bloklamaz
     _kaydet(prompt, cfg, pdir, session=session)
+    _anlik_al(pdir, session)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",

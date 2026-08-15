@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Tur başı anlık görüntüsü — kapının "bu turda ne değişti" ölçüsü.
+
+Neden ayrı modül: `kapi.py` KARAR verir (kanıt yeterli mi), burası ÖLÇER
+(çalışma ağacında ne değişti). İkisi ayrı değişme sebebi taşır: karar kuralı
+politikadır, ölçü mekaniktir.
+
+Neden tool olayı yetmez: edit olayı yalnız `Edit|Write|NotebookEdit`
+matcher'ından gelir (`.claude/settings.json`). Kabuk üzerinden yazım —
+`sed -i`, `>` yönlendirmesi, `python3 -c "open(...,'w')"`, `tee`, `patch`,
+`git apply` — HİÇBİR edit olayı üretmez. Kaynak değişir, kapı görmez; test
+yükümlülüğü de risk yüzeyi incelemesi de hiç doğmaz (bağımsız inceleme
+bulgusu, 2026-08-15).
+
+Neden mutlak kirlilik değil DELTA: `git status` kullanıcının kendi
+commit'lenmemiş işini de gösterir. Ajanın hiç dokunmadığı bir dosya için test
+istemek, kullanıcıya kapıyı baştan yok saymayı öğretir — bu sistemin en
+korktuğu sonuç. Bu yüzden ölçü tur BAŞINA göre farktır.
+
+Neden içerik hash'i değil (size, mtime_ns): anlık HER prompt'ta alınır;
+maliyeti tur sayısıyla çarpılır. `os.stat` bir syscall'dır, hash dosyayı
+okur. Kabuk yazımı mtime'ı her hâlükârda değiştirir; kaçırma senaryosu
+(aynı boyut + aynı nanosaniye) pratikte yoktur.
+"""
+import json
+import os
+import subprocess
+
+RUNTIME = os.path.join(".agents", "runtime", "anlik")
+ZAMAN_ASIMI = 10
+
+
+def _git(kok, *args):
+    """(çıkış kodu, stdout) — git yoksa/çökerse (1, "")."""
+    try:
+        p = subprocess.run(["git", *args], cwd=kok, capture_output=True,
+                           text=True, timeout=ZAMAN_ASIMI)
+        return p.returncode, p.stdout
+    except (OSError, subprocess.SubprocessError):
+        return 1, ""
+
+
+def _kirli_yollar(kok):
+    """Çalışma ağacında değişmiş/izlenmeyen yollar (git'in kendi ölçüsü)."""
+    kod, out = _git(kok, "status", "--porcelain", "--untracked-files=all")
+    if kod != 0:
+        return []
+    yollar = []
+    for satir in out.splitlines():
+        if len(satir) < 4:
+            continue
+        yol = satir[3:]
+        # Yeniden adlandırma: "R  eski -> yeni" — ikisi de bu turun konusudur.
+        if " -> " in yol:
+            yollar.extend(p.strip().strip('"') for p in yol.split(" -> "))
+        else:
+            yollar.append(yol.strip().strip('"'))
+    return yollar
+
+
+def _damga(kok, yol):
+    """Dosyanın kimliği: (boyut, mtime_ns). Yoksa None (silinmiş)."""
+    try:
+        st = os.stat(os.path.join(kok, yol))
+    except OSError:
+        return None
+    return f"{st.st_size}:{st.st_mtime_ns}"
+
+
+def al(kok):
+    """Şu anki kirli yolların anlık görüntüsü {yol: damga|""}.
+
+    Silinmiş dosya boş damga taşır: sonradan geri gelirse fark görünür.
+    """
+    return {yol: (_damga(kok, yol) or "") for yol in _kirli_yollar(kok)}
+
+
+def degisenler(kok, onceki):
+    """Anlıktan BERİ değişen yollar (yeni, düzenlenen, silinen)."""
+    if onceki is None:
+        return []
+    simdi = al(kok)
+    degisen = [yol for yol, damga in simdi.items()
+               if onceki.get(yol) != damga]
+    # Anlıkta kirliyken şimdi temiz olan yol da bu turda değişmiştir
+    # (geri alındı ya da commit'lendi) — görünmezse kapı yanlış sayar.
+    degisen += [yol for yol in onceki if yol not in simdi]
+    return sorted(set(degisen))
+
+
+def _yol(kok, session):
+    return os.path.join(kok, RUNTIME, f"{session}.json")
+
+
+def kaydet(kok, session, veri):
+    """Anlığı diske yaz (best-effort; kapı bunun yokluğunda çökmez)."""
+    yol = _yol(kok, session)
+    os.makedirs(os.path.dirname(yol), exist_ok=True)
+    with open(yol, "w", encoding="utf-8") as fh:
+        json.dump(veri, fh)
+    return yol
+
+
+def getir(kok, session):
+    """Kaydedilmiş anlık, yoksa None.
+
+    None ile boş sözlük AYRI anlamlar taşır: None "ölçü yok, eski davranışa
+    düş" demektir; {} "tur temiz bir ağaçta başladı" demektir. İkisini
+    karıştırmak, ölçüsüz turda uydurma delta üretirdi.
+    """
+    try:
+        with open(_yol(kok, session), encoding="utf-8") as fh:
+            veri = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return veri if isinstance(veri, dict) else None
+
+
+def temizle(kok, session):
+    """Tur kapandıktan sonra anlığı sil (kayıt disposable)."""
+    try:
+        os.remove(_yol(kok, session))
+    except OSError:
+        pass
