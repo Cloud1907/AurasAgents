@@ -305,9 +305,8 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
             "bağla, ya da kurulu olmadığını kullanıcıya söyleyip skill'siz çalış.")
 
     lines.append(
-        "Kural: yönlendirilen skill'i Skill aracıyla YÜKLEMEDEN işe başlama. "
-        "Yönlendirme yanlışsa tek cümleyle gerekçelendir ve kullanıcıya söyle "
-        "— sessizce atlama.")
+        "Kural: yönlendirilen skill'i YÜKLEMEDEN başlama; yanlışsa tek "
+        "cümleyle gerekçelendir — sessizce atlama.")
 
     lines += _davranis_satirlari(prompt, cfg, primary, task_class)
 

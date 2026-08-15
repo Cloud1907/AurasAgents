@@ -90,8 +90,11 @@ class KarsilamaEnjeksiyonTest(unittest.TestCase):
                          "karşılamada tarihli tek bir kayıt bile yok")
 
     def test_kayit_yoksa_uydurulmaz(self):
+        # Ölçüt: kayıt yokken ajana (a) ne yazacağı söylenir, (b) uydurma
+        # yasağı hatırlatılır. Cümlenin kendisi değil bu iki işaret aranır.
         metin = self.ciktı("zzzyokboylebirkelime zzzbaskasiyok")
-        self.assertIn("kayıt bulunamadı", metin)
+        self.assertIn("kayıt yok", metin)
+        self.assertIn("uydurma", metin)
 
     def test_ajana_artik_hatirla_kos_denmez(self):
         # Mekanizma devraldı; talimat kalırsa ajan iki kaynak arasında seçim
@@ -102,8 +105,16 @@ class KarsilamaEnjeksiyonTest(unittest.TestCase):
         # Eski metin "küçük/NET işte atla" diyordu; "net" elastik bir ölçüdür
         # ve büyük ama açık işler de bu boşluktan atlandı (2026-08-15). Mikro
         # iş muafiyeti korunur (skill eval #2), ölçü boyuta bağlanır.
-        self.assertNotIn("net işte", davranis.KARSILAMA)
-        self.assertIn("takip turu DEĞİLDİR", davranis.KARSILAMA)
+        #
+        # Ölçüt İFADEYE değil ANLAMA demirlenir (2026-08-15): eski hâli
+        # "takip turu DEĞİLDİR" dizesini birebir arıyordu ve metni
+        # kısaltmak — davranış aynı kalsa bile — testi kırıyordu. Dizge
+        # eşleşmesi sözleşmeyi değil yazımı korur.
+        metin = davranis.KARSILAMA.lower()
+        self.assertNotIn("net işte", metin)
+        self.assertIn("mikro iş", metin)          # muafiyet boyuta bağlı
+        self.assertIn("takip turu", metin)        # takip turu muafiyeti var
+        self.assertIn("değildir", metin)          # ve sınırı yazılı
 
     def test_acik_komut_turunda_karsilama_da_hafiza_da_yok(self):
         metin = self.ciktı("/kernel-work router'ı düzelt")

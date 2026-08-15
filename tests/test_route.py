@@ -227,10 +227,15 @@ class RouteTest(unittest.TestCase):
     def test_gorunurluk_basligi_dayatilir(self):
         # Kullanıcı yazışmada ne olduğunu görmeli — bu bir temenni değil,
         # her turda enjekte edilen zorunlu biçim.
+        # Ölçüt biçimin İŞARETLERİdir, giriş cümlesi değil (2026-08-15):
+        # "Cevabına" dizesini aramak metni kısaltmayı testi kırmakla
+        # cezalandırıyordu. Sözleşme üç satırın varlığıdır.
         context, _s = route.render("cache ekle", self.cfg, pdir=ROOT)
-        self.assertIn("🧭", context)
-        self.assertIn("🔧", context)
-        self.assertIn("Cevabına", context)
+        self.assertIn("🧭", context)     # skill satırı
+        self.assertIn("👤", context)     # sahip satırı
+        self.assertIn("🔧", context)     # ne yapıldı satırı
+        self.assertIn("Sınıf:", context)
+        self.assertIn("Risk:", context)
 
     def test_baslik_sohbet_turunda_da_istenir(self):
         context, _s = route.render("merhaba nasılsın", self.cfg, pdir=ROOT)

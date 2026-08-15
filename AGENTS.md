@@ -82,83 +82,34 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 
 ## Deterministik kapılar
 
-- `bin/hooks/pre-push`: kernel doğrulaması geçmeden push edilemez
-  (kurulum: `bash bin/install-hooks.sh`; bilinçli atlama: `git push --no-verify`).
-  Secret taraması iki katmanlıdır: index (push anındaki içerik) +
-  `scan_gecmis.py` (push aralığındaki her commit'in EKLENEN satırları —
-  eklenip silinen sır da yakalanır); muafiyet sözleşmesi ikisinde tektir.
-- CI `evidence` job'ı: aynı doğrulamayı bağımsız makinede tekrarlar.
-- UserPromptSubmit hook'u: skill yönlendirmesini her isteğe enjekte eder.
-  Proje hook'u (`.claude/settings.json`, repoyla taşınır) + kullanıcı-global
-  yedek (`--global-fallback`, proje hook'u varsa susar). Router asla
-  bloklamaz (hatada sessiz exit 0) — kapı değil, pusuladır.
-- `bin/codex-review.sh`: diff'i Codex'e inceletip PR'a yorum düşer — risk
-  sinyalidir, makine kanıtı değildir.
-- Bağımsız inceleme (merge yolu): `python3 bin/incele.py <pr>` — diff'i
-  Codex'e (farklı satıcı, farklı kör nokta) inceletir, bulguyu P0/P1/P2
-  ayırır, PR'a karar biçiminde yorum düşer. **P0 varsa merge REDDEDİLİR;
-  P1 bloklamaz, kararı insana taşır.** `deny` sınıfı her zaman insana gider.
-  `auto` risk + P0/P1 yok + CI yeşil ise `--merge` ile birleştirir. Çıktı
-  ayrıştırılamazsa ENGEL (fail-closed) — "okunamadı" ≠ "temiz"; biçim
-  bozuksa BİR KEZ daha sorulur, ama zaman aşımı/çağrı hatası tekrarlanmaz
-  (bütçeyi ikiye katlardı). Not: bu bir süreç kuralıdır; `gh pr merge` ile
-  doğrudan birleştirmek mekanik olarak hâlâ mümkündür.
-  Bütçe `INCELE_BUTCE` (varsayılan 900s) — diff boyutuna göre ölçeklenmez;
-  ölçüm boyutun sürücü olmadığını gösterdi (4.4KB→147s, 9.0KB→156s). Zaman
-  aşımı ENGEL'dir ve ne yapılacağını yazar; ilk bakılacak yer asılı `codex
-  exec` sürecidir — sızan inceleme sonrakini yavaşlatır.
-- İnceleme DÖNGÜSÜNÜN sonu vardır (ölçüm 2026-08-12: 9 PR'da 62 tur, ~17
-  saat, 62 hükmün 2'si temiz — her tur birikmiş diff'i yeniden inceliyordu).
-  Üç çıkış: **artımlı diff** (son incelenen SHA'dan beri; P0 görülmüş PR'da
-  KAPALI), **tur tavanı** (`INCELE_TUR_TAVANI`, varsayılan 3 — aşılınca ENGEL
-  İNSAN'a döner; asla `merge` üretmez, `deny`/kırmızı CI'ı gevşetmez), **dal
-  kıpırdamadıysa yeniden inceleme yok**. Sayaç PR yorumundaki markerda;
-  kaybolursa sıfırlanır — fazladan inceleme, açılan merge değil (`bin/tur.py`).
-- Kod kalitesi ratchet'i (ADR-0004): `bin/kalite.py` dosya/fonksiyon boyutu,
-  karmaşıklık ve borç işaretlerini deterministik sayar; CI `--check` ile
-  koşar. Mevcut borç kabul edilir, **büyümesi bloklanır**. Taban
-  `.agents/kalite-baseline.json` (proje sahibi). Tabanı yükseltmek bilinçli
-  karardır, gerekçesi commit mesajına yazılır.
-- Proje kapısı (opsiyonel): `bin/hooks/proje-kapisi` varsa pre-push onu koşar.
-  Projeye özel pazarlıksız yasaklar (ör. "localStorage'da token yok") motor
-  dosyasını çatallamadan burada mekanizmaya bağlanır. Dosya motorun değil
-  projenindir: `/auras` ezmez, geri-taşıma yukarı götürmez. Çalıştırılabilir
-  değilse push engellenir — sessiz atlama yok.
-- Kişisel veri kapısı: `scan_personal_data.py` — sır taramasından AYRI bir
-  boyut. Sır tarayıcısı "bu değer bir anahtar mı", bu "bu dosya bir insan
-  listesi mi" diye sorar. Toplu döküm (≥8 benzersiz e-posta ya da TC kimlik
-  no) push'u ve CI'ı durdurur; tek kayıt ihlal değildir. `AUTHORS` gibi
-  tanımı gereği kişi listesi olan dosyalar muaftır.
-- Proje muafiyeti: `.agents/secret-allowlist.txt` — her satır
-  `yol-deseni  # gerekçe`. **Gerekçe zorunludur**; gerekçesiz satır kullanım
-  hatasıdır (exit 2), "temiz" değildir. Bastırılan bulgu çıktıda `muaf:`
-  etiketiyle GÖRÜNÜR kalır — sessiz susturma, kapının olduğu ama korumadığı
-  hâldir. **Kapsam kapı bazındadır**: işaretsiz satır yalnız secret kapısına
-  uygulanır; başka kapı için gerekçe `kapı: pii` (ya da `kapı: hepsi`) ile
-  başlar. Bir kapının muafiyeti başkasını sessizce kapatamaz. Dosya
-  projenindir, motor ezmez.
-- Test kapsamı daralmaz: `validate.py` testleri koşmadan önce KEŞFEDER; bir
-  test dosyası import'ta çökerse ya da keşif desenine uymuyorsa kesilir.
-  Gerekçe: eksilen test kırmızı testten tehlikelidir — kırmızı bağırır, yok
-  olan test yalnız "Ran N"i sessizce küçültür (ölçüm 2026-08-07: PyYAML'sız
-  yorumlayıcıda 220 yerine 186). Ortam bağımlılığı `tests/ortam.py` üstünden
-  GÖRÜNÜR atlamaya çevrilir ve `tests/test_ortam.py` eksik ortamı tek bir
-  yüksek sesli hataya bağlar: atlanan test "geçti" diye okunamaz. Paylaşılan
-  yardımcıyı import eden test önce `tests/` dizinini `sys.path`'e ekler —
-  yoksa yalnız keşifle koşar, `python3 -m unittest tests.test_x` çağrısında
-  ModuleNotFoundError verir ve okuyan "test bozuk" sanar (bekçi:
-  `TekModulImportTest`).
-- Skill doğrulayıcı sözleşmesi (ADR-0003): `check_*` / `scan_*` önekli skill
-  script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
-  (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı
-  = kural belgede var sistemde yok. Diğer adlar yardımcı araçtır.
-- Kernel senkronu çift yönlüdür (ADR-0002). `/auras` kanonikten projeye taşır;
-  kurulum ÖNCE kaynağı upstream'e ileri sarar, saramazsa ENGEL — eski çalışma
-  ağacından kurmak bağlı repoya eski motoru "güncel" damgasıyla yayardı. Ezme
-  kararı manifest'e değil kanonik git geçmişine dayanır; projede üretilmiş
-  içerik korunur. Ters yön `bin/auras_geri.py` (commit insanındır).
-- Not: private repo + Free plan'da dal koruması kapalıdır; koruma yerel kanca +
-  CI'dır. Repo public olur ya da Pro alınırsa `kernel` required check yapılmalı.
+Kapıların NE olduğu burada; NASIL çalıştığı ve hangi ölçümün onu bu hâle
+getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
+(bu dosya her oturumda tam yüklenir, o yalnız kernel işinde okunur).
+
+| Kapı | Ne yapar | Bilinen sınırı |
+|---|---|---|
+| `bin/hooks/pre-push` | kernel doğrulama + sır/PII/geçmiş taraması + proje kapısı; hepsi fail-closed | `git push --no-verify` |
+| CI `evidence` job | aynı doğrulamayı bağımsız makinede tekrarlar | required check değil |
+| `bin/kapi.py` (Stop) | kanıtsız tur kapanmaz: test / inceleme / tıklama | olay kaydı silinirse susar |
+| `bin/incele.py` | merge yolu: P0 → RED, P1 → insan, `deny` → insan, fail-closed | `gh pr merge` doğrudan |
+| `bin/kalite.py --check` | borç büyümesini bloklar (ADR-0004) | taban bilinçle yükseltilir |
+| UserPromptSubmit router | skill yönlendirmesi enjekte eder | **kapı değil, pusula** — asla bloklamaz |
+
+- **Muafiyet gerekçelidir.** `.agents/secret-allowlist.txt`: her satır
+  `yol-deseni  # gerekçe`. Gerekçesiz satır kullanım hatasıdır (exit 2),
+  "temiz" değildir; bastırılan bulgu `muaf:` etiketiyle GÖRÜNÜR kalır.
+  Kapsam kapı bazındadır (`kapı: pii` / `kapı: hepsi`).
+- **Test kapsamı daralmaz.** Keşfe girmeyen test kırmızı testten tehlikelidir:
+  kırmızı bağırır, yok olan test yalnız "Ran N"i sessizce küçültür.
+- **Skill doğrulayıcı sözleşmesi (ADR-0003).** `check_*` / `scan_*` önekli
+  script en az bir kapıya bağlanmak zorundadır; bağlanmamışı `validate.py`
+  reddeder. Yazılmış ama çağrılmayan doğrulayıcı = kural belgede var,
+  sistemde yok.
+- **Kernel senkronu çift yönlüdür (ADR-0002).** Kurulum önce kaynağı ileri
+  sarar; ezme kararı manifest'e değil kanonik git geçmişine dayanır. Ters
+  yön `bin/auras_geri.py`.
+- **Bilinen açık:** private repo + Free plan'da dal koruması kapalıdır;
+  `kernel` required check yapılamadığı sürece uzak bütünlük sınırı YOKTUR.
 
 ## Kapıların gerçek sınıfı
 
@@ -190,6 +141,29 @@ hook olay türü). Çıkış kodu maskeleyen komut (`pytest || true`,
   token (kalıcı geniş PAT yasak).
 - Ağ erişimi profil allowlist'ine tabidir; varsayılan kapalıdır.
 - Production secret agent ortamına girmez.
+
+## Davranış sözleşmesi
+
+Router her turda kısa TALİMAT enjekte eder; GEREKÇE burada durur, çünkü
+enjeksiyonun maliyeti tur sayısıyla çarpılır ama bu dosya oturum başına bir
+kez yüklenir (ölçüm 2026-08-15: sabit iskele 1732 → 890 karakter, tam
+enjeksiyon ~%45 küçüldü). Tavan bekçisi: `tests/test_baglam_butcesi.py`.
+
+- **Görünürlük.** Kullanıcı yazışmadan ne olduğunu anlamalı: hangi skill
+  yüklendi, iş kimin, ne yapıldı. Görünmeyen süreç denetlenemez — bu yüzden
+  başlık temenni değil her turda dayatılan biçimdir.
+- **İtiraz yükümlülüğü.** İsteğin yanlış, eksik ya da riskli olduğunu
+  düşünüyorsan uygulamadan ÖNCE tek paragraf itiraz yaz: neyi, neden,
+  alternatif ne. Sessiz uyum kabul edilmez; itirazdan sonra kullanıcı ısrar
+  ederse karar uygulanır ve bu belirtilir. Router bu satırı yalnız `auto`
+  dışı turlarda enjekte eder — itiraz edilecek mutasyon yokken her sohbet
+  turuna ödeme yapmak kuralı güçlendirmez, bağlamı pahalılaştırır.
+- **Sahiplik tektir.** Disiplin bir ETİKETTİR; derinlik rol dosyasında değil
+  yüklenen SKILL'de yaşar. Aynı iş roller arasında bölünmez. Ayrı ajan yalnız
+  iki durumda: bağımsız doğrulama ve izole araştırma.
+- **Karşılama.** Yeni iş isteğinde üç satır (anladığım · geçmiş · veriyorum);
+  mikro işte ve aynı işin takip turunda atlanır — yeni konu takip turu
+  değildir. Derinlik: `.agents/skills/aurasprime/SKILL.md`.
 
 ## Konvansiyonlar
 

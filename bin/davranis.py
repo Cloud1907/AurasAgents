@@ -2,37 +2,30 @@
 """Her turda enjekte edilen davranış sözleşmesi metinleri.
 
 Router'ın SEÇİM mantığından ayrıdır: burada "kim seçildi" değil, "seçilen
-nasıl davranmalı" yaşar. Ayrım route.py'yi 400 satır sınırının altında
-tutar ve metinleri tek yerde toplar (kalite ratchet'i, ADR-0004).
+nasıl davranmalı" yaşar. Ayrım route.py'yi 400 satır sınırının altında tutar
+ve metinleri tek yerde toplar (kalite ratchet'i, ADR-0004).
+
+TASARIM KURALI (2026-08-15): buradaki metin TALİMAT taşır, GEREKÇE taşımaz.
+Enjeksiyon her prompt'a girer, yani maliyeti tur sayısıyla çarpılır; bir
+kuralın NEDEN var olduğu oturum başına bir kez yüklenen AGENTS.md'de
+("Davranış sözleşmesi" bölümü) ya da skill dosyasında durur. Tavan bekçisi:
+tests/test_baglam_butcesi.py — tavanı yükseltmek bilinçli karardır.
 """
 
-# Karşılama katmanı. Derinlik skill dosyasındadır; burada yalnız DAVRANIŞ
-# enjekte edilir — her turda skill yüklemek maliyettir ve karşılama kararını
-# skill'in kendi negatif tetikleri verir (küçük iş ve takip turunda tören yok).
+# Karşılama katmanı. Derinlik aurasprime/SKILL.md'de; burada yalnız DAVRANIŞ.
 KARSILAMA = (
-    "🎩 AurasPrime (karşılama): yeni bir iş isteğiyse cevabın BAŞINA şu üç "
-    "satırı yaz — kullanıcı seni nasıl anladığımı ve işi kime verdiğimi "
-    "görmek istiyor, süreç görünmezse denetleyemez:\n"
-    "📋 Anladığım: <tek cümle, kullanıcının kendi diliyle>\n"
-    "📌 Geçmiş: <aşağıda enjekte edilen kayıttan TARİH + karar | 'kayıt yok'>\n"
-    "➡️ Veriyorum: <skill> — <tek cümle brief: ne · çıktı · neye dokunmayacak>\n"
-    "Üç satır YETER, uzatma. Sonra işi yap. Belirsizlikte soru yağmuru açma, "
-    "varsayımını tek satır yaz. Bloğu atlamak YALNIZ iki durumda serbest: "
-    "(a) tek cümlelik mikro iş, (b) AYNI işin takip turu. Kullanıcı yeni bir "
-    "konu açtıysa takip turu DEĞİLDİR ve işin 'net' olması atlama gerekçesi "
-    "değildir. Derinlik: .agents/skills/aurasprime/SKILL.md")
+    "🎩 AurasPrime karşılaması — YENİ iş isteğinde üç satırla başla; mikro "
+    "işte ve aynı işin takip turunda atla (yeni konu takip turu değildir):\n"
+    "📋 Anladığım: <tek cümle, kullanıcının diliyle>\n"
+    "📌 Geçmiş: <kayıttan tarih + karar | 'kayıt yok'>\n"
+    "➡️ Veriyorum: <skill> — <ne · çıktı · neye dokunmayacak>\n"
+    "Üç satır yeter; soru yağmuru açma, belirsizlikte varsayımı yaz.")
 
-# Hafıza katmanı. 2026-08-15 bulgusu: karşılama ajana "`bin/hatirla.py` ile
-# bak" diyordu ve bakmak ajanın takdirindeydi — her turda atlandı. Araç vardı,
-# ÇAĞIRAN yoktu. Artık kaydı router okur, ajan yalnız yazar: hatırlama modelin
-# belleğine değil kayda dayanır.
-GECMIS_VAR = (
-    "📌 Geçmiş (KAYITTAN okundu — 📌 satırını BUNDAN yaz, kendi belleğinden "
-    "değil; kayıt bu işle ilgisizse 'kayıt yok' de):\n{kayitlar}")
+# Hafıza katmanı: kaydı router okur, ajan yalnız yazar.
+GECMIS_VAR = ("📌 Geçmiş (KAYITTAN; kendi belleğinden yazma, ilgisizse "
+              "'kayıt yok' de):\n{kayitlar}")
 
-GECMIS_YOK = (
-    "📌 Geçmiş: bu aramada kayıt bulunamadı — '📌 Geçmiş: kayıt yok' yaz. "
-    "Bu 'geçmişte yok' DEMEK DEĞİLDİR, yalnız bu aramada çıkmadı; uydurma.")
+GECMIS_YOK = "📌 Geçmiş: bu aramada kayıt çıkmadı → 'kayıt yok' yaz; uydurma."
 
 
 def gecmis_blogu(kayitlar):
@@ -44,42 +37,36 @@ def gecmis_blogu(kayitlar):
 
 
 # Analiz katmanı: işin sahibi hangi disiplin? Tek sahip — zincir değil.
-SAHIP_VAR = (
-    "👤 Sahip disiplin: {owner} — bu işi o alanın dünya standardı uzmanı gibi "
-    "ele al. Disiplin bir ETİKETTİR: derinlik rol dosyasında değil, "
-    "yüklediğin SKILL'de yaşar. Sahiplik tektir; aynı işi roller arasında "
-    "bölme. Ayrı ajan yalnız iki durumda: bağımsız doğrulama ve izole "
-    "araştırma.")
+SAHIP_VAR = ("👤 Sahip disiplin: {owner} — o alanın uzmanı gibi çalış; "
+             "sahiplik tektir.")
 
-SAHIP_YOK = (
-    "👤 Sahip disiplin: BELİRSİZ — işin hangi disiplinin işi olduğunu ilk "
-    "cümlede sen belirle ya da kullanıcıya sor; uydurma.")
+SAHIP_YOK = "👤 Sahip disiplin: BELİRSİZ — ilk cümlede belirle ya da sor."
 
-# İtiraz yükümlülüğü: uzman susarak uymaz, gerekçeyle itiraz eder.
-ITIRAZ = (
-    "İTİRAZ YÜKÜMLÜLÜĞÜ: isteğin yanlış/eksik/riskli olduğunu düşünüyorsan "
-    "uygulamadan ÖNCE tek paragraf itiraz yaz (neyi, neden, alternatif ne). "
-    "Sessiz uyum kabul edilmez; itiraz ettikten sonra kullanıcı ısrar ederse "
-    "kararı uygula ve bunu belirt.")
+# İtiraz yükümlülüğü: yalnız yazma riskli turlarda ödenir (bkz. sozlesme).
+ITIRAZ = ("İTİRAZ YÜKÜMLÜLÜĞÜ: istek yanlış/eksik/riskliyse UYGULAMADAN ÖNCE "
+          "tek paragraf itiraz yaz (ne · neden · alternatif); ısrar gelirse "
+          "uygula ve belirt.")
 
 # Görünürlük sözleşmesi: kullanıcı ne olduğunu yazışmadan anlamalı.
-# Kullanıcının şikâyeti buydu ("hangi skill çağrıldı görmüyorum") — bu yüzden
-# biçim temenni değil, her turda enjekte edilen zorunluluktur.
-BASLIK = (
-    "Cevabına ŞU BAŞLIKLA BAŞLA (kullanıcı yazışmada ne olduğunu görmeli):\n"
-    "🧭 Skill: <yüklediğin skill | 'yok — <tek cümle gerekçe>'>"
-    "  ·  Sınıf: {task_class}  ·  Risk: {risk}\n"
-    "👤 Sahip: {owner}\n"
-    "🔧 Yaptım: <tek cümle, somut — hangi dosya/komut/sonuç>\n"
-    "Alt-ajan çağırdıysan ek satır: 🤖 Ajan: <rol> — <ne için>\n"
-    "Sohbet/soru turunda da başlığı yaz; skill yoksa 'yok' de.")
+BASLIK = ("Başlık (sohbet turunda da):\n"
+          "🧭 Skill: <yüklediğin | 'yok — gerekçe'>  ·  Sınıf: {task_class}"
+          "  ·  Risk: {risk}\n"
+          "👤 Sahip: {owner}\n"
+          "🔧 Yaptım: <tek cümle, somut — dosya/komut/sonuç>\n"
+          "Alt-ajan varsa: 🤖 Ajan: <rol> — <ne için>")
 
 
 def sozlesme(owner, task_class, risk):
-    """Sahip · itiraz · başlık satırları (sırayla)."""
-    return [
-        SAHIP_VAR.format(owner=owner) if owner else SAHIP_YOK,
-        ITIRAZ,
-        BASLIK.format(task_class=task_class, risk=risk,
-                      owner=owner or "belirsiz"),
-    ]
+    """Sahip · (riskliyse) itiraz · başlık satırları.
+
+    İtiraz yalnız `auto` DIŞI turlarda enjekte edilir: itiraz edilecek bir
+    mutasyon yokken her sohbet turuna 240 karakter eklemek, kuralı
+    güçlendirmez yalnız bağlamı pahalılaştırır. Tam kural AGENTS.md'dedir
+    (oturum başına bir kez yüklenir). Bekçi: tests/test_baglam_butcesi.py
+    """
+    satirlar = [SAHIP_VAR.format(owner=owner) if owner else SAHIP_YOK]
+    if risk != "auto":
+        satirlar.append(ITIRAZ)
+    satirlar.append(BASLIK.format(task_class=task_class, risk=risk,
+                                  owner=owner or "belirsiz"))
+    return satirlar
