@@ -88,5 +88,40 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Read(**/.env.local)",
+      "Edit(**/.env.local)",
+      "Read(**/.env.production)",
+      "Edit(**/.env.production)",
+      "Read(**/.env.development)",
+      "Edit(**/.env.development)",
+      "Read(**/secrets/**)",
+      "Edit(**/secrets/**)",
+      "Read(**/secret/**)",
+      "Edit(**/secret/**)",
+      "Read(**/credentials/**)",
+      "Edit(**/credentials/**)",
+      "Read(**/credential/**)",
+      "Edit(**/credential/**)",
+      "Read(**/*.pem)",
+      "Edit(**/*.pem)",
+      "Read(**/*.key)",
+      "Edit(**/*.key)",
+      "Read(**/id_rsa)",
+      "Edit(**/id_rsa)",
+      "Edit(**/.claude/settings.json)",
+      "Edit(**/.claude/settings.local.json)",
+      "Edit(**/.agents/capability-profiles/**)",
+      "Edit(**/bin/hooks/**)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(chmod 777*)"
+    ]
   }
 }

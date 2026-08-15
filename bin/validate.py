@@ -303,6 +303,28 @@ def test_rules():
                   f"rule {f}: 'paths' boş/liste değil")
 
 
+def test_yetki_politikasi():
+    """Capability profili gerçek motor politikasına çevrilmiş mi.
+
+    Denetimin P0'ı (2026-08-15, iki bağımsız rapor): profil YAML'ındaki
+    `filesystem`/`commands`/`network` alanları yalnız ŞEMA düzeyinde
+    doğrulanıyordu; repoda tek bir `permissions` bloğu yoktu. "İzin sınırı"
+    denen şey model talimatıydı.
+
+    Bu bekçi drift'i yakalar: politika değişip dosyaya yazılmazsa kırmızı.
+    Sınırı: kuralın motorda GERÇEKTEN uygulandığını doğrulayamaz, yalnız
+    yazıldığını doğrular (kapı sınıfı: yerel workflow guard).
+    """
+    yol = os.path.join(ROOT, "bin", "yetki.py")
+    check(os.path.isfile(yol), "bin/yetki.py yok — profil yalnız beyan kalır")
+    if not os.path.isfile(yol):
+        return
+    proc = subprocess.run([sys.executable, yol, "--check"],
+                          capture_output=True, text=True, cwd=ROOT)
+    check(proc.returncode == 0,
+          f"yetki politikası geride: {(proc.stdout or '').strip()[-300:]}")
+
+
 def test_memory_tool():
     """Hafıza bakım robotu var, çalışıyor ve birim testleri geçiyor mu."""
     path = os.path.join(ROOT, "bin", "memory_hygiene.py")
@@ -926,6 +948,7 @@ def main():
     test_bagimsiz_inceleme()
     test_agents_md()
     test_rules()
+    test_yetki_politikasi()
     test_memory_tool()
     test_routing(skill_names, profil_skills)
     test_no_external_roles()

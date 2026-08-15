@@ -118,6 +118,7 @@ Bu tablo her kapının NE OLDUĞUNU söyler; abartma yasaktır.
 
 | Kapı | Sınıf | Neyi engelleyemez |
 |---|---|---|
+| `permissions.deny` (`bin/yetki.py`) | motor-uygulamalı izin | Yalnız MUTLAK yasakları kapatır (secret/credential, yetki genişletme, yıkıcı komut). Sınıf başına sınır uygulayamaz (izinler oturum genelindedir); kabuk üzerinden yazımı engellemez |
 | `bin/kapi.py` (tur/Stop) | yerel workflow guard | Agent olay kaydını silebilir/yazabilir; kayıt yoksa sessizce geçer. Aynı borçla ikinci kapanışı BLOKLAMAZ — yalnız "⚠️ kanıt borcuyla kapandı" izi bırakır (tek blok + görünür feragat) |
 | `bin/hooks/pre-push` | yerel workflow guard | `git push --no-verify` ile atlanır; kanca kurulu değilse hiç koşmaz |
 | `bin/incele.py` (merge) | süreç kuralı | `gh pr merge` ile doğrudan birleştirmeyi engellemez |

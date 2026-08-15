@@ -30,6 +30,8 @@ MOTOR = [
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
     "bin/anlik.py",         # kapı'nın worktree ölçüsü — taşınmazsa kabuk
                             # yazımları bağlı projede yine görünmez olur
+    "bin/yetki.py",         # profil → motor izin politikası; taşınmazsa
+                            # bağlı projede profil yine yalnız beyan kalır
     "bin/kapsam_bekcisi.py",
     "bin/kalite.py",
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
@@ -56,7 +58,11 @@ SINIFLAR = ("yok", "ayni", "geride", "yerel")
 # Motorla senkronlanmaz ama kurulumdan SONRA projede bulunur:
 # bir kez yazılan proje dosyaları (copy_new) ve kurucunun ürettikleri.
 PROJE_DOSYASI = ("AGENTS.md", "CLAUDE.md")
-URETILEN = (".agents/kalite-baseline.json",)
+URETILEN = (".agents/kalite-baseline.json",
+            # Kurucu üretir: hook'lar birleştirilir (auras-init.sh) ve yetki
+            # politikası yazılır (bin/yetki.py --uygula). Projede kurulumdan
+            # SONRA bulunur, motor listesinde değildir — projenin dosyasıdır.
+            ".claude/settings.json")
 
 # tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")

@@ -230,6 +230,14 @@ with open(yol, "w", encoding="utf-8") as fh:
 print(f"  {eklenen} hook eklendi, {sum(len(v) for v in hedef_hooks.values())} hook kayitli")
 PYHOOK
 
+# Yetki politikasi: capability profili -> motorun GERCEK izin kurallari.
+# Profil YAML'i tek basina beyandir; bu adim onu permissions.deny ve motor
+# adaptorlerine cevirir. Kurulumda kosmazsa bagli proje "izin siniri var"
+# saniyor ama hicbir mekanizma uygulamiyor olur (denetim P0'i, 2026-08-15).
+echo ""
+echo "Yetki politikasi (profil -> motor):"
+"$PY" bin/yetki.py --uygula 2>&1 | sed 's/^/  /'
+
 # Disposable kayit repoya sizmasin (auras tekrar kosuldugunda da garanti).
 if ! grep -q "^\.agents/runtime" "$TARGET/.gitignore" 2>/dev/null; then
   printf '.agents/runtime/\n' >> "$TARGET/.gitignore"

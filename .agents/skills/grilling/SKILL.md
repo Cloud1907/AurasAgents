@@ -1,6 +1,13 @@
 ---
 name: grilling
 description: Belirsiz kapsamlı bir planı, kararı veya fikri karar-ağacı yöntemiyle acımasızca sorgulayarak netleştirir — her turda cevaplanabilir tüm soruları önerili cevaplarıyla sorar, kapsam netleşene dek sürer. YALNIZ kullanıcı /grilling komutunu yazdığında kullan; komut yokken, konu ne kadar belirsiz görünürse görünsün, ASLA kendiliğinden başlatma. Net kapsamlı işte, kod yazan/dosya değiştiren işte kullanma.
+# "Giriş yalnız /grilling" kuralı METİNDE değil MEKANİZMADA (2026-08-15):
+# routing.yml not_routed yalnız KELİME yolunu kapatır; model-invocation ayrı
+# bir kanaldır ve bu alan olmadan açık kalır. Yanlış açılan sorgu oturumu
+# kullanıcının "ara soru sorma" tercihini ihlal eder.
+disable-model-invocation: true
+# Bu skill dosya yazmaz: sorgular, netleştirir, hammadde üretir.
+disallowed-tools: Write Edit NotebookEdit
 ---
 
 # grilling — plan sorgulama (opt-in)
