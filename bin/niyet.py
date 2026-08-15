@@ -27,10 +27,19 @@ Regresyon bekçisi: tests/test_route.py (ölçülen vakalar kalıcı vakadır).
 """
 import re
 
+# İngilizce işaretler AYNI listede: sistem cross-engine (Codex, Copilot)
+# olduğunu iddia ediyor ve o motorların kullanıcısı İngilizce yazar. Ölçüm
+# 2026-08-15: "review the security of the login endpoint" → implement-change
+# + code-change/approval alıyordu (salt-okunur inceleme YAZMA sınıfına
+# giriyor, security-review hiç seçilmiyordu). İngilizce çekim eki almadığı
+# için kök eşleşmesi doğrudan çalışır (_POZ_EK boş devamı kabul eder).
 OKU_ISARETLERI = ("incele", "araştır", "karşılaştır", "kıyasla",
                   "değerlendir", "denetle", "eleştir", "analiz", "rapor",
                   "raporla", "gözden geçir", "keşfet", "öğren", "açıkla",
-                  "özetle", "listele")
+                  "özetle", "listele",
+                  "review", "audit", "analyze", "analyse", "investigate",
+                  "compare", "explain", "summarize", "summarise", "inspect",
+                  "evaluate", "explore", "document")
 # Pozitif biçimde görülmesi tek başına mutasyon sayılan yazma fiilleri.
 # routing.yml yazma kurallarının fiil tetikleriyle ve yaygın eş
 # anlamlılarla uyumlu tutulur (incele.py P1 ×2: güzelleştir, iyileştir).
@@ -42,7 +51,12 @@ YAZ_FIILLERI = ("yap", "uygula", "ekle", "yaz", "düzelt", "kodla",
                 "güzelleştir", "bağla", "çöz", "iyileştir", "hızlandır",
                 "optimize", "düzenle", "birleştir", "kur", "yükselt",
                 "temizle", "devreye al", "devreye sok", "hayata geçir",
-                "canlıya al", "ayağa kaldır")
+                "canlıya al", "ayağa kaldır",
+                # İngilizce yazma fiilleri (gerekçe: OKU_ISARETLERI notu)
+                "add", "create", "build", "write", "update", "change",
+                "remove", "delete", "rename", "migrate", "deploy",
+                "install", "upgrade", "rewrite", "extract", "introduce",
+                "enable", "disable", "replace")
 # Zayıf işaretler: şikâyet/kurulum adları. Fiil çekimi taşımazlar; güçlü
 # okuma işareti varsa okuma kazanır ("bu bug'ın nedenini araştır").
 ZAYIF_ISARETLER = ("bug", "hata", "çalışmıyor", "bozuk", "kurulum",
@@ -387,8 +401,26 @@ def niyet_kapisi(text, scored, extras):
     eşleşmeleri öneri olarak extras'a taşınır. Mutasyonda ve BELİRSİZ
     niyette scored'a dokunulmaz (tablo otoritesi).
     """
-    if mutasyon_niyeti(text) or not okuma_niyeti(text):
-        return scored, extras
+    if mutasyon_niyeti(text):
+        # Mutasyon DOĞRULANDI: okuma-niyetli kural (security-review) birincil
+        # olamaz. Simetrik kusur (eval corpus, 2026-08-15): "auth akışını
+        # değiştirmemiz gerekiyor" security-review'ı BİRİNCİL yapıyordu
+        # çünkü specificity 2 ile kazanıyordu — oysa iş uygulamadır ve
+        # denetim ona EŞLİK eder. Okuma kuralı sıranın altına iner, öneri
+        # olarak görünür kalır; `always_add` zaten onu ek skill yapar.
+        yazan = [s for s in scored if kural_niyeti(s[2]) != "read"]
+        okuyan = [s for s in scored if kural_niyeti(s[2]) == "read"]
+        return (yazan + okuyan, extras) if yazan else (scored, extras)
+    if not okuma_niyeti(text):
+        # BELİRSİZ niyet (ne doğrulanmış mutasyon ne pozitif okuma emri):
+        # skill seçimi korunur ama YAZMA YETKİSİ VERİLMEZ — sınıf salt-okunur
+        # profile iner. Gerekçe (H. Demir denetimi, 2026-08-15): yalnız alan
+        # adı eşleşmesiyle ("endpoint", "migration") write profili açmak,
+        # izin sınırını kelimeye bağlamak demektir. Asimetri bilinçli ve
+        # bu modülün başından beri yazılı: yanlış "okuma" ucuzdur — router
+        # bloklamaz, ajan skill'i öneriden yine yükler, kapılar kanıtı yine
+        # ister. Yanlış "yazma" pahalıdır.
+        return [(p, sp, _okuma_sinifi(r), h) for p, sp, r, h in scored], extras
     okunur = [(p, sp, _okuma_sinifi(r), h) for p, sp, r, h in scored
               if kural_niyeti(r) == "read"]
     if okunur:

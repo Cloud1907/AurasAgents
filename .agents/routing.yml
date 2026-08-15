@@ -89,6 +89,16 @@ rules:
       - refactor
       - taşı
       - kaldır
+      # niyet.YAZ_FIILLERI ile uyum: bu fiiller mutasyon sayılıyordu ama
+      # tabloda tetik değildi, dolayısıyla "auth akışını değiştirmemiz
+      # gerekiyor" implement-change'i hiç eşleştirmiyor ve daha özgül
+      # security-review birincil oluyordu — uygulama işi denetim skill'ine
+      # gidiyordu (eval corpus bulgusu, 2026-08-15).
+      - değiştir
+      - güncelle
+      - oluştur
+      - geliştir
+      - sil
       - bug
       - hata al
       - çalışmıyor
@@ -97,6 +107,19 @@ rules:
       - endpoint
       - test yaz
       - migration
+      # İngilizce tetikler: sistem cross-engine olduğunu iddia ediyor ve
+      # Codex/Copilot kullanıcısı İngilizce yazar. Ölçüm 2026-08-15:
+      # İngilizce istekler ya yanlış sınıfa gidiyordu ya hiç yönlendirilmiyordu.
+      - add
+      - create
+      - build
+      - update
+      - remove
+      - rename
+      - refactor
+      - debug
+      - broken
+      - failing
 
   - skill: research-with-evidence
     owner: research-analyst
@@ -116,6 +139,17 @@ rules:
       - öğren
       - dokümantasyon oku
       - seçenek
+      # İngilizce okuma tetikleri (bkz. implement-change kuralındaki not)
+      - review
+      - audit
+      - investigate
+      - compare
+      - explain
+      - where
+      - how
+      - which
+      - why
+      - explore
 
   - skill: security-review
     owner: security-engineer
@@ -144,6 +178,16 @@ rules:
       - idor
       - ödeme
       - upload
+      # İngilizce güvenlik tetikleri: "review the security of …" hiçbir
+      # güvenlik skill'i seçmiyordu (ölçüm 2026-08-15) — güvenlik
+      # false-negative'i, sınıf hatasından farklı bir şeydir.
+      - security
+      - authentication
+      - authorization
+      - credential
+      - vulnerability
+      - exploit
+      - payment
 
   - skill: designing-interfaces
     owner: frontend-engineer

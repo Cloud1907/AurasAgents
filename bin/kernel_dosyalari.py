@@ -45,6 +45,8 @@ MOTOR = [
     ".github/workflows/evidence.yml",
     ".github/ISSUE_TEMPLATE/work-contract.yml",
     ".agents/routing.yml",
+    ".agents/routing-eval.yml",   # yönlendirme doğruluğunun ölçülen hâli;
+                                  # taşınmazsa bağlı projede eval koşamaz
     # Motorun kendi kapsamı hakkındaki beyanı. Her projeye gitmeli: kullanıcı
     # hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır. Ayrıca
     # tests/test_evidence_workflow.py bu belgeyi şart koşuyor ve o test her
