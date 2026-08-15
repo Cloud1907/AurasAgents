@@ -119,12 +119,11 @@ kaynak, hedef = sys.argv[1], sys.argv[2]
 sys.path.insert(0, os.path.join(kaynak, "bin"))
 import kernel_dosyalari as kd      # motor listesinin TEK tanımı
 
-manifest_yol = os.path.join(hedef, ".agents", ".kernel-manifest.json")
-try:
-    with open(manifest_yol, encoding="utf-8") as fh:
-        manifest = json.load(fh)
-except (OSError, ValueError):
-    manifest = {}
+manifest_yol = os.path.join(hedef, kd.MANIFEST_REL)
+# v1 (duz sozluk) ve v2 (kernel + dosyalar) biciminin ikisi de okunur:
+# okuyamamak, kurulu projeyi "hic kurulmamis" sayip her dosyayi yeniden
+# yazmak olurdu.
+manifest = kd.manifest_dosyalari(hedef)
 
 eklendi, guncellendi, korundu, ayni = [], [], [], 0
 for rel in kd.motor_dosyalari(kaynak):
@@ -150,7 +149,10 @@ for rel in kd.motor_dosyalari(kaynak):
 
 os.makedirs(os.path.dirname(manifest_yol), exist_ok=True)
 with open(manifest_yol, "w", encoding="utf-8") as fh:
-    json.dump(manifest, fh, indent=2, sort_keys=True)
+    # Provenance: hangi kernel commit'inden, hangi repodan, ne zaman
+    # kuruldugu. Surum kimligi olmayan dagitim devralinamaz.
+    json.dump(kd.manifest_govde(manifest, kaynak), fh, indent=2,
+              sort_keys=True)
 
 for r in eklendi:
     print(f"  eklendi:     {r}")

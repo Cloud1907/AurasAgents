@@ -97,6 +97,13 @@ def yikici_aksiyon(diff):
     Sınır dürüstçe: bu bir SQL ayrıştırıcısı değil, desen tarayıcısıdır.
     Gizlenmiş (dinamik SQL, string birleştirme) yıkımı görmez; gördüğünü
     kanıtlar, görmediğini kanıtlamaz.
+
+    Test fixture'ı da yakalar ve bu KABUL EDİLMİŞ bir yanlış pozitiftir
+    (ölçüldü 2026-08-15: `tests/test_yetki.py` içindeki `"allow": ["Bash(*)"]`
+    örneği tetikledi). Yol bazlı muafiyet BİLİNÇLE eklenmedi: `test_` adlı bir
+    dosyaya konan gerçek bir yıkıcı değişiklik o muafiyetin arkasına saklanırdı.
+    Sonuç yalnız "karar insana gider"dir — fail-closed tarafta kalan ucuz bir
+    hata, sessiz geçen pahalı bir hataya yeğdir.
     """
     for satir in (diff or "").splitlines():
         if not satir.startswith("+") or satir.startswith("+++"):
