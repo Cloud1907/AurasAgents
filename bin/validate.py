@@ -29,6 +29,16 @@ def check(cond, msg):
         err(msg)
 
 
+# CI/kanıt sözleşmesinin doğrulayıcıları ayrı modülde (bin/dogrula_ci.py):
+# ayrı değişme sebebi + validate.py'yi kalite ratchet'inin altında tutar.
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+import dogrula_ci  # noqa: E402
+
+dogrula_ci.kur(check)
+test_workflow = dogrula_ci.test_workflow
+test_evidence_roundtrip = dogrula_ci.test_evidence_roundtrip
+
+
 def _bin_modul(ad):
     """bin/<ad>.py'yi kütüphane olarak yükler (yoksa None)."""
     try:
@@ -149,69 +159,6 @@ def test_issue_form():
     check(all(required_flags), "issue form: tüm alanlar zorunlu olmalı")
 
 
-def test_workflow():
-    path = os.path.join(ROOT, ".github", "workflows", "evidence.yml")
-    check(os.path.isfile(path), "evidence.yml workflow yok")
-    if not os.path.isfile(path):
-        return
-    data = yaml.safe_load(open(path, encoding="utf-8"))
-    tetikleyiciler = data.get(True, data.get("on", {}))
-    check("pull_request" in tetikleyiciler,
-          "workflow: pull_request tetikleyicisi yok")
-    # Elle tetikleme dayanıklılık gereğidir: 2026-08-06'da GitHub Actions
-    # kesintisinde (githubstatus "Incident with Actions", 15:22Z) webhook
-    # teslimatı bozuldu; otomatik olaylar hiç run üretmedi ama
-    # workflow_dispatch çalışmaya devam etti. Bu tetikleyici olmadan kesinti
-    # boyunca hiçbir PR bağımsız makine kanıtı üretemez.
-    check("workflow_dispatch" in tetikleyiciler,
-          "workflow: workflow_dispatch yok — Actions olay teslimi bozulduğunda "
-          "kanıt elle üretilemez. evidence.yml'de 'on:' altına "
-          "'workflow_dispatch:' ekle")
-    text = open(path, encoding="utf-8").read()
-    check("validate.py" in text, "workflow: kernel doğrulaması koşmuyor")
-    check("make_evidence.py" in text, "workflow: evidence üretimi yok")
-    check("upload-artifact" in text, "workflow: evidence artifact yüklenmiyor")
-
-
-def test_evidence_roundtrip():
-    schema = json.load(open(os.path.join(ROOT, "schemas",
-                                         "evidence.schema.json"),
-                            encoding="utf-8"))
-    with tempfile.TemporaryDirectory() as td:
-        out = os.path.join(td, "evidence.json")
-        digest_src = os.path.join(td, "report.txt")
-        open(digest_src, "w").write("ornek rapor")
-        proc = subprocess.run(
-            [sys.executable, os.path.join(ROOT, "bin", "make_evidence.py"),
-             "--out", out, "--contract", "#0", "--task-class", "code-change",
-             "--skill", "implement-change",
-             "--check", "tests=passed", "--check", "lint=passed",
-             "--digest", f"report={digest_src}",
-             "--risk-provisional", "auto", "--risk-final", "auto"],
-            capture_output=True, text=True, cwd=ROOT)
-        check(proc.returncode == 0,
-              f"make_evidence başarısız: {proc.stderr or proc.stdout}")
-        if proc.returncode != 0:
-            return
-        ev = json.load(open(out, encoding="utf-8"))
-        for key in schema["required"]:
-            check(key in ev, f"evidence: zorunlu alan eksik '{key}'")
-        check(re.match(r"^[0-9a-f]{7,40}$", ev["commit_sha"]),
-              "evidence: commit_sha biçimi geçersiz")
-        for name, dig in ev.get("digests", {}).items():
-            check(re.match(r"^sha256:[0-9a-f]{64}$", dig),
-                  f"evidence: digest biçimi geçersiz ({name})")
-        for c in ev["checks"]:
-            check(c["status"] in ("passed", "failed", "skipped"),
-                  f"evidence: geçersiz check durumu {c}")
-        proc2 = subprocess.run(
-            [sys.executable, os.path.join(ROOT, "bin", "make_evidence.py"),
-             "--out", out, "--check", "tests=failed"],
-            capture_output=True, text=True, cwd=ROOT)
-        check(proc2.returncode == 1,
-              "make_evidence: failed check'te non-zero dönmeli")
-
-
 def test_kapsam_siniri_yazili():
     """Sistem neyi zorlamadığını AÇIKÇA söylüyor mu.
 
@@ -301,6 +248,28 @@ def test_rules():
             check("paths" in fm, f"rule {f}: 'paths' scope tanımı yok")
             check(isinstance(fm.get("paths"), list) and fm["paths"],
                   f"rule {f}: 'paths' boş/liste değil")
+
+
+def test_yetki_politikasi():
+    """Capability profili gerçek motor politikasına çevrilmiş mi.
+
+    Denetimin P0'ı (2026-08-15, iki bağımsız rapor): profil YAML'ındaki
+    `filesystem`/`commands`/`network` alanları yalnız ŞEMA düzeyinde
+    doğrulanıyordu; repoda tek bir `permissions` bloğu yoktu. "İzin sınırı"
+    denen şey model talimatıydı.
+
+    Bu bekçi drift'i yakalar: politika değişip dosyaya yazılmazsa kırmızı.
+    Sınırı: kuralın motorda GERÇEKTEN uygulandığını doğrulayamaz, yalnız
+    yazıldığını doğrular (kapı sınıfı: yerel workflow guard).
+    """
+    yol = os.path.join(ROOT, "bin", "yetki.py")
+    check(os.path.isfile(yol), "bin/yetki.py yok — profil yalnız beyan kalır")
+    if not os.path.isfile(yol):
+        return
+    proc = subprocess.run([sys.executable, yol, "--check"],
+                          capture_output=True, text=True, cwd=ROOT)
+    check(proc.returncode == 0,
+          f"yetki politikası geride: {(proc.stdout or '').strip()[-300:]}")
 
 
 def test_memory_tool():
@@ -427,6 +396,12 @@ def test_routing(skill_names, profil_skills=None):
         check(any("route.py" in c for c in cmds),
               "settings.json: UserPromptSubmit hook'u route.py'yi çağırmıyor")
 
+    # Karşılamanın hafızası mekanizma mı, temenni mi? 2026-08-15'e kadar
+    # temenniydi: metin ajana "hatirla.py ile bak" diyordu, ajan bakmıyordu.
+    check("karsilama_kayitlari" in open(router, encoding="utf-8").read(),
+          "route.py: karşılama hafızayı ÇAĞIRMIYOR — hatirla.py yazılmış ama "
+          "kullanılmayan araç olur, 📌 Geçmiş modelin belleğine kalır")
+
     # Golden vaka: router gerçekten doğru skill'i seçiyor mu (regresyon kapısı).
     # Doğrulama koşumu kullanıcının aktivite kaydını kirletmemeli (izolasyon).
     with tempfile.TemporaryDirectory() as td:
@@ -448,6 +423,11 @@ def _routing_golden_cases(router, env):
         check("🧭" in proc.stdout and "🔧" in proc.stdout,
               "router: cevap başlığı biçimini dayatmıyor — kullanıcı yazışmada "
               "hangi skill'in çalıştığını göremez")
+        # Yapı denetlenir, içerik değil: bağlı projenin geçmişi başka olur,
+        # "kayıt bulunamadı" da meşru sonuçtur. Eksik olan tek şey susmaktır.
+        check("📌 Geçmiş" in proc.stdout,
+              "router: karşılamada hafıza satırı yok — geçmiş hatırlatması "
+              "kayda değil ajanın belleğine kalır")
 
 
 def test_no_external_roles():
@@ -915,6 +895,7 @@ def main():
     test_bagimsiz_inceleme()
     test_agents_md()
     test_rules()
+    test_yetki_politikasi()
     test_memory_tool()
     test_routing(skill_names, profil_skills)
     test_no_external_roles()

@@ -51,7 +51,9 @@ from hukum import (BULGU, SONUC, bulgulari_ayikla,  # noqa: E402,F401
 from tur import (TUR_TAVANI, artimli_base, degismedi_mi,  # noqa: E402,F401
                  marker_oku, marker_uret)
 from risk import (APPROVAL, AUTO, DENY, ENJEKSIYON,  # noqa: E402,F401
-                  enjeksiyon_var_mi, risk_sinifi)
+                  birlestir, enjeksiyon_var_mi, risk_sinifi, yikici_aksiyon)
+from contract import (birlesik_risk, on_risk_oku,  # noqa: E402,F401
+                      pr_contract)
 
 
 # CI "yeşil" sayılması için KANIT üreten check'in varlığı şart. Önceden
@@ -156,7 +158,6 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
 _kos = surec.kos
 
 
-
 def pr_dosyalari(pr):
     kod, out, _e = _kos("gh", "pr", "view", str(pr), "--json", "files",
                         "-q", ".files[].path")
@@ -185,8 +186,6 @@ def pr_yorumlari(pr):
         return []
 
 
-
-
 def ci_durumu(pr):
     """(yesil, ozet) — hiçbir check yoksa yeşil SAYILMAZ."""
     kod, out, _e = _kos("gh", "pr", "checks", str(pr))
@@ -194,7 +193,6 @@ def ci_durumu(pr):
     if kod != 0 and not satirlar:
         return False, "check okunamadı"
     return ci_karari(satirlar)
-
 
 
 def codex_incele(pr, butce=None, base=""):
@@ -305,7 +303,7 @@ def topla(pr):
     # İncelenen commit BURADA sabitlenir; merge sonra bunu doğrular.
     head_sha = pr_head_sha(pr)
     onceki = marker_oku(pr_yorumlari(pr))
-    ortak = {"risk": risk_sinifi(pr_dosyalari(pr)),
+    ortak = {"risk": birlesik_risk(pr_dosyalari(pr), pr_diff(pr), pr=pr),
              "ci_yesil": ci_yesil, "ci_ozet": ci_ozet, "head_sha": head_sha,
              "tur": onceki["tur"] + 1, "degismedi": False, "yeniden": False,
              "artimli": False}

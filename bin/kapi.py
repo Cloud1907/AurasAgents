@@ -30,28 +30,12 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
-# Kaynak kod uzantıları (doküman/metin hariç — .md değişikliği test istemez).
-KAYNAK_UZANTI = (".py", ".js", ".mjs", ".ts", ".tsx", ".jsx", ".cs", ".go",
-                 ".rb", ".java", ".kt", ".php", ".swift", ".sql", ".sh")
-# Test dosyası imzaları.
-TEST_YOL = re.compile(r"(^|/)tests?/|(^|/)test_|_test\.|\.test\.|\.spec\.")
-# Risk yüzeyi: dokunulursa güvenlik incelemesi ister (AGENTS.md risk politikası).
-RISK_YOL = re.compile(
-    r"(auth|kimlik|oturum|session|secret|credential|\.env|migration|payment"
-    r"|odeme|ödeme|upload|permission|settings\.json|/hooks/|token)", re.I)
-# Görünür yüzey: değişirse birim testi yetmez, TIKLAMA kanıtı istenir.
-UI_UZANTI = (".tsx", ".jsx", ".vue", ".svelte", ".cshtml", ".razor", ".html",
-             ".css", ".scss")
-# Yol-parçası sınırına demirli: aksi halde "security-review/", "overview/",
-# "Interview/" içindeki "view" alt dizesi eşleşir ve markdown/backend dosyası
-# görünür yüzey sanılır (2026-08-01 yanlış pozitifi — 4cast'te yakalandı).
-UI_YOL = re.compile(
-    r"(^|/)(components?|pages?|views?|screens?|web|ui|frontend)/", re.I)
-
-# Büyük değişim eşikleri (Codex: 300 satır kaba; dosya sayısı + net satır).
-E2E_CMD_RE = re.compile(r"(playwright|cypress|selenium|puppeteer|e2e)", re.I)
-BUYUK_DOSYA = 5
-BUYUK_SATIR = 150
+sys.path.insert(0, HERE)
+# Yüzey sınıflandırması ayrı modülde (bin/yuzey.py): "bu yol ne tür kanıt
+# ister" ile "kanıt yeterli mi" ayrı sorulardır.
+from yuzey import (BUYUK_DOSYA, BUYUK_SATIR, E2E_CMD_RE,  # noqa: E402
+                   KAYNAK_UZANTI, TEST_YOL, UI_UZANTI, UI_YOL,
+                   risk_yuzeyi_mi)
 
 
 def _run_event():
@@ -62,8 +46,20 @@ def _run_event():
     return mod
 
 
-def bu_turun_olaylari(olaylar):
-    """Son 'stop'tan sonraki olaylar = içinde bulunduğumuz tur."""
+def bu_turun_olaylari(olaylar, session=None):
+    """Bu oturumun son 'stop'undan sonraki olaylar = içinde bulunduğumuz tur.
+
+    Session süzmesi ZORUNLU değil ama olmadığında kapı yanlış şeyi görür:
+    olay kaydı tek dosyadır ve `.claude/worktrees/` altında eşzamanlı
+    oturumlar çalışır (2026-08-15'te bu repoda 5 worktree ölçüldü). Süzme
+    yokken B oturumunun testi A oturumunun düzenlemesine kanıt sayılıyordu.
+
+    `session` None ise süzme YAPILMAZ: kayıttaki eski satırlar bu alanı
+    taşımıyor ve onları yok saymak geçmiş kanıtı silmek olurdu (geriye uyum).
+    """
+    if session:
+        olaylar = [o for o in olaylar
+                   if o.get("session") in (None, session)]
     son_stop = -1
     for i, o in enumerate(olaylar):
         if o.get("kind") == "stop":
@@ -71,9 +67,9 @@ def bu_turun_olaylari(olaylar):
     return olaylar[son_stop + 1:]
 
 
-def duzenlenen_dosyalar(olaylar):
+def duzenlenen_dosyalar(olaylar, session=None):
     """Bu turda düzenlenen dosyalar (doğrulayıcı seçimi için)."""
-    return [o["file"] for o in bu_turun_olaylari(olaylar)
+    return [o["file"] for o in bu_turun_olaylari(olaylar, session)
             if o.get("kind") == "edit" and o.get("file")]
 
 
@@ -133,15 +129,23 @@ def degisen_satir_sayisi():
         return 0
 
 
-def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
+def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None,
+                ek_dosyalar=()):
     """(bulgular, imza) — bulgu listesi boşsa tur temiz demektir.
 
     dogrulayici: skill doğrulayıcılarının sonucu, DIŞARIDAN enjekte edilir
     (satir_sayisi deseni). Böylece bu fonksiyon saf kalır ve testler gerçek
     alt süreç koşturmadan her dalı deneyebilir.
+
+    session: verilirse tur penceresi o oturuma daraltılır (bkz.
+    bu_turun_olaylari).
+
+    ek_dosyalar: tool olayı ÜRETMEDEN değişen yollar (bkz. bin/anlik.py).
+    Kabuk üzerinden yazım — `sed -i`, `>`, `tee`, `patch` — edit olayı
+    üretmez; bu liste olmadan kapı kaynağın değiştiğini hiç görmez.
     """
     dogrulayici = dogrulayici or {}
-    tur = bu_turun_olaylari(olaylar)
+    tur = bu_turun_olaylari(olaylar, session)
 
     duzenlenen, son_edit_idx = [], -1
     test_olaylari, skiller = [], []
@@ -160,14 +164,17 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
         elif kind == "skipped" and o.get("skill"):
             atlanan.append(o["skill"])
 
+    # Tool olayı üretmeyen yazımlar (kabuk) burada katılır: kaynak kaynaktır,
+    # hangi araçla yazıldığı yükümlülüğü değiştirmez.
+    for yol in ek_dosyalar:
+        if yol not in duzenlenen:
+            duzenlenen.append(yol)
+
     ui = [f for f in duzenlenen
           if f.lower().endswith(UI_UZANTI) or UI_YOL.search(f)]
     kaynak = [f for f in duzenlenen
               if f.lower().endswith(KAYNAK_UZANTI) and not TEST_YOL.search(f)]
-    riskli = [f for f in duzenlenen if RISK_YOL.search(f)]
-
-    imza = hashlib.sha256(
-        "|".join(sorted(set(duzenlenen))).encode("utf-8")).hexdigest()[:12]
+    riskli = [f for f in duzenlenen if risk_yuzeyi_mi(f)]
 
     bulgular = []
     if kaynak:
@@ -218,10 +225,16 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
 
     # Zorunlu skill karşılıksız kalamaz: ya yüklenir ya gerekçesi kayda geçer.
     # (Codex hükmü: gerekçe kanıt değil, denetlenebilir beyandır.)
+    # Süreç borcu UYARI, güvenlik borcu BLOK (bağımsız inceleme şartı,
+    # 2026-08-15). Gerekçe: bir blok +1 tam ajan turudur ve bağlamı yeniden
+    # okutur — kabaca 100 turluk router enjeksiyonu kadar pahalı. Yüklenmemiş
+    # bir süreç skill'i için bu bedeli ödemek token'ı korumaya değil törene
+    # harcar. Risk yüzeyi incelemesi AŞAĞIDA ayrıca BLOK'tur; yani "güvenlik
+    # borcu uyarıya indi" DEĞİLDİR — yalnız süreç borcu indi.
     karsiliksiz = [z for z in zorunlu if z not in skiller and z not in atlanan]
     if karsiliksiz:
         bulgular.append((
-            "BLOK", "zorunlu skill karşılıksız",
+            "UYARI", "zorunlu skill karşılıksız",
             f"Router {', '.join(karsiliksiz)} skill'ini zorunlu kıldı; ne "
             "yüklendi ne gerekçesi kayda geçti. Yükle ya da şunu koş: "
             "python3 bin/run_event.py --kind skipped --skill <ad> --reason "
@@ -240,7 +253,42 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
             f"{len(kaynak)} kaynak dosyası / ~{satir_sayisi} satır değişti — "
             "bu boyut tek yazarın kendi denetimini aşar."))
 
-    return bulgular, imza
+    return bulgular, imzala(duzenlenen, bulgular, karsiliksiz + riskli)
+
+
+def imzala(duzenlenen, bulgular, ekler=()):
+    """Bu turun BORÇ imzası: dosyalar + bulgu türleri + borcun ÖZNESİ.
+
+    `ekler` borcun neye ait olduğunu ayırır: iki ayrı düzenlemesiz turda
+    farklı skill'ler karşılıksız kalırsa bulgu BAŞLIĞI aynıdır ("zorunlu
+    skill karşılıksız") ve yalnız başlığa bakan imza ikisini tek borç sayardı
+    — birinci blok ikinciyi muaf kılardı. Özne (karşılıksız skill adı, risk
+    dosyası) imzaya girer.
+
+    Neden bulgu türü de girer (2026-08-15 ölçümü): imza yalnız düzenlenen
+    dosyalardan üretiliyordu. Düzenleme yoksa `"|".join([])` boş dizeydi ve
+    imza SABİT `e3b0c44298fc` çıkıyordu — kayıttaki 92 gate olayının 39'u bu
+    imzayı taşıyordu ve `zaten_bloklandi` tüm geçmişte aradığı için ilki
+    dışındaki 38 tur "bu borç zaten bloklandı" sayılıp muaf kaldı. Yani kod
+    değiştirmeyen HER tur (araştırma, denetim, plan, sohbet) kalıcı olarak
+    kapı dışındaydı.
+
+    "Aynı borçla ikinci kez kapana kısılma" kuralı korunur (AGENTS.md), ama
+    "aynı borç" artık gerçekten aynı borçtur: farklı bulgu = farklı imza.
+    """
+    parcalar = (sorted(set(duzenlenen)) + sorted({b[1] for b in bulgular})
+                + sorted(set(ekler)))
+    return hashlib.sha256(
+        "|".join(parcalar).encode("utf-8")).hexdigest()[:12]
+
+
+def _kabuk_yazimlari(session):
+    """Kabuk üzerinden yazılan yollar (ölçü bin/anlik.py'de)."""
+    try:
+        import anlik
+        return anlik.tur_delta(ROOT, session)
+    except Exception:
+        return []
 
 
 def zaten_bloklandi(olaylar, imza):
@@ -275,9 +323,13 @@ def main(argv=None):
         except OSError:
             olaylar = []
 
+        session = (payload.get("session_id") or "")[:8] or None
+        ek = _kabuk_yazimlari(session)
+        duzenlenen = duzenlenen_dosyalar(olaylar, session) + ek
         bulgular, imza = degerlendir(
             olaylar, degisen_satir_sayisi(),
-            dogrulayici_sonuclari(duzenlenen_dosyalar(olaylar)))
+            dogrulayici_sonuclari(duzenlenen),
+            session=session, ek_dosyalar=ek)
         bloklar = [b for b in bulgular if b[0] == "BLOK"]
         # Sonsuz döngü koruması: hook zaten blokladıysa ya da aynı imza daha
         # önce bloklandıysa tekrar bloklamaz — ama SESSİZ de kalmaz (aşağıda

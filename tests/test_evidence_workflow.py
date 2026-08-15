@@ -10,6 +10,7 @@ olamaz — aksi hâlde kesinti boyunca hiçbir PR bağımsız makine kanıtı
 import os
 import re
 import sys
+import tempfile
 import unittest
 
 # Keşif `tests/`i sys.path'e koyar, `python3 -m unittest tests.test_x` koymaz.
@@ -51,12 +52,40 @@ class EvidenceWorkflowTest(unittest.TestCase):
         for t in ("pull_request", "push", "workflow_dispatch"):
             self.assertIn(t, on, f"evidence.yml '{t}' tetikleyicisini kaybetmiş")
 
-    def test_elle_tetikleme_bekcisi_validate_icinde(self):
-        # Bekçi silinirse tetikleyici bir sonraki şablon düzenlemesinde
-        # sessizce kaybolur; bu test bekçinin kendisini kilitler.
-        metin = oku(VALIDATE)
-        self.assertIn("workflow_dispatch", metin,
-                      "validate.py workflow_dispatch bekçisini kaybetmiş")
+    def test_elle_tetikleme_bekcisi_gercekten_calisir(self):
+        """Bekçi silinirse tetikleyici sessizce kaybolur — bu test onu kilitler.
+
+        Ölçü DİZGE DEĞİL DAVRANIŞ (2026-08-16): eski hâli `validate.py`nin
+        metninde "workflow_dispatch" arıyordu ve bekçi `bin/dogrula_ci.py`ye
+        taşınınca — davranış aynı kalmasına rağmen — kırıldı. Dizge araması
+        bekçinin YERİNİ kilitler, VARLIĞINI değil. Artık bekçi, tetikleyicisi
+        sökülmüş bir workflow üstünde koşturulup gerçekten şikâyet ediyor mu
+        diye sınanır.
+        """
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_dci", os.path.join(ROOT, "bin", "dogrula_ci.py"))
+        dci = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dci)
+
+        hatalar = []
+        dci.kur(lambda kosul, mesaj: None if kosul else hatalar.append(mesaj))
+        with tempfile.TemporaryDirectory() as td:
+            hedef = os.path.join(td, ".github", "workflows")
+            os.makedirs(hedef)
+            bozuk = oku(WF).replace("  workflow_dispatch:\n", "")
+            with open(os.path.join(hedef, "evidence.yml"), "w",
+                      encoding="utf-8") as fh:
+                fh.write(bozuk)
+            eski_root = dci.ROOT
+            dci.ROOT = td
+            try:
+                dci.test_workflow()
+            finally:
+                dci.ROOT = eski_root
+        self.assertTrue(
+            any("workflow_dispatch" in h for h in hatalar),
+            "tetikleyici sökülmüş workflow bekçiden GEÇTİ — bekçi kör")
 
     @pyyaml_gerekir
     def test_workflow_yaml_gecerli(self):

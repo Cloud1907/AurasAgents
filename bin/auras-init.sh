@@ -45,6 +45,43 @@ if [ -z "$PY" ]; then
 fi
 echo ""
 
+# --- Kaynak tazeligi: kurulum SON surumden yapilir ------------------------
+# Kurucu dosyalari kanonik CALISMA AGACINDAN kopyalar. Agac origin'in
+# gerisindeyse kurulan motor eskidir ama manifest onu "guncel" damgalar —
+# kapi var, koruma yok (2026-08-15 olcumu: agac e3f1ec1, origin/main
+# 2d42b90; o gun kosulacak her /auras eski niyet kapisini yayacakti).
+# Guvenle ileri sarilabiliyorsa sarilir, sarilamiyorsa DURULUR.
+echo "Kaynak tazeligi:"
+TAZELIK=$("$PY" - "$SOURCE" <<'PYTAZE'
+import os
+import sys
+
+kaynak = sys.argv[1]
+sys.path.insert(0, os.path.join(kaynak, "bin"))
+import kernel_dosyalari as kd
+
+durum, mesaj = kd.kaynak_tazele(kaynak)
+print(durum)
+print(mesaj)
+PYTAZE
+)
+TAZE_DURUM=$(printf '%s\n' "$TAZELIK" | head -1)
+TAZE_MESAJ=$(printf '%s\n' "$TAZELIK" | tail -n +2)
+echo "  $TAZE_DURUM — $TAZE_MESAJ"
+if [ "$TAZE_DURUM" = "engel" ]; then
+  if [ -n "${AURAS_ESKI_MOTOR:-}" ]; then
+    # Bilincli atlama gorunur kalir: sessiz muafiyet, kapinin oldugu ama
+    # korumadigi haldir.
+    echo "  UYARI: AURAS_ESKI_MOTOR=1 — ESKI motorla kuruluyor"
+  else
+    echo "HATA: kaynak son surumde degil; kurulum eski motoru yayardi." >&2
+    echo "Duzelt: $SOURCE icinde durumu coz (pull / rebase / stash), tekrar kos." >&2
+    echo "Bilincli atlama: AURAS_ESKI_MOTOR=1 bash bin/auras-init.sh <hedef>" >&2
+    exit 1
+  fi
+fi
+echo ""
+
 # Proje dosyalari: bir kez yazilir, ASLA ezilmez (AGENTS.md, CLAUDE.md...)
 copy_new() {  # kaynak_rel hedef_rel — hedefte varsa dokunmaz
   local src="$SOURCE/$1" dst="$TARGET/$2"
@@ -82,12 +119,11 @@ kaynak, hedef = sys.argv[1], sys.argv[2]
 sys.path.insert(0, os.path.join(kaynak, "bin"))
 import kernel_dosyalari as kd      # motor listesinin TEK tanımı
 
-manifest_yol = os.path.join(hedef, ".agents", ".kernel-manifest.json")
-try:
-    with open(manifest_yol, encoding="utf-8") as fh:
-        manifest = json.load(fh)
-except (OSError, ValueError):
-    manifest = {}
+manifest_yol = os.path.join(hedef, kd.MANIFEST_REL)
+# v1 (duz sozluk) ve v2 (kernel + dosyalar) biciminin ikisi de okunur:
+# okuyamamak, kurulu projeyi "hic kurulmamis" sayip her dosyayi yeniden
+# yazmak olurdu.
+manifest = kd.manifest_dosyalari(hedef)
 
 eklendi, guncellendi, korundu, ayni = [], [], [], 0
 for rel in kd.motor_dosyalari(kaynak):
@@ -113,7 +149,10 @@ for rel in kd.motor_dosyalari(kaynak):
 
 os.makedirs(os.path.dirname(manifest_yol), exist_ok=True)
 with open(manifest_yol, "w", encoding="utf-8") as fh:
-    json.dump(manifest, fh, indent=2, sort_keys=True)
+    # Provenance: hangi kernel commit'inden, hangi repodan, ne zaman
+    # kuruldugu. Surum kimligi olmayan dagitim devralinamaz.
+    json.dump(kd.manifest_govde(manifest, kaynak), fh, indent=2,
+              sort_keys=True)
 
 for r in eklendi:
     print(f"  eklendi:     {r}")
@@ -192,6 +231,14 @@ with open(yol, "w", encoding="utf-8") as fh:
     fh.write("\n")
 print(f"  {eklenen} hook eklendi, {sum(len(v) for v in hedef_hooks.values())} hook kayitli")
 PYHOOK
+
+# Yetki politikasi: capability profili -> motorun GERCEK izin kurallari.
+# Profil YAML'i tek basina beyandir; bu adim onu permissions.deny ve motor
+# adaptorlerine cevirir. Kurulumda kosmazsa bagli proje "izin siniri var"
+# saniyor ama hicbir mekanizma uygulamiyor olur (denetim P0'i, 2026-08-15).
+echo ""
+echo "Yetki politikasi (profil -> motor):"
+"$PY" bin/yetki.py --uygula 2>&1 | sed 's/^/  /'
 
 # Disposable kayit repoya sizmasin (auras tekrar kosuldugunda da garanti).
 if ! grep -q "^\.agents/runtime" "$TARGET/.gitignore" 2>/dev/null; then

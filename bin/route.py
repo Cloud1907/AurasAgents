@@ -35,6 +35,7 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import davranis
+    import hatirla                    # karşılamanın 📌 Geçmiş satırı buradan
     from secim import _eskale, _puanla, _sinirli, soru_turu
     from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
                              sinifta_izinli, skill_installed, skill_izinli,
@@ -257,8 +258,12 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
     # Derinlik skill dosyasındadır; burada yalnız DAVRANIŞ enjekte edilir —
     # her turda skill yüklemek maliyet, karşılama kararını skill'in kendi
     # negatif tetikleri verir (küçük iş ve takip turunda tören yapılmaz).
+    # Hafıza satırı ajanın takdirinde değildir: kaydı router okur, ajan yazar
+    # (2026-08-15 — "hatirla.py ile bak" talimatı her turda atlanıyordu).
     if not explicit:
         lines.append(davranis.KARSILAMA)
+        lines.append(davranis.gecmis_blogu(
+            hatirla.karsilama_kayitlari(prompt, hits)))
 
     # Ölçü, zorunlu skill'i düşüren ölçünün AYNISI olmalıdır (inceleme
     # 12. tur): burada "herhangi bir profilde var mı" sorulurken _sinirli
@@ -300,9 +305,8 @@ def render(prompt, cfg, pdir=None, table_is_local=True):
             "bağla, ya da kurulu olmadığını kullanıcıya söyleyip skill'siz çalış.")
 
     lines.append(
-        "Kural: yönlendirilen skill'i Skill aracıyla YÜKLEMEDEN işe başlama. "
-        "Yönlendirme yanlışsa tek cümleyle gerekçelendir ve kullanıcıya söyle "
-        "— sessizce atlama.")
+        "Kural: yönlendirilen skill'i YÜKLEMEDEN başlama; yanlışsa tek "
+        "cümleyle gerekçelendir — sessizce atlama.")
 
     lines += _davranis_satirlari(prompt, cfg, primary, task_class)
 
@@ -326,27 +330,30 @@ def _davranis_satirlari(prompt, cfg, primary, task_class):
     return davranis.sozlesme(sahip(prompt, cfg, primary), task_class, risk)
 
 
-def _kaydet(prompt, cfg, pdir):
+def _kaydet(prompt, cfg, pdir, session=None, log=None):
     """Yönlendirme kararını görünür kayda yaz (best-effort; asla bloklamaz).
 
     Böylece `bin/durum.py` "ne yönlendirildi vs ne yüklendi" karşılaştırmasını
-    ajanın beyanına değil kayda dayandırır.
+    ajanın beyanına değil kayda dayandırır. Yazım mekaniği run_event'te;
+    burada yalnız KARAR üretilir.
     """
     try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "_run_event", os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                       "run_event.py"))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        import run_event
         task_class, primary, extras, _hits, explicit = route(prompt, cfg, pdir)
-        mod.append({
-            "kind": "route",
-            "task_class": task_class,
-            "routed": (primary or {}).get("skill") or (explicit if explicit else None),
-            "extras": extras,
-            "intent": prompt,
-        }, mod.log_path(pdir=pdir))
+        run_event.route_olayi(
+            task_class=task_class,
+            routed=(primary or {}).get("skill") or explicit or None,
+            extras=extras, intent=prompt, session=session,
+            log=log or run_event.log_path(pdir=pdir))
+    except Exception:
+        pass
+
+
+def _anlik_al(pdir, session):
+    """Tur başı anlığını aldır (mantık bin/anlik.py'de; burada yalnız çağrı)."""
+    try:
+        import anlik
+        anlik.tur_basi_al(pdir, session)
     except Exception:
         pass
 
@@ -361,8 +368,11 @@ def main(argv=None):
         raw = sys.stdin.read()
     except Exception:
         return 0
+    session = ""
     try:
-        prompt = (json.loads(raw or "{}") or {}).get("prompt", "")
+        payload = json.loads(raw or "{}") or {}
+        prompt = payload.get("prompt", "")
+        session = payload.get("session_id") or ""
     except (ValueError, AttributeError):
         prompt = raw
     if not prompt or not prompt.strip():
@@ -373,7 +383,8 @@ def main(argv=None):
         context, summary = render(prompt, cfg, pdir, is_local)
     except Exception:
         return 0  # yönlendirme yardımdır; asla isteği bloklamaz
-    _kaydet(prompt, cfg, pdir)
+    _kaydet(prompt, cfg, pdir, session=session)
+    _anlik_al(pdir, session)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",

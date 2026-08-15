@@ -1,6 +1,11 @@
 ---
 name: security-review
 description: Diff'i OWASP 2025 temelli güvenlik denetiminden geçirir — erişim kontrolü (IDOR/tenant), injection (SQLi/XSS/traversal/upload), secret sızıntısı ve misconfig arar; her bulgu dosya:satır + somut istismar senaryosu olur. Diff auth/kimlik/oturum/ödeme/upload/migration yüzeyine dokunduğunda veya risk sınıfı approval/deny olduğunda kullan. Genel kod kalitesi/stil incelemesi veya kendi yazdığın kodu onaylamak için kullanma.
+# "Bulur, kanıtlar, devreder — bu skill kod yazmaz" cümlesi artık mekanizma
+# (2026-08-15): denetim turunda yazma araçları kapalıdır. Düzeltmeyi ilgili
+# rol ayrı bir turda yapar; denetçinin kendi düzeltmesini onaylaması,
+# bağımsızlığın kaybolduğu andır.
+disallowed-tools: Write Edit NotebookEdit
 ---
 
 # security-review

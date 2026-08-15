@@ -183,9 +183,28 @@ class KapiTest(unittest.TestCase):
         ])
         self.assertEqual(b, set())
 
-    def test_zorunlu_skill_karsiliksizsa_bloklar(self):
+    def test_zorunlu_skill_karsiliksizsa_uyarir(self):
+        """SÜREÇ borcu uyarıdır, blok değil (politika değişikliği 2026-08-15).
+
+        Gerekçe: bir blok +1 tam ajan turudur ve bağlamı yeniden okutur —
+        kabaca 100 turluk router enjeksiyonu kadar pahalı. Ölçüm, kapının
+        en sık ürettiği bulgunun bu olduğunu gösterdi (92 gate olayının
+        çoğu). Yüklenmemiş bir süreç skill'i için o bedeli ödemek token'ı
+        korumaya değil törene harcar. Borç GÖRÜNÜR kalır; yalnız turu
+        kesmez. GÜVENLİK borcu bunun dışındadır — bir sonraki teste bak.
+        """
         b = self.bulgular([olay("route", routed="implement-change")])
-        self.assertIn(("BLOK", "zorunlu skill karşılıksız"), b)
+        self.assertIn(("UYARI", "zorunlu skill karşılıksız"), b)
+        self.assertNotIn(("BLOK", "zorunlu skill karşılıksız"), b)
+
+    def test_risk_yuzeyi_incelenmediyse_hala_bloklar(self):
+        """Gevşetme SÜREÇ borcuyla sınırlıdır; güvenlik borcu BLOK kalır."""
+        b = self.bulgular([
+            olay("route", routed="security-review"),
+            olay("edit", file="src/auth/login.py"),
+            olay("test", cmd="python3 -m unittest", ok=True),
+        ])
+        self.assertIn(("BLOK", "risk yüzeyi incelenmedi"), b)
 
     def test_zorunlu_skill_yuklendiyse_temiz(self):
         b = self.bulgular([olay("route", routed="kernel-work"),

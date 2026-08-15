@@ -187,14 +187,18 @@ class NiyetKapisiTest(unittest.TestCase):
 
     def test_yukumluluk_fiil_ismi_mutasyondur(self):
         # P1: her -ma/-me devamı olumsuz sayılıyordu — "düzeltmemiz
-        # gerekiyor" açık iş talebi salt-okunur profile düşüyordu. Okuma
-        # emri varsa okuma yine kazanır (ölçülen vaka 2 çiti). Skill
-        # seçimi golden özgüllük kuralına kalır: auth işi security-review.
+        # gerekiyor" açık iş talebi salt-okunur profile düşüyordu.
+        #
+        # 2026-08-15 DÜZELTMESİ: eskiden bu vakada `security-review`
+        # BİRİNCİL oluyordu (specificity 2 ile kazanıyordu) ve uygulama
+        # işi denetim skill'ine gidiyordu. Mutasyon DOĞRULANMIŞKEN
+        # okuma-niyetli kural birincil olamaz: iş uygulamadır, denetim ona
+        # EŞLİK eder. Eval corpus'u bu simetriyi kalıcı vaka olarak tutar.
         tc, skill, extras, _x = self.pick(
             "auth kontrolünü düzeltmemiz gerekiyor")
         self.assertEqual(tc, "code-change")
-        self.assertEqual(skill, "security-review")
-        self.assertIn("implement-change", extras)
+        self.assertEqual(skill, "implement-change")
+        self.assertIn("security-review", extras)
 
     def test_es_anlamli_yazma_fiilleri_sozlukte(self):
         # P1: fiil listesi eksikti — "iyileştir" açık değişiklik emriydi.

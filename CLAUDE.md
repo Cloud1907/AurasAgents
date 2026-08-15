@@ -3,8 +3,14 @@
 # Claude adapter notları
 
 - Yukarıdaki AGENTS.md kanonik kaynaktır; bu dosya yalnız Claude-özel ayarları taşır.
-- Kesin yasaklar (deny path'leri) bağlam değil mekanizmadır — hook/permission
-  katmanında uygulanır; AGENTS.md'deki tablo referanstır.
+- Kesin yasaklar `.claude/settings.json` `permissions.deny` ile uygulanır;
+  kaynak `.agents/capability-profiles/` ve üretici `bin/yetki.py --uygula`
+  (drift bekçisi: `validate.py`). NE UYGULANIR: secret/credential okuma-yazma,
+  yetki genişletme yüzeyi, bilinen yıkıcı kabuk komutları. NE UYGULANMAZ:
+  sınıf başına değişen sınırlar (izinler oturum genelindedir, tur başına
+  değişmez) ve kabuk üzerinden yazım — onun karşılığı önleme değil TESPİT'tir
+  (`bin/anlik.py`, tur kapısı). Profildeki `filesystem`/`network` alanları bu
+  ikinci grup için hâlâ BEYANDIR; güvenlik sınırı sayma.
 - Kernel doğrulama: `python3 bin/validate.py` (her değişiklikte koş).
 - Kanıt üretimi lokal deneme: `python3 bin/make_evidence.py --out /tmp/evidence.json`
 - Skill'ler `.claude/skills` üzerinden görünür (`.agents/skills`'e symlink);

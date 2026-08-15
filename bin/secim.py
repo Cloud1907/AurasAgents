@@ -40,15 +40,35 @@ SORU_BASI = re.compile(
     r"^(ne|neden|niye|nas[ıi]l|hangi|kim|ka[çc]|nerede|sence|acaba)\b")
 
 
+# Cümle sınırı: soru ölçüsü METNİN TAMAMINDA değil SON cümlede aranır.
+CUMLE_SINIRI = re.compile(r"[.!?;\n]+")
+
+
 def soru_turu(text):
     """Bu tur bir SORU mu, yoksa iş emri mi?
 
-    Soru işareti, ayrı duran soru eki (…iyi mi) ya da cümle BAŞINDA soru
-    kelimesi arar. Soru kelimesi cümle ORTASINDAysa emir sayılır:
-    "actions'a bak neden koşmadı" bir iştir, soru değil.
+    Ölçü SON cümleye bakar. 2026-08-15 ölçümü: desen metnin HERHANGİ bir
+    yerinde soru eki arıyordu, dolayısıyla uzun ve açık bir iş emri içinde
+    geçen tek bir retorik soru ("… sence bu yapı son hâline yakın mı?")
+    zorunlu skill'i SESSİZCE düşürüyordu. Aynı iş emri, o cümle olmadan
+    `research-with-evidence` alıyor, cümleyle birlikte hiçbir skill almıyordu
+    (koşturularak gösterildi). Türkçede soru eki çok yaygın olduğundan bu,
+    en iyi yazılmış istekleri sistematik olarak muaf kılıyordu.
+
+    Son cümle ölçüsü doğru olan: bir metin ne İLE BİTİYORSA onu ister.
+    "Raporu yaz. Sence doğru mu?" → son cümle soru ama iş emri de var;
+    bu durumda soru sayılır ve router zorunluluk dayatmaz — asimetri
+    bilinçli (yanlış "soru" ucuz, yanlış "approval" gürültülü).
     """
-    return bool(SORU_SONU.search(text) or SORU_EKI.search(text)
-                or SORU_BASI.match(text))
+    cumleler = [c.strip() for c in CUMLE_SINIRI.split(text) if c.strip()]
+    son = cumleler[-1] if cumleler else text.strip()
+    return bool(SORU_SONU.search(text.strip()) and _soru_isareti_sonda(text)
+                or SORU_EKI.search(son) or SORU_BASI.match(son))
+
+
+def _soru_isareti_sonda(text):
+    """Metin soru işaretiyle mi bitiyor (tek cümlelik saf soru)."""
+    return text.rstrip().endswith("?")
 
 
 def _puanla(cfg, text, tokens, explicit):

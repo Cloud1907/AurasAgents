@@ -57,27 +57,47 @@ def _yeni_tur(olay=None):
             "skills": [], "subagent": [], "atlanan": {}, "kapandi": False}
 
 
-def turlari_cikar(olaylar):
+def turlari_cikar(olaylar, session=None):
+    """Olayları turlara böl. Tur sınırı OTURUM BAŞINA çizilir.
+
+    Eşzamanlı oturumlar tek kayda yazar (`.claude/worktrees/`); sınır global
+    çizilirse B'nin route olayı A'nın turunu kapatır ve A'nın yüklediği skill
+    B'nin turuna düşer — tablo gerçekte olmayan bir SAPMA gösterir.
+    Session taşımayan eski satırlar ortak kovada kalır (geriye uyum).
+    """
+    if session:
+        olaylar = [o for o in olaylar if o.get("session") in (None, session)]
     turlar = []
+    acik = {}                     # session -> o oturumun son turu
     for o in olaylar:
         kind = o.get("kind")
+        s = o.get("session")
         if kind == "route":
-            turlar.append(_yeni_tur(o))
+            tur = _yeni_tur(o)
+            turlar.append(tur)
+            acik[s] = tur
             continue
-        if not turlar:
-            turlar.append(_yeni_tur())
-        cur = turlar[-1]
-        if kind == "skill" and o.get("skill"):
-            cur["skills"].append(o["skill"])
-        elif kind == "subagent" and o.get("agent"):
-            cur["subagent"].append(o["agent"])
-        elif kind == "skipped" and o.get("skill"):
-            cur.setdefault("atlanan", {})[o["skill"]] = o.get("reason", "?")
-        elif kind == "stop":
-            cur["kapandi"] = True
+        cur = acik.get(s)
+        if cur is None:
+            cur = _yeni_tur()
+            turlar.append(cur)
+            acik[s] = cur
+        _uygula(cur, kind, o)
     for t in turlar:
         t["durum"] = _durum(t)
     return turlar
+
+
+def _uygula(tur, kind, olay):
+    """Olayı ait olduğu tura işle (dal sayısını turlari_cikar'dan ayırır)."""
+    if kind == "skill" and olay.get("skill"):
+        tur["skills"].append(olay["skill"])
+    elif kind == "subagent" and olay.get("agent"):
+        tur["subagent"].append(olay["agent"])
+    elif kind == "skipped" and olay.get("skill"):
+        tur.setdefault("atlanan", {})[olay["skill"]] = olay.get("reason", "?")
+    elif kind == "stop":
+        tur["kapandi"] = True
 
 
 def _durum(tur):
@@ -124,10 +144,12 @@ def main(argv=None):
     ap.add_argument("--n", type=int, default=15)
     ap.add_argument("--json", action="store_true",
                     help="makine-okunur çıktı (Agent Ofis projeksiyonu)")
+    ap.add_argument("--session", default=None,
+                    help="yalnız bu oturumun turları (eşzamanlı çalışmada)")
     args = ap.parse_args(argv)
 
     path = args.log or _run_event().log_path()
-    turlar = turlari_cikar(olaylari_oku(path))[-args.n:]
+    turlar = turlari_cikar(olaylari_oku(path), args.session)[-args.n:]
     if args.json:
         print(json.dumps(turlar, ensure_ascii=False, indent=2))
         return 0

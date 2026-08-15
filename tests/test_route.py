@@ -144,13 +144,14 @@ class RouteTest(unittest.TestCase):
     def test_kuralsiz_komut_risk_metadatasini_kaybetmez(self):
         """Yazma sınıfındaki /komut, risk sınıfını da taşımalı.
 
-        /project-onboarding ile /auras aynı işi yapar; birinin approval
-        diğerinin sessizce 'auto' sayılması, risk politikasını komut
-        seçimine bağlı hale getirirdi.
+        Aynı işi yapan iki komuttan birinin approval diğerinin sessizce
+        'auto' sayılması, risk politikasını komut seçimine bağlardı.
+        (Vaka 2026-08-16'da `project-onboarding`den `auras`a taşındı:
+        iki onboarding skill'i tek akışta birleştirildi.)
         """
-        tc, skill, _e, _x = self.pick("/project-onboarding")
+        tc, skill, _e, _x = self.pick("/auras")
         self.assertEqual(tc, "code-change")
-        self.assertEqual(skill, "project-onboarding")
+        self.assertEqual(skill, "auras")
 
     def test_acik_komut_tetik_tasiyan_metinde_de_kazanir(self):
         """Kurallı olmayan skill'in /komutu, anahtar kelimeye yenilmez.
@@ -227,10 +228,15 @@ class RouteTest(unittest.TestCase):
     def test_gorunurluk_basligi_dayatilir(self):
         # Kullanıcı yazışmada ne olduğunu görmeli — bu bir temenni değil,
         # her turda enjekte edilen zorunlu biçim.
+        # Ölçüt biçimin İŞARETLERİdir, giriş cümlesi değil (2026-08-15):
+        # "Cevabına" dizesini aramak metni kısaltmayı testi kırmakla
+        # cezalandırıyordu. Sözleşme üç satırın varlığıdır.
         context, _s = route.render("cache ekle", self.cfg, pdir=ROOT)
-        self.assertIn("🧭", context)
-        self.assertIn("🔧", context)
-        self.assertIn("Cevabına", context)
+        self.assertIn("🧭", context)     # skill satırı
+        self.assertIn("👤", context)     # sahip satırı
+        self.assertIn("🔧", context)     # ne yapıldı satırı
+        self.assertIn("Sınıf:", context)
+        self.assertIn("Risk:", context)
 
     def test_baslik_sohbet_turunda_da_istenir(self):
         context, _s = route.render("merhaba nasılsın", self.cfg, pdir=ROOT)

@@ -152,7 +152,52 @@ class SozlesmeTest(unittest.TestCase):
         yol = os.path.join(ROOT, ".agents", "kalite-baseline.json")
         self.assertTrue(os.path.isfile(yol), "ratchet tabanı yok")
         with open(yol, encoding="utf-8") as fh:
-            self.assertIn("sayaclar", json.load(fh))
+            veri = json.load(fh)
+        self.assertIn("sayaclar", veri)
+        self.assertIn("buyuklukler", veri,
+                      "taban ihlal BÜYÜKLÜKLERİNİ taşımıyor — mevcut borcun "
+                      "büyümesi ölçülemez (M10)")
+
+
+class BuyumeRatchetTest(unittest.TestCase):
+    """Ratchet borcun SAYISINI değil BÜYÜKLÜĞÜNÜ de izlemeli.
+
+    H. Demir denetimi (2026-08-15): `validate.py` ADR-0004 zamanında 601
+    satırdı, ölçüm günü 952 — %58 büyüme. `buyuk_dosya` sayacı hep 1 kaldığı
+    için kapı hiç kırmızı yanmadı. "Mevcut borç kabul, büyümesi bloklanır"
+    iddiası borcun büyüklüğü için hiç çalışmıyordu.
+    """
+
+    def test_ayni_ihlal_buyurse_yakalanir(self):
+        taban = {"bin/x.py#buyuk_dosya": 601}
+        simdi = {"bin/x.py#buyuk_dosya": 952}
+        self.assertEqual(kalite.buyumeler(simdi, taban),
+                         [("bin/x.py#buyuk_dosya", 601, 952)])
+
+    def test_kuculuyorsa_yakalanmaz(self):
+        """Borcu azaltmak serbest ve teşvik edilir."""
+        self.assertEqual(
+            kalite.buyumeler({"a#buyuk_dosya": 500}, {"a#buyuk_dosya": 601}),
+            [])
+
+    def test_ayni_kalirsa_yakalanmaz(self):
+        self.assertEqual(
+            kalite.buyumeler({"a#buyuk_dosya": 601}, {"a#buyuk_dosya": 601}),
+            [])
+
+    def test_yeni_ihlal_burada_degil_sayacta_yakalanir(self):
+        """İş bölümü: yeni ihlal sayaç kapısının, büyüme bunun."""
+        self.assertEqual(kalite.buyumeler({"yeni#buyuk_dosya": 900}, {}), [])
+
+    def test_eski_taban_bicimi_sessizce_gecmez(self):
+        """Taban 'buyuklukler' taşımıyorsa boş döner — ama main UYARIR."""
+        self.assertEqual(kalite.buyumeler({"a#x": 9}, None), [])
+
+    def test_kimlik_satir_numarasi_tasimaz(self):
+        """Fonksiyon birkaç satır kayınca sahte 'yeni ihlal' doğmamalı."""
+        b = kalite.buyuklukler([("bin/a.py", 40, "uzun_fonksiyon", "", 60),
+                                ("bin/a.py", 91, "uzun_fonksiyon", "", 55)])
+        self.assertEqual(b, {"bin/a.py#uzun_fonksiyon": 60})
 
 
 if __name__ == "__main__":

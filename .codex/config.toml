@@ -1,0 +1,16 @@
+# ÜRETİLDİ — elle düzenleme: bin/yetki.py --uygula
+# Kaynak: .agents/capability-profiles/*.yml
+# Codex'in kendi sözleşmesi: sandbox_mode + approval_policy.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false
+
+# Salt-okunur araştırma profili (Kaynaklı araştırma/keşif — kod değişikliği yok)
+[profiles.research]
+sandbox_mode = "read-only"
+approval_policy = "on-request"
+
+# İzinli alanlar (code-change profili): "api.github.com"

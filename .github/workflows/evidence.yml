@@ -15,12 +15,20 @@ jobs:
   kernel:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Action'lar TAM COMMIT SHA'sına sabitlenmiştir, etikete değil.
+      # Etiket hareketlidir: `v4` yarın başka bir commit'i işaret edebilir
+      # ve deterministik olması gereken kanıt üretimi sessizce değişir.
+      # Upstream ele geçirilirse etiket saldırganın kodunu getirir.
+      # Yükseltme bilinçli karardır: yeni SHA'yı yaz, gerekçesini commit'e.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0        # check_test_first base dalı görebilsin
 
       - name: PyYAML kur
-        run: python3 -m pip install --quiet pyyaml
+        # Sürüm sabit: `pyyaml` çıplak yazıldığında her koşu farklı sürüm
+        # çekebilir ve "aynı doğrulama bağımsız makinede tekrarlanır" iddiası
+        # bozulur.
+        run: python3 -m pip install --quiet "pyyaml==6.0.3"
 
       - name: Kernel doğrulama
         run: python3 bin/validate.py
@@ -61,7 +69,41 @@ jobs:
           esac
 
       - name: Birim testleri
-        run: python3 -m unittest discover -s tests -q
+        # Çıktı DOSYAYA da yazılır: `evidence.json` bunun sha256'sını taşır.
+        # Log linki süresi dolar, özet dolmaz — "kanıt > beyan" ancak
+        # artefakta bağlanınca CI katmanında da geçerli olur.
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s tests 2>&1 | tee test-output.txt
+
+      - name: Risk sınıfı (ön × nihai)
+        id: risk
+        # PR gövdesi GÜVENİLMEYEN girdidir → env ile geçilir, `run:` içine
+        # interpolate EDİLMEZ (2026-08-07 komut enjeksiyonu dersi).
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          CONTRACTLI: ${{ contains(github.event.pull_request.labels.*.name, 'contract') }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, subprocess, sys
+          sys.path.insert(0, "bin")
+          from contract import on_risk_oku
+          from risk import birlestir, risk_sinifi, yikici_aksiyon
+          base = os.environ.get("GITHUB_BASE_REF") or "main"
+          def git(*a):
+              p = subprocess.run(["git", *a], capture_output=True, text=True)
+              return p.stdout if p.returncode == 0 else ""
+          ref = f"origin/{base}"
+          dosyalar = [s for s in git("diff", "--name-only", f"{ref}...HEAD").splitlines() if s]
+          diff = git("diff", f"{ref}...HEAD")
+          on = on_risk_oku(os.environ.get("BODY", ""),
+                           os.environ.get("CONTRACTLI") == "true")
+          yol = risk_sinifi(dosyalar)
+          aksiyon = "deny" if yikici_aksiyon(diff) else "auto"
+          nihai = birlestir(yol, aksiyon)
+          print(f"provisional={'approval' if on == 'okunamadi' else (on if on != 'yok' else nihai)}")
+          print(f"final={nihai}")
+          PY
 
       # Ratchet: mevcut borç kabul, BÜYÜMESİ yasak. Eşik yükseltmek
       # gerekiyorsa taban bilinçli güncellenir ve gerekçe commit'e yazılır.
@@ -95,10 +137,13 @@ jobs:
             --check "secret-scan=passed" \
             --check "tests=passed" \
             --check "kod-kalitesi=passed" \
-            --check "test-first=${{ steps.testfirst.outputs.status }}"
+            --check "test-first=${{ steps.testfirst.outputs.status }}" \
+            --risk-provisional "${{ steps.risk.outputs.provisional }}" \
+            --risk-final "${{ steps.risk.outputs.final }}" \
+            --digest "test-report=test-output.txt"
 
       - name: Evidence artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: evidence
           path: evidence.json

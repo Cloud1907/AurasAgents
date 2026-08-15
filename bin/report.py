@@ -25,7 +25,6 @@ CHIP = {  # skill → (etiket, sınıf)
     "security-review": ("güvenlik", "g"),
     "designing-interfaces": ("tasarım", "g"),
     "research-with-evidence": ("araştırma", "g"),
-    "project-onboarding": ("kurulum", "g"),
     "auras": ("global", "v"),
 }
 

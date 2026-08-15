@@ -21,6 +21,7 @@ silinirse kapı sessizce geçer (AGENTS.md "Kapıların gerçek sınıfı").
 Tasarım kuralı: hook asla bloklamaz. Her hata yolunda exit 0.
 """
 import argparse
+import contextlib
 import datetime as dt
 import importlib.util
 import json
@@ -109,7 +110,16 @@ def log_path(explicit=None, pdir=None):
 
 
 def append(event, path=None):
-    """Olayı JSONL'e ekle. Hata yutulmaz — çağıran karar verir (main yutar)."""
+    """Olayı JSONL'e ekle. Hata yutulmaz — çağıran karar verir (main yutar).
+
+    Yazım KİLİTLİDİR: aynı kaydı birden çok oturum paylaşır (`.claude/worktrees/`
+    altında eşzamanlı çalışma ölçüldü, 2026-08-15). O_APPEND küçük yazımları
+    çekirdek tamponu içinde atomik tutar ama uzun satır tampon sınırını aşınca
+    iki yazıma bölünür ve satırlar iç içe geçer; iç içe geçmiş satır JSON
+    olarak okunamaz, yani KANIT SESSİZCE KAYBOLUR. Kilit yoksa (Windows,
+    exotic fs) yazım yine yapılır — kayıt disposable'dır, kilit uğruna
+    olayı düşürmek daha kötüdür.
+    """
     path = path or log_path()
     rec = {k: v for k, v in event.items() if k in ALLOWED and v is not None}
     if "intent" in rec:
@@ -121,9 +131,52 @@ def append(event, path=None):
             rec["intent"] = temizle(rec["intent"])
     rec["ts"] = dt.datetime.now().isoformat(timespec="seconds")
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    satir = json.dumps(rec, ensure_ascii=False) + "\n"
     with open(path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        with _kilit(fh):
+            fh.write(satir)
     return rec
+
+
+@contextlib.contextmanager
+def _kilit(fh):
+    """Dosya kilidi; platform desteklemiyorsa sessizce kilitsiz devam eder."""
+    try:
+        import fcntl
+    except ImportError:                                  # pragma: no cover
+        yield
+        return
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+    except OSError:                                      # pragma: no cover
+        yield
+        return
+    try:
+        yield
+    finally:
+        try:
+            fh.flush()
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError:                                  # pragma: no cover
+            pass
+
+
+def route_olayi(task_class, routed, extras, intent, session=None, log=None):
+    """Yönlendirme kararını kayda yaz.
+
+    `session` ZORUNLU alan değildir ama yazılmazsa kapı turu hangi oturumun
+    açtığını bilemez ve eşzamanlı iki oturum birbirinin kanıtını sahiplenir
+    (ölçüm 2026-08-15: 286 route olayının 0'ı session taşıyordu — alan
+    ALLOWED listesindeydi, yazan yoktu).
+    """
+    return append({
+        "kind": "route",
+        "session": (session or "")[:8] or None,
+        "task_class": task_class,
+        "routed": routed,
+        "extras": extras,
+        "intent": intent,
+    }, log)
 
 
 # Test/doğrulama komutu imzaları — "test koştu mu" sorusunun cevabı.

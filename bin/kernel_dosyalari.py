@@ -17,19 +17,38 @@ Kullanım (kütüphane):
     for rel, sinif in kd.karsilastir(kanonik, hedef): ...
 """
 import hashlib
+import json
 import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Kurulum kimliği ayrı modülde (bin/manifest.py): "hangi dosyalar motorun"
+# ile "hangi sürüm kurulu" ayrı sorulardır. Buradan yeniden dışa verilir ki
+# çağıranlar (auras-init.sh, testler) tek import yüzeyi görsün.
+from manifest import (MANIFEST_SURUM, kurulu_surum,  # noqa: E402,F401
+                      manifest_dosyalari, manifest_govde)
 
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
     "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
     "bin/skill_kayit.py", "bin/davranis.py", "bin/secim.py",   # route.py'nin bağımlılığı — birlikte taşınmalı
     "bin/niyet.py",         # route.py'nin niyet kapısı — taşınmazsa kapı susar
+    "bin/anma.py",          # niyet.py'nin alıntı/anma ayrımı
+    "bin/manifest.py",      # kurulum kimliği (provenance)
     "bin/memory_hygiene.py", "bin/hatirla.py", "bin/run_event.py", "bin/durum.py",
     "bin/kapi.py", "bin/araclar.py", "bin/kernel_dosyalari.py",
+    "bin/anlik.py",         # kapı'nın worktree ölçüsü — taşınmazsa kabuk
+                            # yazımları bağlı projede yine görünmez olur
+    "bin/yetki.py",         # profil → motor izin politikası; taşınmazsa
+                            # bağlı projede profil yine yalnız beyan kalır
     "bin/kapsam_bekcisi.py",
+    "bin/dogrula_ci.py",    # validate.py'nin CI/kanıt doğrulayıcıları
     "bin/kalite.py",
+    "bin/diller.py",        # dil kapsamının tek tanımı — kapılar buradan okur
+    "bin/yuzey.py",         # yol → yükümlülük sınıflandırması (kapi.py'nin ölçüsü)
+    "bin/contract.py",      # incele.py'nin contract okuması
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
     "bin/surec.py",
     "bin/tur.py", "bin/risk.py",   # incele.py'nin bağımlılıkları — birlikte taşınmalı
@@ -39,6 +58,8 @@ MOTOR = [
     ".github/workflows/evidence.yml",
     ".github/ISSUE_TEMPLATE/work-contract.yml",
     ".agents/routing.yml",
+    ".agents/routing-eval.yml",   # yönlendirme doğruluğunun ölçülen hâli;
+                                  # taşınmazsa bağlı projede eval koşamaz
     # Motorun kendi kapsamı hakkındaki beyanı. Her projeye gitmeli: kullanıcı
     # hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır. Ayrıca
     # tests/test_evidence_workflow.py bu belgeyi şart koşuyor ve o test her
@@ -54,7 +75,11 @@ SINIFLAR = ("yok", "ayni", "geride", "yerel")
 # Motorla senkronlanmaz ama kurulumdan SONRA projede bulunur:
 # bir kez yazılan proje dosyaları (copy_new) ve kurucunun ürettikleri.
 PROJE_DOSYASI = ("AGENTS.md", "CLAUDE.md")
-URETILEN = (".agents/kalite-baseline.json",)
+URETILEN = (".agents/kalite-baseline.json",
+            # Kurucu üretir: hook'lar birleştirilir (auras-init.sh) ve yetki
+            # politikası yazılır (bin/yetki.py --uygula). Projede kurulumdan
+            # SONRA bulunur, motor listesinde değildir — projenin dosyasıdır.
+            ".claude/settings.json")
 
 # tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")
@@ -217,13 +242,100 @@ def manifest_muaf_mi(kok):
         return False
 
 
-def _git(kok, *arg, girdi=None):
+def _git(kok, *arg, girdi=None, zaman=20):
     try:
         p = subprocess.run(["git", "-C", kok, *arg], capture_output=True,
-                           text=True, input=girdi, timeout=20)
+                           text=True, input=girdi, timeout=zaman)
         return p.stdout if p.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None
+
+
+FETCH_ZAMAN = 20
+
+
+def _yukari_akim(kok):
+    """Mevcut dalın upstream'i (ör. `origin/main`) ya da None.
+
+    Dal adı sabitlenmez: `origin/main` varsayan kod, main'den başka dalda
+    çalışan projede sessizce "doğrulanamadı"ya düşerdi.
+    """
+    ref = _git(kok, "rev-parse", "--abbrev-ref", "@{upstream}")
+    return ref.strip() if ref and ref.strip() else None
+
+
+def _fark(kok, upstream):
+    """(ileri, geri) — HEAD upstream'e göre kaç commit önde/arkada."""
+    sayim = _git(kok, "rev-list", "--left-right", "--count", f"HEAD...{upstream}")
+    try:
+        ileri, geri = sayim.split()[:2]
+        return int(ileri), int(geri)
+    except (AttributeError, ValueError):
+        return None
+
+
+def _kirli(kok):
+    """İzlenen dosyalarda kaydedilmemiş değişiklik var mı.
+
+    İzlenmeyen dosya sayılmaz: scratch dosyası ne ileri sarmayı bozar ne de
+    kurulumu durdurmayı hak eder.
+    """
+    cikti = _git(kok, "status", "--porcelain", "--untracked-files=no")
+    return bool(cikti and cikti.strip())
+
+
+def _ileri_sar(kok, upstream, ileri, geri):
+    """Geride kalan kaynağı upstream'e taşımayı dener → (durum, mesaj)."""
+    geride = f"kaynak {upstream}'in {geri} commit gerisinde"
+    if ileri:
+        return "engel", f"{geride} ve {ileri} yerel commit var — ileri sarılamaz"
+    if _kirli(kok):
+        return "engel", f"{geride} ve çalışma ağacı kirli — ileri sarılamaz"
+    if _git(kok, "merge", "--ff-only", upstream) is None:
+        return "engel", f"{geride}; ileri sarma başarısız — elle çöz"
+    return "ilerletildi", f"kaynak {geri} commit ileri sarıldı → {upstream}"
+
+
+def kaynak_tazele(kok):
+    """Kurulum kaynağını upstream'e ileri sarmayı dener → (durum, mesaj).
+
+    guncel        — HEAD upstream ile aynı (fetch doğrulandı)
+    ilerletildi   — geride idi, fast-forward ile upstream'e taşındı
+    engel         — geride ama güvenle ileri sarılamıyor (yerel commit/kirli)
+    dogrulanamadi — git yok, upstream yok ya da fetch başarısız
+
+    Neden kapı: `/auras` dosyaları kanonik ÇALIŞMA AĞACINDAN kopyalar. Ağaç
+    origin'in gerisindeyse kurulan motor eskidir ama manifest onu "güncel"
+    diye damgalar — kapı var, koruma yok. 2026-08-15 ölçümü: ağaç e3f1ec1'de,
+    origin/main 2d42b90'daydı; o gün koşulacak her /auras eski niyet kapısını
+    yayacaktı. Fast-forward seçilmesi bilinçli: iş kaybettiremeyen tek
+    ilerletme biçimidir; sarılamıyorsa kararı insan verir.
+    """
+    if _git(kok, "rev-parse", "--git-dir") is None:
+        return "dogrulanamadi", "git deposu değil — kaynak sürümü bilinmiyor"
+    upstream = _yukari_akim(kok)
+    if upstream is None:
+        return "dogrulanamadi", "dalın upstream'i yok — karşılaştıracak uzak sürüm yok"
+    taze = _git(kok, "fetch", "--quiet", upstream.split("/", 1)[0],
+                zaman=FETCH_ZAMAN) is not None
+    fark = _fark(kok, upstream)
+    if fark is None:
+        return "dogrulanamadi", f"{upstream} okunamadı — karşılaştırma yapılamadı"
+    ileri, geri = fark
+    if geri:
+        return _ileri_sar(kok, upstream, ileri, geri)
+    if not taze:
+        return "dogrulanamadi", f"fetch başarısız — {upstream} tazeliği doğrulanamadı"
+    # Push edilmemiş commit ve kaydedilmemiş değişiklik engel DEĞİLDİR —
+    # kernel burada geliştirilir. Ama sessiz de kalamaz: ikisi de bağlı
+    # repolara İNCELENMEMİŞ içerik taşır ve "guncel" onu görünmez kılar.
+    uyari = []
+    if ileri:
+        uyari.append(f"{ileri} yerel commit henüz uzakta yok")
+    if _kirli(kok):
+        uyari.append("çalışma ağacı kirli — kaydedilmemiş içerik kurulur")
+    ek = f" (uyarı: {'; '.join(uyari)})" if uyari else ""
+    return "guncel", f"kaynak {upstream} ile aynı{ek}"
 
 
 def gecmis_blob_idler(kanonik, rel):

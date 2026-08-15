@@ -148,8 +148,8 @@ def kuralsiz_komut_kurali(explicit, pdir):
     izin sınırını düşürmemeli — dosya yazan skill'i salt-okunur profile
     mahkûm etmek işi sessizce kırar.
 
-    Risk de taşınır: /project-onboarding ile /auras aynı işi yapar; birinin
-    approval diğerinin auto sayılması riski komut seçimine bağlardı. Kuralsız
+    Risk de taşınır: aynı işi yapan iki komuttan birinin approval
+    diğerinin auto sayılması, riski komut seçimine bağlardı. Kuralsız
     skill'in beyan edilmiş riski olmadığından KATI taraf seçilir — research
     dışı her sınıf approval (fazla temkin, eksik temkinden iyidir).
 

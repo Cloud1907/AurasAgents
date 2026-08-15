@@ -40,6 +40,21 @@ class KurucuTest(unittest.TestCase):
         # AGENTS.md / CLAUDE.md projenindir; kurucu bir kez yazar, ezmez.
         self.assertIn("copy_new", self.metin())
 
+    def test_kaynak_tazeligi_kopyalamadan_once_olculur(self):
+        # Kurucu ÇALIŞMA AĞACINDAN kopyalar; ağaç origin'in gerisindeyse
+        # kurulan motor eskidir ama manifest "güncel" der (2026-08-15).
+        metin = self.metin()
+        self.assertIn("kaynak_tazele", metin,
+                      "kurucu kaynak sürümünü hiç ölçmüyor")
+        self.assertLess(metin.index("kaynak_tazele"), metin.index("PYSYNC"),
+                        "tazelik ölçümü motor kopyalamasından SONRA — geç")
+
+    def test_engel_kurulumu_durdurur(self):
+        # Ölçüp devam etmek kapı değildir; engel çıkışla sonuçlanmalı.
+        self.assertIn("AURAS_ESKI_MOTOR", self.metin(),
+                      "bilinçli atlama kapısı yok — ya sessiz geçiyor ya da "
+                      "hiç atlanamıyor; ikisi de yanlış")
+
 
 if __name__ == "__main__":
     unittest.main()

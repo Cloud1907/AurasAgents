@@ -13,13 +13,24 @@ description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md 
    kendisiyse dur — orada zaten kurulu.
 2. Kurulum/güncelleme motorunu çalıştır:
    `bash ~/Developer/GitHub/AurasAgents/bin/auras-init.sh`
+   - **Kaynak tazeliği önce ölçülür**: kurucu kanonik ağacı upstream'e ileri
+     sarar; saramazsa (yerel commit / kirli ağaç) DURUR. Engelde kanonik
+     repoda durumu çöz (pull / rebase / stash) ve tekrar koş.
+     `AURAS_ESKI_MOTOR=1` ile atlamak bağlı repoya ESKİ motoru yaymaktır —
+     gerekçesiz kullanma, kullandıysan kullanıcıya söyle.
+   - Çıktıdaki `uyarı: ... kirli` satırı, kurulan içeriğin hiçbir commit'e
+     ait olmadığını söyler; kullanıcıya bildir.
    İki ayrı davranış vardır:
    - **Proje dosyaları** (AGENTS.md, CLAUDE.md, .gitignore): bir kez yazılır,
      ASLA ezilmez.
    - **Motor dosyaları** (bin/*, .agents/skills, profiller, routing.yml,
      workflow, şema, tests): her koşumda güncellenir — ama kullanıcı elle
-     değiştirdiyse korunur ve `KORUNDU` diye raporlanır. Kimin dokunduğu
-     `.agents/.kernel-manifest.json` hash kaydından bilinir.
+     değiştirdiyse korunur ve `KORUNDU` diye raporlanır. Ezme kararının
+     OTORİTESİ kanonik **git geçmişidir**, manifest DEĞİL (ADR-0002):
+     hedefin içeriği kanonik geçmişte hiç görülmediyse o yerel iştir.
+     Manifest yalnız hızlandırıcı bir önbellektir ve yanılabilir —
+     2026-08-05'te 4cast'te projenin kendi içeriğini "el değmemiş" sanıp
+     yerel düzeltmeyi ezmek üzereydi.
    - Hook'lar kaynak `.claude/settings.json`'dan birleştirilir; kernel yeni
      hook eklediğinde bağlı projeler bunu `/auras` ile alır.
    Kapanışta `KORUNDU` satırlarını kullanıcıya MUTLAKA söyle — sessiz geçme.
@@ -46,6 +57,15 @@ description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md 
 - Kurulum tek iştir; proje koduna davranış değişikliği karıştırma.
 - Private repo + Free plan'da GitHub dal koruması çalışmaz; koruma yerel
   pre-push kancası + CI'dır. Bunu kullanıcıya söyle, sessiz geçme.
+
+## Referanslar
+
+- `references/onboarding-checklist.md` — kurulum sonrası projeyi TANIMA ve
+  `AGENTS.md`'yi ona uyarlama prosedürü (dil/framework, komutlar, izinli
+  path'ler, pazarlıksız yasaklar). 2026-08-16'da ayrı bir skill'di
+  (`project-onboarding`); iki skill tek işi yapıyordu ve hangisinin otorite
+  olduğu her okumada yeniden kararlaştırılıyordu. Prosedür korundu, ikinci
+  giriş noktası kaldırıldı.
 
 ## Eval
 
