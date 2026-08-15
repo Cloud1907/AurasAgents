@@ -84,11 +84,19 @@ python3 bin/report.py --open
    bulgusu, P1).
 
    ```bash
-   git status --porcelain          # BOŞ olmalı; değilse önce: git stash -u
-   git commit --allow-empty -m "koruma dogrulama"
+   git status --porcelain             # BOŞ olmalı; değilse önce: git stash -u
+   git checkout main && git pull --ff-only
+   git commit --allow-empty -m "koruma dogrulama" || exit 1
    git push --no-verify origin main   # REDDEDİLMELİ
-   git reset --hard HEAD~1         # deneme commit'ini geri al
+   git reset --hard @{u}              # uzak main'e hizala
    ```
+
+   Üç ayrıntı kasıtlı (bağımsız inceleme, 2. tur): `checkout main` olmadan
+   başka bir dalda commit'leyip *yerel* `main`'i push edersin ve hiçbir şey
+   test edilmez; `|| exit 1` olmadan commit hook/imza hatasıyla düşse bile
+   akış devam eder; `@{u}` yerine `HEAD~1` yazarsan commit oluşmadığında
+   GERÇEK bir commit'i yok edersin — `@{u}` her iki durumda da doğru yere
+   hizalar.
 
    Ret **iki gerekçeyi birden** taşımalı:
    `Changes must be made through a pull request.` ve
