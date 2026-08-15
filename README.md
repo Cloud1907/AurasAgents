@@ -55,14 +55,51 @@ python3 bin/report.py --open
    ```bash
    gh api -X PUT repos/<owner>/<repo>/branches/main/protection --input - <<'JSON'
    {"required_status_checks":{"strict":true,"contexts":["kernel"]},
-    "enforce_admins":true,"required_pull_request_reviews":null,
+    "enforce_admins":true,
+    "required_pull_request_reviews":{"required_approving_review_count":0,
+                                     "dismiss_stale_reviews":true},
     "restrictions":null,"allow_force_pushes":false,"allow_deletions":false}
    JSON
    ```
 
-   `enforce_admins: true` şart: `false` bırakılırsa agent kullanıcının
-   yetkisiyle korumayı geçer ve sınır yalnız kazaya karşı bir hatırlatıcıya
-   döner. Kurduktan sonra DOĞRULA — `--no-verify` ile doğrudan push
-   reddedilmeli.
+   Üç alanın üçü de **şart**, biri eksikse sınır delik kalır:
+
+   - `enforce_admins: true` — `false` ise agent kullanıcının yetkisiyle
+     korumayı geçer; sınır yalnız kazaya karşı bir hatırlatıcıya döner.
+   - `required_pull_request_reviews` — **`null` YETMEZ.** Yalnız required
+     status check ile, check'i ZATEN GEÇMİŞ bir SHA doğrudan `main`'e
+     itilebilir: dalı it, CI koşsun, sonra aynı commit'i main'e it. Bağımsız
+     inceleme bunu P0 olarak yakaladı (2026-08-16) ve ölçümle doğrulandı.
+     `required_approving_review_count: 0` PR'ı zorunlu kılar ama ikinci bir
+     insan istemez — tek kişilik akışa uyar.
+   - `allow_force_pushes: false` — yoksa geçmiş yeniden yazılabilir.
+
+   **Kurduktan sonra DOĞRULA, hemen değil.** Ayar değişikliğinin yerleşmesi
+   saniyeler alır; kurulumdan hemen sonraki push propagasyon penceresinden
+   geçebilir (2026-08-16'da bizzat yaşandı — koruma doğruydu, push geçti).
+
+   Doğrulama GEÇİCİ KLONDA yapılır — çalışma deponuza hiç dokunmaz:
+
+   ```bash
+   tmp=$(mktemp -d) && git clone -q --depth 1 "$(git remote get-url origin)" "$tmp/r" \
+     && git -C "$tmp/r" commit -q --allow-empty -m "koruma dogrulama" \
+     && git -C "$tmp/r" push origin HEAD:main    # REDDEDİLMELİ
+   rm -rf "$tmp"
+   ```
+
+   Neden klon (bağımsız inceleme, 3 tur, 5 P1): çalışma deposunda doğrulama
+   yapan her tarif kırılgan çıktı. `--allow-empty` index'i boşaltmaz (staged
+   dosyan commit'e girer); `checkout main` başka worktree'de açıksa düşer;
+   `reset --hard @{u}` upstream'in ilerisindeki yerel commit'leri siler.
+   Beşi de aynı kökten: **kullanıcının durumunu mutasyona uğratmak.** Klonda
+   mutasyon yok, ön koşul yok, temizlik `rm -rf` — hiçbiri kaybedilecek iş
+   taşımıyor.
+
+   Ret **iki gerekçeyi birden** taşımalı (aşağıda).
+
+   Ret **iki gerekçeyi birden** taşımalı:
+   `Changes must be made through a pull request.` ve
+   `Required status check "kernel" is expected.`
+   Tek gerekçe görüyorsan sınır eksiktir.
 3. Codex Review app'ini repoya bağla (Review all PRs).
 4. claude.ai/code üzerinden repo'yu cloud session'a bağla.
