@@ -152,13 +152,13 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   script'i KAPI doğrulayıcısıdır ve en az bir kapıya bağlanmak zorundadır
   (`validate.py` bağlanmamışı reddeder). Yazılmış ama çağrılmayan doğrulayıcı
   = kural belgede var sistemde yok. Diğer adlar yardımcı araçtır.
-- Kernel senkronu çift yönlüdür (ADR-0002). `/auras` kanonikten projeye
-  taşır; ezme kararı manifest'e değil kanonik git geçmişine dayanır — projede
-  üretilmiş içerik ezilmez, korunur. Ters yön `bin/auras_geri.py`: projede
-  kalan kernel işini kanonik çalışma ağacına alır (commit insanındır).
-- Not: private repo + Free plan'da GitHub dal koruması kapalıdır; koruma
-  yerel kanca + CI ile sağlanır. Repo public olur veya Pro alınırsa
-  `kernel` check'i required status check yapılmalıdır.
+- Kernel senkronu çift yönlüdür (ADR-0002). `/auras` kanonikten projeye taşır;
+  kurulum ÖNCE kaynağı upstream'e ileri sarar, saramazsa ENGEL — eski çalışma
+  ağacından kurmak bağlı repoya eski motoru "güncel" damgasıyla yayardı. Ezme
+  kararı manifest'e değil kanonik git geçmişine dayanır; projede üretilmiş
+  içerik korunur. Ters yön `bin/auras_geri.py` (commit insanındır).
+- Not: private repo + Free plan'da dal koruması kapalıdır; koruma yerel kanca +
+  CI'dır. Repo public olur ya da Pro alınırsa `kernel` required check yapılmalı.
 
 ## Kapıların gerçek sınıfı
 

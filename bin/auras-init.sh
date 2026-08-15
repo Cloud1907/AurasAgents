@@ -45,6 +45,43 @@ if [ -z "$PY" ]; then
 fi
 echo ""
 
+# --- Kaynak tazeligi: kurulum SON surumden yapilir ------------------------
+# Kurucu dosyalari kanonik CALISMA AGACINDAN kopyalar. Agac origin'in
+# gerisindeyse kurulan motor eskidir ama manifest onu "guncel" damgalar —
+# kapi var, koruma yok (2026-08-15 olcumu: agac e3f1ec1, origin/main
+# 2d42b90; o gun kosulacak her /auras eski niyet kapisini yayacakti).
+# Guvenle ileri sarilabiliyorsa sarilir, sarilamiyorsa DURULUR.
+echo "Kaynak tazeligi:"
+TAZELIK=$("$PY" - "$SOURCE" <<'PYTAZE'
+import os
+import sys
+
+kaynak = sys.argv[1]
+sys.path.insert(0, os.path.join(kaynak, "bin"))
+import kernel_dosyalari as kd
+
+durum, mesaj = kd.kaynak_tazele(kaynak)
+print(durum)
+print(mesaj)
+PYTAZE
+)
+TAZE_DURUM=$(printf '%s\n' "$TAZELIK" | head -1)
+TAZE_MESAJ=$(printf '%s\n' "$TAZELIK" | tail -n +2)
+echo "  $TAZE_DURUM — $TAZE_MESAJ"
+if [ "$TAZE_DURUM" = "engel" ]; then
+  if [ -n "${AURAS_ESKI_MOTOR:-}" ]; then
+    # Bilincli atlama gorunur kalir: sessiz muafiyet, kapinin oldugu ama
+    # korumadigi haldir.
+    echo "  UYARI: AURAS_ESKI_MOTOR=1 — ESKI motorla kuruluyor"
+  else
+    echo "HATA: kaynak son surumde degil; kurulum eski motoru yayardi." >&2
+    echo "Duzelt: $SOURCE icinde durumu coz (pull / rebase / stash), tekrar kos." >&2
+    echo "Bilincli atlama: AURAS_ESKI_MOTOR=1 bash bin/auras-init.sh <hedef>" >&2
+    exit 1
+  fi
+fi
+echo ""
+
 # Proje dosyalari: bir kez yazilir, ASLA ezilmez (AGENTS.md, CLAUDE.md...)
 copy_new() {  # kaynak_rel hedef_rel — hedefte varsa dokunmaz
   local src="$SOURCE/$1" dst="$TARGET/$2"

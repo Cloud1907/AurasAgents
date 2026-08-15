@@ -13,6 +13,13 @@ description: Bir projeyi AurasAgents çalışma sistemine bağlar — AGENTS.md 
    kendisiyse dur — orada zaten kurulu.
 2. Kurulum/güncelleme motorunu çalıştır:
    `bash ~/Developer/GitHub/AurasAgents/bin/auras-init.sh`
+   - **Kaynak tazeliği önce ölçülür**: kurucu kanonik ağacı upstream'e ileri
+     sarar; saramazsa (yerel commit / kirli ağaç) DURUR. Engelde kanonik
+     repoda durumu çöz (pull / rebase / stash) ve tekrar koş.
+     `AURAS_ESKI_MOTOR=1` ile atlamak bağlı repoya ESKİ motoru yaymaktır —
+     gerekçesiz kullanma, kullandıysan kullanıcıya söyle.
+   - Çıktıdaki `uyarı: ... kirli` satırı, kurulan içeriğin hiçbir commit'e
+     ait olmadığını söyler; kullanıcıya bildir.
    İki ayrı davranış vardır:
    - **Proje dosyaları** (AGENTS.md, CLAUDE.md, .gitignore): bir kez yazılır,
      ASLA ezilmez.
