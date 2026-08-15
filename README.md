@@ -78,25 +78,24 @@ python3 bin/report.py --open
    saniyeler alır; kurulumdan hemen sonraki push propagasyon penceresinden
    geçebilir (2026-08-16'da bizzat yaşandı — koruma doğruydu, push geçti).
 
-   Doğrulama TEMİZ AĞAÇTA yapılır. `--allow-empty` boş commit'e *izin verir*,
-   index'i BOŞALTMAZ: staged dosyan varsa doğrulama commit'ine girer ve
-   propagasyon penceresinde push geçerse `main`'e iner (bağımsız inceleme
-   bulgusu, P1).
+   Doğrulama GEÇİCİ KLONDA yapılır — çalışma deponuza hiç dokunmaz:
 
    ```bash
-   git status --porcelain             # BOŞ olmalı; değilse önce: git stash -u
-   git checkout main && git pull --ff-only
-   git commit --allow-empty -m "koruma dogrulama" || exit 1
-   git push --no-verify origin main   # REDDEDİLMELİ
-   git reset --hard @{u}              # uzak main'e hizala
+   tmp=$(mktemp -d) && git clone -q --depth 1 "$(git remote get-url origin)" "$tmp/r" \
+     && git -C "$tmp/r" commit -q --allow-empty -m "koruma dogrulama" \
+     && git -C "$tmp/r" push origin HEAD:main    # REDDEDİLMELİ
+   rm -rf "$tmp"
    ```
 
-   Üç ayrıntı kasıtlı (bağımsız inceleme, 2. tur): `checkout main` olmadan
-   başka bir dalda commit'leyip *yerel* `main`'i push edersin ve hiçbir şey
-   test edilmez; `|| exit 1` olmadan commit hook/imza hatasıyla düşse bile
-   akış devam eder; `@{u}` yerine `HEAD~1` yazarsan commit oluşmadığında
-   GERÇEK bir commit'i yok edersin — `@{u}` her iki durumda da doğru yere
-   hizalar.
+   Neden klon (bağımsız inceleme, 3 tur, 5 P1): çalışma deposunda doğrulama
+   yapan her tarif kırılgan çıktı. `--allow-empty` index'i boşaltmaz (staged
+   dosyan commit'e girer); `checkout main` başka worktree'de açıksa düşer;
+   `reset --hard @{u}` upstream'in ilerisindeki yerel commit'leri siler.
+   Beşi de aynı kökten: **kullanıcının durumunu mutasyona uğratmak.** Klonda
+   mutasyon yok, ön koşul yok, temizlik `rm -rf` — hiçbiri kaybedilecek iş
+   taşımıyor.
+
+   Ret **iki gerekçeyi birden** taşımalı (aşağıda).
 
    Ret **iki gerekçeyi birden** taşımalı:
    `Changes must be made through a pull request.` ve
