@@ -330,11 +330,16 @@ def _davranis_satirlari(prompt, cfg, primary, task_class):
     return davranis.sozlesme(sahip(prompt, cfg, primary), task_class, risk)
 
 
-def _kaydet(prompt, cfg, pdir):
+def _kaydet(prompt, cfg, pdir, session=None, log=None):
     """Yönlendirme kararını görünür kayda yaz (best-effort; asla bloklamaz).
 
     Böylece `bin/durum.py` "ne yönlendirildi vs ne yüklendi" karşılaştırmasını
     ajanın beyanına değil kayda dayandırır.
+
+    `session` ZORUNLU bir alan değildir ama yazılmazsa kapı turu hangi
+    oturumun açtığını bilemez ve eşzamanlı iki oturum birbirinin kanıtını
+    sahiplenir (ölçüm 2026-08-15: 286 route olayının 0'ı session taşıyordu —
+    alan `run_event.ALLOWED` listesindeydi, yazan yoktu).
     """
     try:
         import importlib.util
@@ -346,11 +351,12 @@ def _kaydet(prompt, cfg, pdir):
         task_class, primary, extras, _hits, explicit = route(prompt, cfg, pdir)
         mod.append({
             "kind": "route",
+            "session": (session or "")[:8] or None,
             "task_class": task_class,
             "routed": (primary or {}).get("skill") or (explicit if explicit else None),
             "extras": extras,
             "intent": prompt,
-        }, mod.log_path(pdir=pdir))
+        }, log or mod.log_path(pdir=pdir))
     except Exception:
         pass
 
@@ -365,8 +371,11 @@ def main(argv=None):
         raw = sys.stdin.read()
     except Exception:
         return 0
+    session = ""
     try:
-        prompt = (json.loads(raw or "{}") or {}).get("prompt", "")
+        payload = json.loads(raw or "{}") or {}
+        prompt = payload.get("prompt", "")
+        session = payload.get("session_id") or ""
     except (ValueError, AttributeError):
         prompt = raw
     if not prompt or not prompt.strip():
@@ -377,7 +386,7 @@ def main(argv=None):
         context, summary = render(prompt, cfg, pdir, is_local)
     except Exception:
         return 0  # yönlendirme yardımdır; asla isteği bloklamaz
-    _kaydet(prompt, cfg, pdir)
+    _kaydet(prompt, cfg, pdir, session=session)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",

@@ -62,8 +62,20 @@ def _run_event():
     return mod
 
 
-def bu_turun_olaylari(olaylar):
-    """Son 'stop'tan sonraki olaylar = içinde bulunduğumuz tur."""
+def bu_turun_olaylari(olaylar, session=None):
+    """Bu oturumun son 'stop'undan sonraki olaylar = içinde bulunduğumuz tur.
+
+    Session süzmesi ZORUNLU değil ama olmadığında kapı yanlış şeyi görür:
+    olay kaydı tek dosyadır ve `.claude/worktrees/` altında eşzamanlı
+    oturumlar çalışır (2026-08-15'te bu repoda 5 worktree ölçüldü). Süzme
+    yokken B oturumunun testi A oturumunun düzenlemesine kanıt sayılıyordu.
+
+    `session` None ise süzme YAPILMAZ: kayıttaki eski satırlar bu alanı
+    taşımıyor ve onları yok saymak geçmiş kanıtı silmek olurdu (geriye uyum).
+    """
+    if session:
+        olaylar = [o for o in olaylar
+                   if o.get("session") in (None, session)]
     son_stop = -1
     for i, o in enumerate(olaylar):
         if o.get("kind") == "stop":
@@ -71,9 +83,9 @@ def bu_turun_olaylari(olaylar):
     return olaylar[son_stop + 1:]
 
 
-def duzenlenen_dosyalar(olaylar):
+def duzenlenen_dosyalar(olaylar, session=None):
     """Bu turda düzenlenen dosyalar (doğrulayıcı seçimi için)."""
-    return [o["file"] for o in bu_turun_olaylari(olaylar)
+    return [o["file"] for o in bu_turun_olaylari(olaylar, session)
             if o.get("kind") == "edit" and o.get("file")]
 
 
@@ -133,15 +145,18 @@ def degisen_satir_sayisi():
         return 0
 
 
-def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
+def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None, session=None):
     """(bulgular, imza) — bulgu listesi boşsa tur temiz demektir.
 
     dogrulayici: skill doğrulayıcılarının sonucu, DIŞARIDAN enjekte edilir
     (satir_sayisi deseni). Böylece bu fonksiyon saf kalır ve testler gerçek
     alt süreç koşturmadan her dalı deneyebilir.
+
+    session: verilirse tur penceresi o oturuma daraltılır (bkz.
+    bu_turun_olaylari).
     """
     dogrulayici = dogrulayici or {}
-    tur = bu_turun_olaylari(olaylar)
+    tur = bu_turun_olaylari(olaylar, session)
 
     duzenlenen, son_edit_idx = [], -1
     test_olaylari, skiller = [], []
@@ -165,9 +180,6 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
     kaynak = [f for f in duzenlenen
               if f.lower().endswith(KAYNAK_UZANTI) and not TEST_YOL.search(f)]
     riskli = [f for f in duzenlenen if RISK_YOL.search(f)]
-
-    imza = hashlib.sha256(
-        "|".join(sorted(set(duzenlenen))).encode("utf-8")).hexdigest()[:12]
 
     bulgular = []
     if kaynak:
@@ -240,7 +252,33 @@ def degerlendir(olaylar, satir_sayisi=0, dogrulayici=None):
             f"{len(kaynak)} kaynak dosyası / ~{satir_sayisi} satır değişti — "
             "bu boyut tek yazarın kendi denetimini aşar."))
 
-    return bulgular, imza
+    return bulgular, imzala(duzenlenen, bulgular, karsiliksiz + riskli)
+
+
+def imzala(duzenlenen, bulgular, ekler=()):
+    """Bu turun BORÇ imzası: dosyalar + bulgu türleri + borcun ÖZNESİ.
+
+    `ekler` borcun neye ait olduğunu ayırır: iki ayrı düzenlemesiz turda
+    farklı skill'ler karşılıksız kalırsa bulgu BAŞLIĞI aynıdır ("zorunlu
+    skill karşılıksız") ve yalnız başlığa bakan imza ikisini tek borç sayardı
+    — birinci blok ikinciyi muaf kılardı. Özne (karşılıksız skill adı, risk
+    dosyası) imzaya girer.
+
+    Neden bulgu türü de girer (2026-08-15 ölçümü): imza yalnız düzenlenen
+    dosyalardan üretiliyordu. Düzenleme yoksa `"|".join([])` boş dizeydi ve
+    imza SABİT `e3b0c44298fc` çıkıyordu — kayıttaki 92 gate olayının 39'u bu
+    imzayı taşıyordu ve `zaten_bloklandi` tüm geçmişte aradığı için ilki
+    dışındaki 38 tur "bu borç zaten bloklandı" sayılıp muaf kaldı. Yani kod
+    değiştirmeyen HER tur (araştırma, denetim, plan, sohbet) kalıcı olarak
+    kapı dışındaydı.
+
+    "Aynı borçla ikinci kez kapana kısılma" kuralı korunur (AGENTS.md), ama
+    "aynı borç" artık gerçekten aynı borçtur: farklı bulgu = farklı imza.
+    """
+    parcalar = (sorted(set(duzenlenen)) + sorted({b[1] for b in bulgular})
+                + sorted(set(ekler)))
+    return hashlib.sha256(
+        "|".join(parcalar).encode("utf-8")).hexdigest()[:12]
 
 
 def zaten_bloklandi(olaylar, imza):
@@ -275,9 +313,11 @@ def main(argv=None):
         except OSError:
             olaylar = []
 
+        session = (payload.get("session_id") or "")[:8] or None
         bulgular, imza = degerlendir(
             olaylar, degisen_satir_sayisi(),
-            dogrulayici_sonuclari(duzenlenen_dosyalar(olaylar)))
+            dogrulayici_sonuclari(duzenlenen_dosyalar(olaylar, session)),
+            session=session)
         bloklar = [b for b in bulgular if b[0] == "BLOK"]
         # Sonsuz döngü koruması: hook zaten blokladıysa ya da aynı imza daha
         # önce bloklandıysa tekrar bloklamaz — ama SESSİZ de kalmaz (aşağıda
