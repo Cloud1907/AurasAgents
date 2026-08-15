@@ -109,13 +109,19 @@ getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
   sarar; ezme kararı manifest'e değil kanonik git geçmişine dayanır. Ters
   yön `bin/auras_geri.py`.
 - **Uzak bütünlük sınırı KURULDU (2026-08-16).** `main` dal koruması altında:
-  `kernel` check'i required, `enforce_admins` açık, force-push ve dal silme
-  kapalı. Doğrulandı — yerel kanca `--no-verify` ile atlanarak yapılan
-  doğrudan push uzak taraftan reddedildi (`GH006: Protected branch update
-  failed`). Bu, sistemdeki TEK kapıdır ki agent'ın yazamadığı bir yerde
-  çalışır. Bedeli: `main`'e doğrudan push artık kimse için mümkün değil,
-  akış PR'dan geçer. Break-glass = korumayı bilinçle kapatmak; GitHub bunu
-  audit log'a yazar (süreli + gerekçeli + kayıtlı).
+  `kernel` required, **PR zorunlu** (`required_approving_review_count: 0`),
+  `enforce_admins` açık, force-push ve dal silme kapalı. Bu, sistemdeki TEK
+  kapıdır ki agent'ın yazamadığı bir yerde çalışır. Bedeli: `main`'e doğrudan
+  push kimse için mümkün değil (admin dâhil). Break-glass = korumayı bilinçle
+  kapatmak; GitHub audit log'a yazar (süreli + gerekçeli + kayıtlı).
+  - **PR zorunluluğu opsiyonel değildir.** Yalnız required status check ile,
+    check'i ZATEN GEÇMİŞ bir SHA doğrudan `main`'e itilebilir (dalı it, CI
+    koşsun, aynı commit'i main'e it). Bağımsız inceleme bunu P0 olarak
+    yakaladı ve ölçümle doğrulandı. Payload: `README.md`.
+  - **Kurulum ≠ yürürlük.** Ayar değişikliği saniyeler içinde yerleşir;
+    kurulumdan hemen sonraki push propagasyon penceresinden geçebilir
+    (2026-08-16'da yaşandı — koruma doğruydu, push geçti). Doğrulama
+    kurulumdan SONRA yapılır ve reddin **iki gerekçesi** birden aranır.
 
 ## Kapıların gerçek sınıfı
 

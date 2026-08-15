@@ -55,14 +55,32 @@ python3 bin/report.py --open
    ```bash
    gh api -X PUT repos/<owner>/<repo>/branches/main/protection --input - <<'JSON'
    {"required_status_checks":{"strict":true,"contexts":["kernel"]},
-    "enforce_admins":true,"required_pull_request_reviews":null,
+    "enforce_admins":true,
+    "required_pull_request_reviews":{"required_approving_review_count":0,
+                                     "dismiss_stale_reviews":true},
     "restrictions":null,"allow_force_pushes":false,"allow_deletions":false}
    JSON
    ```
 
-   `enforce_admins: true` şart: `false` bırakılırsa agent kullanıcının
-   yetkisiyle korumayı geçer ve sınır yalnız kazaya karşı bir hatırlatıcıya
-   döner. Kurduktan sonra DOĞRULA — `--no-verify` ile doğrudan push
-   reddedilmeli.
+   Üç alanın üçü de **şart**, biri eksikse sınır delik kalır:
+
+   - `enforce_admins: true` — `false` ise agent kullanıcının yetkisiyle
+     korumayı geçer; sınır yalnız kazaya karşı bir hatırlatıcıya döner.
+   - `required_pull_request_reviews` — **`null` YETMEZ.** Yalnız required
+     status check ile, check'i ZATEN GEÇMİŞ bir SHA doğrudan `main`'e
+     itilebilir: dalı it, CI koşsun, sonra aynı commit'i main'e it. Bağımsız
+     inceleme bunu P0 olarak yakaladı (2026-08-16) ve ölçümle doğrulandı.
+     `required_approving_review_count: 0` PR'ı zorunlu kılar ama ikinci bir
+     insan istemez — tek kişilik akışa uyar.
+   - `allow_force_pushes: false` — yoksa geçmiş yeniden yazılabilir.
+
+   **Kurduktan sonra DOĞRULA, hemen değil.** Ayar değişikliğinin yerleşmesi
+   saniyeler alır; kurulumdan hemen sonraki push propagasyon penceresinden
+   geçebilir (2026-08-16'da bizzat yaşandı — koruma doğruydu, push geçti).
+   Doğrulama: `git commit --allow-empty` + `git push --no-verify origin main`
+   → **iki gerekçeyle birden** reddedilmeli:
+   `Changes must be made through a pull request.` ve
+   `Required status check "kernel" is expected.`
+   Tek gerekçe görüyorsan sınır eksiktir.
 3. Codex Review app'ini repoya bağla (Review all PRs).
 4. claude.ai/code üzerinden repo'yu cloud session'a bağla.
