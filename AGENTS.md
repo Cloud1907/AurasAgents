@@ -95,7 +95,7 @@ getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
 | Kapı | Ne yapar | Bilinen sınırı |
 |---|---|---|
 | `bin/hooks/pre-push` | kernel doğrulama + sır/PII/geçmiş taraması + proje kapısı; hepsi fail-closed | `git push --no-verify` |
-| CI `evidence` job | aynı doğrulamayı bağımsız makinede tekrarlar | required check değil; **self-hosted runner'da bağımsızlık YOK** (`bin/kopru.py`, `runner.independent`) |
+| CI `evidence` job | aynı doğrulamayı bağımsız makinede tekrarlar; `main`'de **zorunlu** check — evidence.yml'ın tek job'ı `kernel` (ölçüm 2026-08-16, doğrula: `gh api .../branches/main/protection`) | köprü açıksa (`CI_RUNNER`, `bin/kopru.py`) **self-hosted runner'da bağımsızlık YOK** |
 | `bin/kapi.py` (Stop) | kanıtsız tur kapanmaz: test / inceleme / tıklama | olay kaydı silinirse susar |
 | `bin/incele.py` | merge yolu: P0 → RED, P1/araç-yok → insan, `deny` → insan | `gh pr merge` doğrudan |
 | `bin/kalite.py --check` | borç büyümesini bloklar (ADR-0004) | taban bilinçle yükseltilir |
