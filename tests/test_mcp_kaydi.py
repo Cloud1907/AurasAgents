@@ -35,6 +35,9 @@ def _load(name):
 
 
 yetki = _load("yetki")
+# Sınıf listesi TEK kaynaktan (bin/dogrula_sema.py) — bu dosya
+# kümeyi ayrıca yazınca dördüncü kopya oluyordu.
+dogrula_sema = _load("dogrula_sema")
 
 
 @pyyaml_gerekir
@@ -57,12 +60,45 @@ class McpKaydiTest(unittest.TestCase):
 
     def test_her_sunucu_gorev_sinifina_bagli(self):
         """Hangi sınıfın kullanabileceği yazılmadan izin sınırı olmaz."""
-        gecerli = {"code-change", "research", "incident"}
+        gecerli = set(dogrula_sema.GOREV_SINIFLARI)
         for s in self.sunucular:
             sinif = set(s.get("task_class") or [])
             self.assertTrue(sinif, f"{s.get('ad')}: task_class yok")
             self.assertTrue(sinif <= gecerli,
                             f"{s.get('ad')}: geçersiz sınıf {sinif - gecerli}")
+
+    def test_her_sunucu_calisma_bicimini_beyan_eder(self):
+        """`tur`: yerel (stdio, repo üretir) mi, uzak (OAuth) mu.
+
+        Ayrım 2026-08-16'da eklendi. Öncesinde uzak connector'lar
+        `.mcp.json`'a KAZAYLA düşmüyordu: `komut` alanları olmadığı için
+        üreticinin koşuluna takılmıyorlardı. Sessiz doğruluk sözleşme
+        değildir — alan bir gün varsayılan alsa, kimlik doğrulamalı bir SaaS
+        sessizce repo yapılandırmasına inerdi.
+        """
+        for s in self.sunucular:
+            self.assertIn(s.get("tur"), ("yerel", "uzak"),
+                          f"{s.get('ad')}: `tur` yerel|uzak olmalı")
+
+    def test_uzak_sunucu_repo_yapilandirmasina_INMEZ(self):
+        """Uzak connector oturum düzeyindedir; repo onu üretemez.
+
+        Kayıt onu YÖNETİR (amaç, sınıf, ağ beyanı, profil sınırı) ama
+        `.mcp.json`'a yazmaz — yazsaydı motor, kuramayacağı bir şeyi kurmuş
+        gibi görünürdü.
+        """
+        uretilen = yetki.mcp_politikasi(ROOT)["mcpServers"]
+        for s in self.sunucular:
+            if s.get("tur") == "uzak":
+                self.assertNotIn(s["ad"], uretilen,
+                                 f"{s['ad']}: uzak sunucu .mcp.json'a düşmüş")
+
+    def test_uzak_sunucu_tasinabilir_olamaz(self):
+        """Taşınacak bir yapılandırma YOK — `tasinabilir: true` yalan olurdu."""
+        for s in self.sunucular:
+            if s.get("tur") == "uzak":
+                self.assertFalse(s.get("tasinabilir"),
+                                 f"{s['ad']}: uzak sunucu taşınabilir olamaz")
 
     def test_her_sunucu_ag_erisimini_beyan_eder(self):
         """`network.mode: allowlist` iddiasının MCP ayağı."""

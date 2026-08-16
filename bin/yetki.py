@@ -182,6 +182,13 @@ def mcp_politikasi(kok=ROOT):
         izinli.update(veri.get("mcp") or [])
     sunucular = {}
     for s in kayit.get("sunucular") or []:
+        # UZAK sunucu ÜRETİLMEZ ve bu artık AÇIKÇA söylenir. Önceden aynı
+        # sonuç KAZAYLA çıkıyordu: uzak connector'ın `komut` alanı yok, o
+        # yüzden alttaki koşula takılmıyordu. Sessiz doğruluk, sözleşme
+        # değildir — `komut` alanı bir gün varsayılan alırsa kimlik
+        # doğrulamalı bir SaaS sessizce `.mcp.json`'a düşerdi.
+        if s.get("tur", "yerel") != "yerel":
+            continue
         # Taşınamayan sunucu ÜRETİLMEZ: başlatma komutu makineye özel mutlak
         # yoldur ve bu repo public'tir. Kayıtta durur (yönetim + gerekçe),
         # kurulum kullanıcının global yapılandırmasında kalır.
