@@ -53,6 +53,8 @@ MOTOR = [
     "bin/surec.py",
     "bin/tur.py", "bin/risk.py",   # incele.py'nin bağımlılıkları — birlikte taşınmalı
     "bin/codex-review.sh",
+    "bin/kopru.py",         # kanıt köprüsü; taşınmazsa kotası biten proje bloke
+                            # kalır ve public-repo reddi elle keşfedilmek zorunda
     "bin/install-hooks.sh", "bin/hooks/pre-push",
     "schemas/evidence.schema.json",
     ".github/workflows/evidence.yml",
