@@ -83,7 +83,25 @@ class KarsilamaEnjeksiyonTest(unittest.TestCase):
         return route.render(prompt, self.cfg, pdir=ROOT)[0]
 
     def test_gecmis_kayittan_enjekte_edilir(self):
-        # Asıl sözleşme: tarihli kayıt prompt'un İÇİNDE gelir.
+        """Asıl sözleşme: tarihli kayıt prompt'un İÇİNDE gelir.
+
+        Kayıt KENDİ fixture'ımızdan verilir, ortamdan DEĞİL. Ölçüm 2026-08-16:
+        test kanonik repo'nun git geçmişine dayanıyordu ve `tests/` her bağlı
+        projeye taşındığı için TAZE KURULUM KIRMIZI BAŞLIYORDU — yeni repoda
+        eşleşecek commit yok, olması da beklenmez. Bu tam olarak kernel'in
+        kendi yasakladığı hâl: "kutudan kırmızı çıkan kurulum, insana kapıyı
+        baştan yok saymayı öğretir" (4Flow, 2026-08-07).
+
+        Ortam verisiyle test edilen şey mekanizma değil, o repo'nun tarihidir.
+        Boş kayıt hâli zaten ayrı testte (`test_kayit_yoksa_uydurulmaz`).
+        """
+        enjekte = getattr(route, "enjekte", None)
+        if enjekte is None:                      # router degrade modda
+            self.skipTest("enjekte modülü yüklenmemiş")
+        gercek = enjekte.hatirla.karsilama_kayitlari
+        enjekte.hatirla.karsilama_kayitlari = lambda *a, **k: [
+            ("2026-08-15", "commit abc1234  Kalite ratchet tabanı yükseltildi")]
+        self.addCleanup(setattr, enjekte.hatirla, "karsilama_kayitlari", gercek)
         metin = self.ciktı("kalite ratchet tabanını yükseltelim mi")
         self.assertIn("📌 Geçmiş", metin)
         self.assertRegex(metin, TARIH.pattern,
