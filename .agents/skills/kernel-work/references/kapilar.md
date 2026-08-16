@@ -161,6 +161,82 @@ Enjeksiyon TALİMAT taşır, GEREKÇE taşımaz: maliyeti tur sayısıyla çarp�
 Tavan bekçisi `tests/test_baglam_butcesi.py`; gerekçenin yeri AGENTS.md
 "Davranış sözleşmesi" bölümüdür.
 
+## `bin/kopru.py` — kanıt köprüsü (kotanın kapıyı öldürmesini engeller)
+
+### Neyi çözer
+
+Private repolarda ücretsiz Actions kotası (2000 dk/ay) bitince GitHub işleri
+BAŞLATMAZ — job 3 saniyede ölür, log yoktur, yalnız şu anotasyon kalır:
+*"The job was not started because recent account payments have failed or your
+spending limit needs to be increased."* Sonuç: testler koşmaz, `evidence.json`
+üretilmez, PR'lar kilitlenir. Kapı bozulmaz — **kapının beslendiği kaynak kesilir.**
+
+Ölçüm 2026-08-16 (Cloud1907): 2000/2000 dakika 16 günde tükendi, borç YOK
+(13.21 $ tüketim − 13.21 $ indirim = 0 $), abonelik yok. Aynı gün 4Flow'da 9 PR
+bloke, `oicommand-connector` saatlik monitörü sürekli kırmızı.
+
+### Nasıl çalışır
+
+Tek anahtar: repo değişkeni `CI_RUNNER`. Workflow'lar
+`runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}` yazar.
+
+| Değişken | Nereye gider |
+|---|---|
+| set (`mac-bridge`) | yerel self-hosted runner |
+| silinmiş | GitHub runner — kendiliğinden döner |
+
+`|| 'ubuntu-latest'` yedeği ZORUNLUDUR: yalnız `${{ vars.CI_RUNNER }}` yazılırsa
+değişken silindiğinde `runs-on` boş kalır ve iş sonsuza kadar `queued` bekler —
+kırmızı değil, sessiz kilitlenme. `tests/test_kopru.py` bunu kilitler.
+
+### Sert kapı: PUBLIC repo reddi
+
+Public repoda self-hosted runner, **PR açabilen herkese** kurucunun makinesinde
+kod çalıştırma hakkı verir. `kur()` `PRIVATE` dışındaki her görünürlüğü (ve
+okunamayan görünürlüğü) reddeder — beyaz liste, fail-closed. Ret kurulumu
+başlatmadan döner; "sonra temizleriz" yok.
+
+### Ne KAYBEDİLİR — abartma yasağının buradaki karşılığı
+
+AGENTS.md CI kapısını *"aynı doğrulamayı BAĞIMSIZ makinede tekrarlar"* diye
+tanımlar. Köprü açıkken bu **yanlıştır**: kanıtı üreten makine ile kodu yazan
+makine aynıdır, ortak güven kökü kullanıcının kendisidir — yani CI, yerel guard
+setinin bir üyesi hâline gelir. Ek olarak runner kullanıcının yetkisiyle koşar;
+`~/.npm`, `~/.nuget`, `~/Library/Caches` geliştirme ortamıyla ORTAKTIR. Hız
+buradan gelir, "temiz makine" garantisi de burada kaybolur.
+
+Bu yüzden ayrım kanıdın İÇİNE yazılır, dışına değil:
+
+```json
+"runner": { "environment": "self-hosted", "independent": false, "name": "mac-m4-bridge" }
+```
+
+`independent` yalnız `github-hosted`'da `true`'dur; yokluk ve bilinmeyen değer
+`false` sayılır (fail-closed). Kanıt yine ÜRETİLİR — engellemek kullanıcıyı
+kanıtsız çalışmaya iter, doğru davranış etiketlemektir. Bekçi:
+`tests/test_kanit_kaynagi.py`.
+
+### Ölçülmüş sınırlar
+
+- Runner kaydı **repo seviyesindedir**. Kişisel hesapta organizasyon runner
+  havuzu yoktur (`/orgs/<kullanıcı>/actions/runners` → 404), her repo kendi
+  kaydını yapar. Aynı makine hepsine ev sahipliği yapabilir.
+- **Artifact yükleme hâlâ GitHub kotasındadır** (500 MB). Köprü dakikayı
+  kurtarır, depoyu kurtarmaz.
+- **Actions cache servisi kotası bitmiş hesapta yanıt vermez.** `setup-node`'un
+  POST `cache-save` adımı 15+ dakika asılı kalır ve iş `in_progress` takılır —
+  testler geçtiği hâlde. Köprü modunda önbellek kapatılır (ölçüm 2026-08-16:
+  önbelleksiz koşan 3 iş sorunsuz bitti, önbellekli 2 iş asıldı).
+- Platforma bağlı adımlar elle kontrol edilir: sabitlenmiş ikili mimarisi
+  (`gitleaks_*_linux_x64`), `playwright --with-deps` (yalnız Ubuntu), PEP 668
+  (`pip install` Homebrew python3'te reddedilir).
+
+### Geri dönüş
+
+`python3 bin/kopru.py --kaldir SAHIP/REPO` — runner kayıtlarını ve `CI_RUNNER`
+değişkenini siler. Köprünün tek meşrulaştırıcısı GEÇİCİ olmasıdır; kalıcılaşırsa
+sistem kanıt katmanını sessizce kaybeder ve belge yanlış güven kaynağı olur.
+
 ## Bilinen açık
 
 Private repo + Free plan'da dal koruması kapalıdır; koruma yerel kanca +

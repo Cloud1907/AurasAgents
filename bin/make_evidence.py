@@ -30,6 +30,39 @@ def git_sha() -> str:
         return "0" * 40
 
 
+def runner_kaynagi() -> dict:
+    """Kanıtı ÜRETEN makinenin cinsi — bağımsız mı, değil mi.
+
+    Neden kanıdın içinde: AGENTS.md CI kanıtını "aynı doğrulamayı BAĞIMSIZ
+    makinede tekrarlar" diye tanımlar. Self-hosted runner'da bu yanlıştır —
+    kanıtı üreten makine ile kodu yazan makine aynı, ortak güven kökü
+    kullanıcının kendisi. Ayrım burada durmazsa (PR yorumunda, sohbette,
+    kimsenin hatırlamadığı bir yerde durursa) altı ay sonra bakan kimse
+    hangi evidence.json'ın bağımsız olduğunu ayırt edemez.
+
+    GitHub `RUNNER_ENVIRONMENT`i kendisi set eder: github-hosted | self-hosted.
+    Yokluğu "yerel koşum" demektir ve bağımsız SAYILMAZ (fail-closed).
+    """
+    ortam = os.environ.get("RUNNER_ENVIRONMENT", "")
+    return {
+        "environment": ortam if ortam else "local",
+        "independent": ortam == "github-hosted",
+        "name": os.environ.get("RUNNER_NAME", ""),
+    }
+
+
+def risk_alani(provisional, final) -> dict:
+    """Risk iki kez hesaplanır (ön sınıf form'dan, nihai sınıf diff'ten); ikisi
+    de verilmemişse alan hiç yazılmaz — boş sözlük "risk ölçüldü, sonuç yok"
+    diye okunurdu."""
+    risk = {}
+    if provisional:
+        risk["provisional"] = provisional
+    if final:
+        risk["final"] = final
+    return risk
+
+
 def sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -101,16 +134,14 @@ def main() -> int:
             "model": args.model,
             "skills_used": args.skill,
         },
+        "runner": runner_kaynagi(),
         "checks": checks,
     }
     if digests:
         evidence["digests"] = digests
-    if args.risk_provisional or args.risk_final:
-        evidence["risk"] = {}
-        if args.risk_provisional:
-            evidence["risk"]["provisional"] = args.risk_provisional
-        if args.risk_final:
-            evidence["risk"]["final"] = args.risk_final
+    risk = risk_alani(args.risk_provisional, args.risk_final)
+    if risk:
+        evidence["risk"] = risk
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(evidence, f, ensure_ascii=False, indent=2)
