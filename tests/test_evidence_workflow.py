@@ -98,6 +98,43 @@ class EvidenceWorkflowTest(unittest.TestCase):
             self.assertIn(parca, metin, f"evidence.yml '{parca}' kaybetmiş")
 
 
+class PyyamlKurulumuTest(unittest.TestCase):
+    """Kanıt workflow'u kurulamadığı makinede kanıt üretemez.
+
+    Ölçüm 2026-08-16 (OICommand, kanıt köprüsü): Homebrew/sistem python3'ü
+    çıplak `pip install`i PEP 668 ile REDDEDER (externally-managed-environment).
+    GitHub'ın kendi imajında bu sorun yoktu; self-hosted runner'a geçilince
+    kernel job'ı İLK adımda düştü ve hiçbir check koşamadı.
+
+    İki şey birden korunmalı ve biri diğerinin yerine geçmez:
+      - geri düşüş olmalı (yoksa köprüde kanıt üretilemez),
+      - sürüm sabiti HER yolda kalmalı (yoksa "aynı doğrulama bağımsız
+        makinede tekrarlanır" iddiası bozulur — her koşu başka sürüm çeker).
+    """
+
+    def setUp(self):
+        self.adim = next(
+            (a for a in yaml.safe_load(oku(WF))["jobs"]["kernel"]["steps"]
+             if "PyYAML" in (a.get("name") or "")), None)
+        self.assertIsNotNone(self.adim, "PyYAML kurulum adımı kaybolmuş")
+        self.komut = self.adim.get("run", "")
+
+    def test_pep668_geri_dususu_var(self):
+        self.assertTrue(
+            "--break-system-packages" in self.komut or "--user" in self.komut,
+            "PEP 668 geri düşüşü yok — self-hosted runner'da kernel job'ı "
+            "ilk adımda düşer ve hiçbir kanıt üretilemez")
+
+    def test_surum_sabiti_her_yolda_korunur(self):
+        yollar = [s for s in self.komut.split("||") if "pip install" in s]
+        self.assertGreaterEqual(len(yollar), 2, "geri düşüş yolu yok")
+        for y in yollar:
+            self.assertRegex(
+                y, r"pyyaml==\d+\.\d+",
+                "geri düşüş yolu sürüm sabitini düşürmüş — kurulum yolu "
+                "değişebilir, KURULAN SÜRÜM değişemez")
+
+
 if __name__ == "__main__":
     unittest.main()
 

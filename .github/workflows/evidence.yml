@@ -28,7 +28,15 @@ jobs:
         # Sürüm sabit: `pyyaml` çıplak yazıldığında her koşu farklı sürüm
         # çekebilir ve "aynı doğrulama bağımsız makinede tekrarlanır" iddiası
         # bozulur.
-        run: python3 -m pip install --quiet "pyyaml==6.0.3"
+        # PEP 668 geri düşüşü: Homebrew/sistem python3'ü çıplak `pip install`i
+        # externally-managed-environment ile REDDEDER. GitHub imajında sorun
+        # yoktu; self-hosted runner'da (kanıt köprüsü) kernel job'ı ilk adımda
+        # düşüyordu — ölçüm 2026-08-16, OICommand. Sürüm sabiti her dalda
+        # KORUNUR: geri düşüş kurulum yolunu değiştirir, sürümü değil.
+        run: |
+          python3 -m pip install --quiet "pyyaml==6.0.3" \
+            || python3 -m pip install --quiet --user "pyyaml==6.0.3" \
+            || python3 -m pip install --quiet --break-system-packages "pyyaml==6.0.3"
 
       - name: Kernel doğrulama
         run: python3 bin/validate.py
