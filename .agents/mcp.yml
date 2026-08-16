@@ -92,6 +92,49 @@ sunucular:
       otoritesi doğurmasın diye daraltıldı — `bin/hatirla.py` kanonik
       kayıttan okur, bu ondan ayrı bir kanaldır.
 
+  # --- UZAK (OAuth connector) — ADR-0005 ---
+  # Bunlar stdio sunucusu DEĞİL: başlatma komutları yok, yapılandırmaları
+  # oturum düzeyinde yaşar. Motor onları `.mcp.json`'a YAZMAZ; burada yalnız
+  # YÖNETİLİRLER (amaç, sınıf, ağ beyanı, profil sınırı). Kullanım için
+  # kullanıcının interaktif bir oturumda yetkilendirmesi şarttır — ajan
+  # kimlik doğrulama akışını koşamaz ve token istemez.
+
+  - ad: figma
+    tur: uzak
+    amac: 'Tasarım dosyası okuma: bileşen, stil (renk/tipografi/boşluk) ve
+      ekran akışı. Uygulanmış arayüzle tasarımı karşılaştırmayı mümkün kılar —
+      "tasarımda ne yazıyordu" sorusu ekran görüntüsü tahminine kalmaz.'
+    tasinabilir: false
+    task_class: [design]
+    ag: acik
+    kanit: none
+    not: Yetki gerektirir (OAuth). Yetkisizken araçları çağrılamaz; ajan grep
+      ve ekran görüntüsüne düşer — bozulma değil, düşüş.
+
+  - ad: canva
+    tur: uzak
+    amac: 'Pazarlama görseli üretimi ve marka şablonu uygulaması. Sosyal/
+      kampanya varlıklarının elle tasarlanmasının yerine geçer.'
+    tasinabilir: false
+    task_class: [design]
+    ag: acik
+    kanit: none
+    not: Yetki gerektirir (OAuth). Ürettiği varlık ürün artefaktıdır; bu repoya
+      değil, bağlı ürün/pazarlama repo'suna iner (ADR-0005 kapsam notu).
+
+  - ad: nim
+    tur: uzak
+    amac: 'Video ve görsel üretimi (Seedance/Nano Banana Pro/GPT Image 2):
+      b-roll, UGC hook, ürün çekimi, upscale. Pazarlama içeriğinin tek üretim
+      yüzeyi.'
+    tasinabilir: false
+    task_class: [design]
+    ag: acik
+    kanit: none
+    not: Yetki + kredi gerektirir. Kredi bitince araç hata döner; bu bir kapı
+      ihlali DEĞİL ölçüm yokluğudur (AGENTS.md "ölçüm yokluğu ihlal değildir").
+
+
 not_kayitli:
   - ad: unitask
     reason: >-

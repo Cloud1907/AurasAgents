@@ -76,7 +76,7 @@ hesaplanamaz; form alanları makine-okunur olmalı:
 |---|---|
 | Hedef | Tek cümle, sonuç odaklı |
 | Kabul kriterleri | EARS formatı ("X olduğunda sistem Y yapmalı") — teste 1:1 eşlenir |
-| Görev sınıfı | `code-change` / `research` / `incident` → capability profilini seçer (§5) |
+| Görev sınıfı | `code-change` / `research` / `incident` / `design` → capability profilini seçer (§5; `design` ADR-0005) |
 | Kapsam | İzinli path'ler / kapsam dışı alanlar |
 | Risk sınıfı | Ön (provisional) sınıf; diff sonrası statik kurallarla yeniden hesaplanır (§6) |
 | Zorunlu kanıt | Hangi check/artifact başarıyı gösterir |
@@ -112,7 +112,9 @@ değerlendirilir.
 *belirleyemez*.
 
 1. Issue Form'daki görev sınıfı → `.agents/capability-profiles/` altındaki 3
-   statik profilden birini seçer: `code-change` / `research` / `incident`.
+   statik profilden birini seçer: `code-change` / `research` /
+   `incident` / `design` (dördüncüsü 2026-08-16'da eklendi — ADR-0005;
+   tek taraflı değişiklik, gerekçesi orada).
 2. Profil, izinli skill/tool/network kümesini belirler (düz YAML, servis yok).
 3. Model **yalnız bu küme içinde** native progressive disclosure ile seçer
    (iyi yazılmış `description` = küme-içi resolver).

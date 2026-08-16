@@ -20,6 +20,7 @@ body:
         - code-change
         - research
         - incident
+        - design
     validations:
       required: true
   - type: textarea

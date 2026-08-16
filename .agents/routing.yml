@@ -302,6 +302,22 @@ always_add:
 # (bekçi: bin/validate.py test_routing). Buraya yazmak "unuttum" değil
 # "kasten dışarıda" demektir.
 not_routed:
+  # 2026-08-16 (ADR-0005): `design` sınıfı YÖNLENDİRİLMİYOR — iki ayrı sebep.
+  #
+  # (a) ÜRETİM ayağı: video/görsel/kampanya için YÖNETİLEN skill yok. Nim ve
+  #     Canva skill'leri eklenti kaynaklıdır, `.agents/skills/` altında
+  #     değildir. Skill yayın koşulu üçlüdür (eval + tetik + profil kaydı);
+  #     eval'siz skill uydurmak tam da bu dosyanın engellediği şeydir.
+  #
+  # (b) DENETİM ayağı: kural yazıldı, CANLI DENENDİ ve GERİ ALINDI. Ölçüm —
+  #     `lighthouse çalıştır` kuralı doğru eşleştirdi ama `niyet.py`
+  #     `_okuma_sinifi` sınıfı `design` → `research` düşürdü: o kod "research"i
+  #     TEK salt-okunur sınıf sayıyor. Sonuç, `design` profilindeki
+  #     chrome-devtools'u kaybeden bir SEO kuralı olurdu — yani çalışmayan
+  #     ama çalışır görünen bir yönlendirme. İkinci salt-okunur sınıfı
+  #     tanıtmak router'ın güvenlik kapısına dokunur; ayrı PR ister.
+  #
+  # Bu arada `design` sınıfı ÇALIŞIR: issue form'dan seçilir, /komutla açılır.
   - skill: aurasprime
     reason: >-
       Kelime tetiğiyle seçilmez çünkü BELİRLİ bir işin skill'i değil, her
