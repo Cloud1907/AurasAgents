@@ -34,6 +34,7 @@ schema_version: 1
 
 sunucular:
   - ad: codegraph
+    tur: yerel
     amac: >-
       Kod indeksi: sembol, çağrı grafiği ve dosya haritası. Keşif turlarında
       onlarca grep/read çağrısının yerine 1-2 çağrı geçer — doğrudan tur
@@ -48,6 +49,7 @@ sunucular:
       hata döner ve ajan grep'e düşer — bozulma değil, düşüş.
 
   - ad: chrome-devtools
+    tur: yerel
     amac: >-
       Tarayıcıda gerçek etkileşim: tıklama, ekran görüntüsü, konsol/ağ
       kaydı. Görünür yüzey değişikliğinde tur kapısının istediği TIKLAMA
@@ -62,6 +64,7 @@ sunucular:
       Bunu "allowlist" diye yazmak yalan olurdu.
 
   - ad: agent-ofis
+    tur: yerel
     amac: >-
       Agent Ofis köprüsü: proje manifesti, run durumu, kalite metrikleri,
       vault okuma. Orkestrasyon Agent Ofis'te kalır (2026-07-26 kararı);
@@ -73,6 +76,7 @@ sunucular:
     kanit: none
 
   - ad: agentmemory
+    tur: yerel
     amac: >-
       Oturumlar arası not defteri — disposable yerel önbellek. AGENTS.md
       hafıza hiyerarşisinin 3. KATMANIDIR: hiçbir iş ona bağımlı olamaz,

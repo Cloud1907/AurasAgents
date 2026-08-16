@@ -37,6 +37,14 @@ import dogrula_ci  # noqa: E402
 dogrula_ci.kur(check)
 test_workflow = dogrula_ci.test_workflow
 test_evidence_roundtrip = dogrula_ci.test_evidence_roundtrip
+# Görev sınıfı sözleşmesi de ayrı modülde (bin/dogrula_sema.py): sınıf
+# listesinin TEK tanımı orada — dört kopya sürüklenme üretiyordu.
+import dogrula_sema  # noqa: E402
+from dogrula_sema import GOREV_SINIFLARI  # noqa: E402
+
+dogrula_sema.kur(check)
+test_profiles = dogrula_sema.test_profiles
+test_issue_form = dogrula_sema.test_issue_form
 
 
 def _bin_modul(ad):
@@ -105,58 +113,6 @@ def test_skills():
         names.append(d)
     check(len(names) >= 4, f"en az 4 çekirdek skill bekleniyor, {len(names)} var")
     return set(names)
-
-
-def test_profiles(skill_names):
-    """Profilleri doğrular ve sınıf→izinli skill kümesini döndürür."""
-    prof_dir = os.path.join(ROOT, ".agents", "capability-profiles")
-    required_classes = {"code-change", "research", "incident"}
-    seen, izinli_kume = set(), {}
-    for f in sorted(os.listdir(prof_dir)):
-        if not f.endswith(".yml"):
-            continue
-        path = os.path.join(prof_dir, f)
-        data = yaml.safe_load(open(path, encoding="utf-8"))
-        tc = data.get("task_class")
-        seen.add(tc)
-        izinli_kume[tc] = set(data.get("skills") or [])
-        check(f == f"{tc}.yml", f"profil {f}: dosya adı task_class ile uyuşmuyor")
-        for key in ("schema_version", "skills", "tools", "network",
-                    "mcp", "evidence_required", "risk"):
-            check(key in data, f"profil {f}: '{key}' alanı eksik")
-        for s in data.get("skills", []):
-            check(s in skill_names,
-                  f"profil {f}: tanımsız skill '{s}' (kayıtlı: {sorted(skill_names)})")
-        risk = data.get("risk", {})
-        check(risk.get("escalation") == "upward_only",
-              f"profil {f}: risk.escalation 'upward_only' olmalı")
-        net = data.get("network", {})
-        check(net.get("mode") in ("allowlist", "open-web", "none"),
-              f"profil {f}: geçersiz network.mode '{net.get('mode')}'")
-    check(seen >= required_classes,
-          f"eksik profil sınıfı: {required_classes - seen}")
-    return izinli_kume
-
-
-def test_issue_form():
-    path = os.path.join(ROOT, ".github", "ISSUE_TEMPLATE", "work-contract.yml")
-    check(os.path.isfile(path), "work-contract.yml issue form yok")
-    if not os.path.isfile(path):
-        return
-    data = yaml.safe_load(open(path, encoding="utf-8"))
-    ids = {b.get("id") for b in data.get("body", []) if isinstance(b, dict)}
-    for needed in ("hedef", "gorev-sinifi", "kriterler", "kapsam",
-                   "on-risk", "kanit"):
-        check(needed in ids, f"issue form: '{needed}' alanı eksik")
-    dropdowns = {b.get("id"): b for b in data.get("body", [])
-                 if isinstance(b, dict) and b.get("type") == "dropdown"}
-    if "gorev-sinifi" in dropdowns:
-        opts = set(dropdowns["gorev-sinifi"]["attributes"]["options"])
-        check(opts == {"code-change", "research", "incident"},
-              f"issue form: görev sınıfı seçenekleri profillere uymuyor: {opts}")
-    required_flags = [b.get("validations", {}).get("required")
-                      for b in data.get("body", []) if isinstance(b, dict)]
-    check(all(required_flags), "issue form: tüm alanlar zorunlu olmalı")
 
 
 def test_kapsam_siniri_yazili():
@@ -308,7 +264,7 @@ def test_routing(skill_names, profil_skills=None):
     for rule in cfg.get("rules", []):
         skill = rule.get("skill")
         check(skill, f"routing kuralı 'skill' alanı taşımıyor: {rule}")
-        check(rule.get("task_class") in ("code-change", "research", "incident"),
+        check(rule.get("task_class") in GOREV_SINIFLARI,
               f"routing '{skill}': geçersiz task_class '{rule.get('task_class')}'")
         trig = rule.get("triggers") or []
         check(len(trig) >= 3,

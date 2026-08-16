@@ -54,6 +54,7 @@ MOTOR = [
                             # bağlı projede profil yine yalnız beyan kalır
     "bin/kapsam_bekcisi.py",
     "bin/dogrula_ci.py",    # validate.py'nin CI/kanıt doğrulayıcıları
+    "bin/dogrula_sema.py",  # görev sınıfı sözleşmesi + sınıf listesinin tek tanımı
     "bin/kalite.py",
     "bin/kalite_rapor.py",  # kalite.py'nin insan raporu (import'ta şart)
     "bin/olukod.py",     # ölü kod tespiti — kalite.py'nin bağımlılığı
