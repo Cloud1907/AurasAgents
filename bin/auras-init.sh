@@ -241,10 +241,15 @@ echo "Yetki politikasi (profil -> motor):"
 "$PY" bin/yetki.py --uygula 2>&1 | sed 's/^/  /'
 
 # Disposable kayit repoya sizmasin (auras tekrar kosuldugunda da garanti).
-if ! grep -q "^\.agents/runtime" "$TARGET/.gitignore" 2>/dev/null; then
-  printf '.agents/runtime/\n' >> "$TARGET/.gitignore"
-  echo "  .gitignore: .agents/runtime/ eklendi"
-fi
+# .codegraph/: MCP kaydindaki kod indeksi — makineye ozel, yeniden uretilebilir,
+# megabaytlarca. Commit edilirse her projede gereksiz agirlik ve gurultu olur.
+for satir in ".agents/runtime/" ".codegraph/"; do
+  desen="^$(printf '%s' "$satir" | sed 's/[.[\*^$]/\\&/g')"
+  if ! grep -q "$desen" "$TARGET/.gitignore" 2>/dev/null; then
+    printf '%s\n' "$satir" >> "$TARGET/.gitignore"
+    echo "  .gitignore: $satir eklendi"
+  fi
+done
 
 # gitleaks kullanan projede kernel manifest'ini muaf tut. Manifest yalniz
 # sha256 ozeti tasir ama generic-api-key kurali uzun hex'i anahtar sanar;
