@@ -152,6 +152,46 @@ def salt_okunur_skiller(kok=ROOT):
     return sorted(okuyanlar - yazanlar)
 
 
+def mcp_kaydi(kok=ROOT):
+    """`.agents/mcp.yml` — MCP sunucularının kanonik kaydı (yoksa boş)."""
+    try:
+        import yaml
+    except ImportError:
+        return {}
+    try:
+        with open(os.path.join(kok, ".agents", "mcp.yml"), encoding="utf-8") as fh:
+            return yaml.safe_load(fh) or {}
+    except (OSError, Exception):                          # noqa: BLE001
+        return {}
+
+
+def mcp_politikasi(kok=ROOT):
+    """Profil sınırının İZİN VERDİĞİ sunucular → `.mcp.json` gövdesi.
+
+    Skill'lerle aynı ilke (AGENTS.md): profil izin sınırıdır, kayıt o sınır
+    içinden seçim yapar. Kayıtta olup hiçbir profilde geçmeyen sunucu
+    ÜRETİLMEZ — ulaşılamayan izin, olmayan sınırdır.
+
+    Sınır dürüstçe: Claude Code MCP yapılandırması OTURUM genelindedir, tur
+    başına değişmez. Yani `mcp:` alanı hangi sınıfın hangi sunucuyu
+    kullanmasının DOĞRU olduğunu söyler; motor bunu tur başına zorlayamaz.
+    Zorlanan tek şey, hiçbir profilde geçmeyen sunucunun hiç üretilmemesidir.
+    """
+    kayit = mcp_kaydi(kok)
+    izinli = set()
+    for veri in profiller(kok).values():
+        izinli.update(veri.get("mcp") or [])
+    sunucular = {}
+    for s in kayit.get("sunucular") or []:
+        # Taşınamayan sunucu ÜRETİLMEZ: başlatma komutu makineye özel mutlak
+        # yoldur ve bu repo public'tir. Kayıtta durur (yönetim + gerekçe),
+        # kurulum kullanıcının global yapılandırmasında kalır.
+        if s.get("ad") in izinli and s.get("tasinabilir") and s.get("komut"):
+            komut = list(s["komut"])
+            sunucular[s["ad"]] = {"command": komut[0], "args": komut[1:]}
+    return {"mcpServers": sunucular}
+
+
 def politika(kok=ROOT):
     """Claude Code izin politikası (deny listesi)."""
     deny = []
@@ -229,6 +269,20 @@ def _settings_yaz(kok, pol):
     return True
 
 
+def mcp_eksikleri(kok=ROOT):
+    """`.mcp.json` politikadan geride mi (drift ölçüsü)."""
+    beklenen = mcp_politikasi(kok)["mcpServers"]
+    try:
+        with open(os.path.join(kok, ".mcp.json"), encoding="utf-8") as fh:
+            mevcut = (json.load(fh) or {}).get("mcpServers") or {}
+    except (OSError, ValueError):
+        mevcut = {}
+    eksik = [a for a in beklenen if a not in mevcut]
+    # Kayıtsız sunucu yapılandırılamaz — ters yön de drift'tir.
+    fazla = [a for a in mevcut if a not in beklenen]
+    return eksik, fazla
+
+
 def eksikler(kok=ROOT):
     """Politikanın settings.json'da BULUNMAYAN kuralları (drift ölçüsü)."""
     try:
@@ -251,19 +305,35 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     eksik = eksikler(args.kok)
+    mcp_eksik, mcp_fazla = mcp_eksikleri(args.kok)
     if args.check:
-        if eksik:
-            print("YETKİ POLİTİKASI GERİDE — settings.json'da eksik kural:")
+        if eksik or mcp_eksik or mcp_fazla:
+            print("YETKİ POLİTİKASI GERİDE:")
             for k in eksik:
-                print(f"  ✗ {k}")
+                print(f"  ✗ settings.json eksik kural: {k}")
+            for k in mcp_eksik:
+                print(f"  ✗ .mcp.json eksik sunucu: {k}")
+            for k in mcp_fazla:
+                print(f"  ✗ .mcp.json KAYITSIZ sunucu: {k} — .agents/mcp.yml'e "
+                      "kaydet ya da yapılandırmadan çıkar")
             print("Düzelt: python3 bin/yetki.py --uygula")
             return 1
-        print(f"YETKİ: politika güncel ({len(politika(args.kok)['permissions']['deny'])} kural)")
+        print(f"YETKİ: politika güncel "
+              f"({len(politika(args.kok)['permissions']['deny'])} deny kuralı, "
+              f"{len(mcp_politikasi(args.kok)['mcpServers'])} MCP sunucusu)")
         return 0
 
     if args.uygula:
         degisti = _settings_yaz(args.kok, politika(args.kok))
         print(f"  .claude/settings.json: {'güncellendi' if degisti else 'zaten güncel'}")
+        mcp = mcp_politikasi(args.kok)
+        if mcp["mcpServers"]:
+            with open(os.path.join(args.kok, ".mcp.json"), "w",
+                      encoding="utf-8") as fh:
+                json.dump(mcp, fh, ensure_ascii=False, indent=2)
+                fh.write("\n")
+            print(f"  .mcp.json: {len(mcp['mcpServers'])} sunucu "
+                  f"({', '.join(sorted(mcp['mcpServers']))})")
         for rel, icerik in uret_motorlar(args.kok).items():
             yol = os.path.join(args.kok, rel)
             os.makedirs(os.path.dirname(yol), exist_ok=True)

@@ -76,6 +76,12 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
   `bin/route.py` her istekte (UserPromptSubmit hook'u) görev sınıfı + zorunlu
   skill üretir. Yönlendirilen skill yüklenmeden işe başlanmaz; yanlış
   yönlendirme sessizce atlanmaz, gerekçelendirilip kullanıcıya söylenir.
+- **MCP sunucuları skill'lerle AYNI yönetime tabidir** (2026-08-16): kayıt
+  `.agents/mcp.yml`, sınır profil `mcp:` alanı, üretici `bin/yetki.py`,
+  bekçi `validate.py` + `tests/test_mcp_kaydi.py`. Kural: **kayıtsız sunucu
+  yapılandırılamaz, profilsiz sunucu kayıtta duramaz.** Kayıt her sunucunun
+  ağ erişimini beyan eder — profil `network` alanının MCP ayağı budur.
+  Sınırı: MCP yapılandırması OTURUM genelindedir, tur başına zorlanamaz.
 - Yeni skill kuralı: aynı iş tipi üçüncü kez elle tarif ediliyorsa skill'dir.
   Yayın koşulu üçlüdür: eval + routing.yml tetiği + en az bir profil kaydı.
   Kasten yönlendirilmeyen skill `routing.yml` `not_routed`'a gerekçesiyle yazılır.

@@ -18,6 +18,13 @@ tools:
 network:
   mode: open-web
   note: "Web araştırması serbest; indirme/çalıştırma yasak"
+# MCP izin sınırı — kayıt: .agents/mcp.yml, üretici: bin/yetki.py
+# Salt-okunur sınıf: kod indeksi + ofis okuma + disposable not defteri.
+# Tarayıcı YOK: tıklama kanıtı yazma işinin gereğidir, araştırmanın değil.
+mcp:
+  - codegraph
+  - agent-ofis
+  - agentmemory
 evidence_required:
   - cited_sources
 risk:
