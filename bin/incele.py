@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """incele — merge'ün tek yolu: bağımsız inceleme + risk sınıfına göre karar.
 
-2026-08-07 ölçümü: `bin/codex-review.sh` kurulu ve `codex` CLI çalışır
-durumdaydı ama HİÇBİR yerden çağrılmıyordu — açılan 3 PR'da 0 inceleme
-yorumu. Kullanıcı da PR'ları okumadığını söyledi. Sonuç: "insan merge"
-satırı en güçlü duran ama fiilen boş çalışan halkaydı — ne insan ne makine
-incelemesi vardı. Bu araç o boşluğu kapatır.
+2026-08-07 ölçümü: `codex-review.sh` kuruluydu ama HİÇBİR yerden
+çağrılmıyordu — 3 PR'da 0 inceleme yorumu, kullanıcı da PR'ları okumuyordu.
+"İnsan merge" en güçlü duran ama fiilen boş halkaydı. Bu araç onu kapatır.
 
-Neden Codex: farklı SATICI, farklı kör nokta. Bağımsızlık modelin farklı
+Neden Codex: farklı SATICI, farklı kör nokta — bağımsızlık modelin farklı
 olmasından gelir, sayısından değil. İnceleme yine de RİSK SİNYALİDİR, makine
-kanıtı değildir (AGENTS.md) — bu yüzden CI yeşili ayrıca aranır.
+kanıtı değildir (AGENTS.md); CI yeşili ayrıca aranır.
 
 Karar tablosu (sıra önemlidir; politika ve ölçüm en üstte):
   risk = deny · CI kırmızı          → ENGEL
@@ -120,13 +118,10 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
     if not ci_yesil:
         return "engel", "CI yeşil değil"
     if arac_kosamadi(hata):
-        # Araç KOŞAMADI: ölçüm yok, hüküm de yok. ENGEL yanlış etiket olurdu
-        # (kirli sanılır); MERGE ise kanıtsız geçiş olurdu. Doğru yer İNSAN.
-        # Politika ve ölçüm (deny, kırmızı CI) YUKARIDA kaldı — araç yokluğu
-        # onları gevşetemez.
-        return "insan", (f"bağımsız inceleme ÖLÇÜLEMEDİ (araç koşamadı): "
-                         f"{hata.strip()[:120]} — 'ölçülemedi' 'temiz' demek "
-                         "değildir; karar kullanıcının")
+        # Ölçüm yok → hüküm de yok. ENGEL kirli sanılmak, MERGE kanıtsız
+        # geçiş olurdu; doğru yer İNSAN. `deny` ve kırmızı CI YUKARIDA kaldı.
+        return "insan", (f"bağımsız inceleme ÖLÇÜLEMEDİ: {hata.strip()[:120]}"
+                         " — 'ölçülemedi' 'temiz' değildir; karar kullanıcının")
     if degismedi:
         # Artımlı modda boş diff "TEMİZ" görünür ve önceki turun bulgusunu
         # silerdi — bu yol otomatik merge'e ASLA açılmaz.
@@ -156,8 +151,7 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
     return "insan", f"{risk} sınıfı — karar kullanıcının"
 
 
-# --- Dış dünya -------------------------------------------------------------
-_kos = surec.kos
+_kos = surec.kos          # --- Dış dünya ---
 
 
 def pr_dosyalari(pr):
@@ -213,7 +207,14 @@ def codex_incele(pr, butce=None, base=""):
         komut.append(f"--base={base}")
     kod, out, err = _kos(*komut, timeout=butce)
     if kod != 0:
+        # Sınıflandırma KIRPMADAN ÖNCE yapılır. Canlı ölçüm 2026-08-16: kota
+        # mesajı ("usage limit") çıktının SONUNDAydı, `[:200]` onu kesiyordu
+        # ve `arac_kosamadi` göremiyordu — birim test temiz mesajla geçmiş,
+        # entegrasyon kırpılmış gerçekle düşmüştü.
         hata = f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+        m = ARAC_YOK.search(f"{err or ''}\n{out or ''}")
+        if m:
+            hata = f"araç koşamadı ({m.group(0)}) — {hata}"
         if "timed out" in (err or "").lower():
             hata = f"zaman aşımı ({butce}s)\n\n{zaman_asimi_notu(butce)}"
         return out, hata

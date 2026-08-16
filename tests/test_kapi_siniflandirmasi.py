@@ -68,6 +68,26 @@ class AracKosamadiTest(unittest.TestCase):
         """Zaman aşımı bütçe sorunudur; araç vardı, iş bitmedi."""
         self.assertFalse(incele.arac_kosamadi("zaman aşımı (900s)"))
 
+    def test_kirpma_sinyali_yutmaz(self):
+        """İşaret çıktının SONUNDA olsa bile sınıflandırmaya ulaşmalı.
+
+        CANLI ÖLÇÜM 2026-08-16 — birim test geçmiş, entegrasyon DÜŞMÜŞTÜ:
+        `codex_incele` stderr'i `[:200]` ile kırpıyordu ve kota mesajı
+        ("usage limit") çıktının SONUNDAydı. Kırpılmış metinde işaret hiç
+        yoktu; `arac_kosamadi` False dönüyor, kapı ENGEL veriyordu. Temiz
+        mesajla yazılmış test bunu göremez — gerçek çıktı temiz gelmiyor.
+        Çözüm: sınıflandırma KIRPMADAN ÖNCE yapılır ve sonucu metne yazılır.
+        """
+        uzun = ("Codex inceliyor...\n" + "+ diff satırı\n" * 60
+                + "ERROR: You've hit your usage limit. Try again Aug 20th.")
+        self.assertGreater(len(uzun), 200)
+        self.assertNotIn("usage limit", uzun[:200])   # kırpma sinyali keser
+        # Kırpmadan önce sınıflandıran akış işareti taşımalı
+        m = incele.ARAC_YOK.search(uzun)
+        self.assertTrue(m, "işaret ham çıktıda bulunmalı")
+        self.assertTrue(
+            incele.arac_kosamadi(f"araç koşamadı ({m.group(0)}) — {uzun[:200]}"))
+
     # --- karar tablosu ---
 
     TEMIZ = {"P0": [], "P1": [], "P2": []}
