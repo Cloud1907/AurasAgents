@@ -34,12 +34,11 @@ CANONICAL = os.path.join(ROOT, ".agents", "routing.yml")
 # router bloklamaz, eksik yardımı yokluğa çevirir.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
-    import davranis
-    import hatirla                    # karşılamanın 📌 Geçmiş satırı buradan
     from secim import _eskale, _puanla, _sinirli, soru_turu
-    from skill_kayit import (kuralsiz_komut_kurali, profil_disinda,
-                             sinifta_izinli, skill_installed, skill_izinli,
-                             skill_task_class)
+    from skill_kayit import (kuralsiz_komut_kurali, salt_okunur_siniflar,
+                             sinifta_izinli, skill_task_class)
+    import enjekte
+    from enjekte import _profil_disi
 except Exception:                                    # pragma: no cover
     skill_task_class = None
 
@@ -58,6 +57,9 @@ except Exception:                                    # pragma: no cover
     def sinifta_izinli(skill, task_class, pdir):
         return False
 
+    def salt_okunur_siniflar(pdir):
+        return ("research",)
+
 # Niyet ayrımı (okuma vs mutasyon) ayrı modülde: bin/niyet.py (MOTOR
 # listesinde — bekçi: tests/test_kernel_dosyalari). Import başarısızsa
 # yalnız önyükleme anındaki eski tek-aşamalı davranışa düşülür; MOTOR
@@ -65,7 +67,7 @@ except Exception:                                    # pragma: no cover
 try:
     from niyet import niyet_kapisi
 except Exception:                                    # pragma: no cover
-    def niyet_kapisi(text, scored, extras):
+    def niyet_kapisi(text, scored, extras, salt_okunur=None):
         return scored, extras
 
     def _sinirli(sonuc, profil_disi):
@@ -199,19 +201,6 @@ def route(prompt, cfg, pdir=None):
                     lambda sk, tc: _profil_disi(sk, tc, pd))
 
 
-def _profil_disi(skill, task_class, pdir):
-    """Skill bu sınıfta izinsiz mi (yönetiliyorsa ve sınıfta yoksa)?
-
-    "Yönetilen" iki kanaldan sorulur (inceleme 7. tur): bir profilde
-    geçiyorsa `skill_izinli`, projenin profilinden bilinçle ÇIKARILMIŞSA
-    `profil_disinda` doğru döner. İkisi de False ise ad gerçekten kapsam
-    dışıdır (eklenti skill'i) ve karışılmaz.
-    """
-    if not skill or sinifta_izinli(skill, task_class, pdir):
-        return False
-    return skill_izinli(skill, pdir) or profil_disinda(skill, pdir)
-
-
 def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
     """Kural seçimi — eskalasyon uygulanmamış ham sonuç."""
     if komut_kurallari:
@@ -235,7 +224,11 @@ def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
 
     # Niyet kapısı (2. aşama, bin/niyet.py): mutasyon doğrulanmadıysa yazma
     # kuralları öneriye düşer; okuma kuralı da yoksa scored boşalır → fallback.
-    scored, extras = niyet_kapisi(text, scored, extras)
+    # Salt-okunur sınıf kümesi PROFİLLERDEN gelir (sabit "research" değil):
+    # ikinci bir read-only sınıf (`design`) aracını kaybetmesin, yazma kuralı
+    # da onun yetkisine yükselmesin (ADR-0005 §5).
+    scored, extras = niyet_kapisi(text, scored, extras,
+                                  salt_okunur_siniflar(pdir or project_dir()))
     if not scored:
         fb = cfg.get("fallback", {})
         return fb.get("task_class", "research"), None, extras, [], explicit
@@ -249,85 +242,10 @@ def _sec(cfg, text, tokens, explicit, scored, komut_kurallari, pdir):
 
 
 def render(prompt, cfg, pdir=None, table_is_local=True):
+    """(context, summary) — karar burada, metin bin/enjekte.py'de."""
     pdir = pdir or project_dir()
-    task_class, primary, extras, hits, explicit = route(prompt, cfg, pdir)
-    profile = os.path.join(".agents", "capability-profiles", f"{task_class}.yml")
-    lines = ["[AurasAgents router]"]
-
-    # Karşılama katmanı: açık /komut yoksa işi önce AurasPrime karşılar.
-    # Derinlik skill dosyasındadır; burada yalnız DAVRANIŞ enjekte edilir —
-    # her turda skill yüklemek maliyet, karşılama kararını skill'in kendi
-    # negatif tetikleri verir (küçük iş ve takip turunda tören yapılmaz).
-    # Hafıza satırı ajanın takdirinde değildir: kaydı router okur, ajan yazar
-    # (2026-08-15 — "hatirla.py ile bak" talimatı her turda atlanıyordu).
-    if not explicit:
-        lines.append(davranis.KARSILAMA)
-        lines.append(davranis.gecmis_blogu(
-            hatirla.karsilama_kayitlari(prompt, hits)))
-
-    # Ölçü, zorunlu skill'i düşüren ölçünün AYNISI olmalıdır (inceleme
-    # 12. tur): burada "herhangi bir profilde var mı" sorulurken _sinirli
-    # turun SINIFINA bakıyordu — bu turda izinsiz bir skill dayatmadan
-    # düşürülüp öneride elenirken, kullanıcıya "onu yükle" deniyordu.
-    if explicit and _profil_disi(explicit, task_class, pdir):
-        lines.append(
-            f"/{explicit} bu turun izin sınırı dışında ({task_class} "
-            "profilinde yok) — YÜKLEME. Gerekiyorsa kullanıcıya söyle: "
-            "profile eklemek bilinçli bir karardır, reviewed PR ister.")
-    elif explicit:
-        lines.append(f"Kullanıcı açıkça /{explicit} istedi — onu yükle.")
-
-    lines.append(f"Görev sınıfı: {task_class}  |  profil: {profile}")
-
-    if primary:
-        lines.append(
-            f"ZORUNLU skill: {primary['skill']} "
-            f"(ön risk: {primary.get('risk', 'auto')}; "
-            f"eşleşen tetik: {', '.join(hits[:4])})")
-    else:
-        lines.append("Eşleşen skill yok.")
-        msg = cfg.get("fallback", {}).get("message")
-        if msg:
-            lines.append(msg.strip())
-
-    if extras:
-        lines.append(f"Ek skill: {', '.join(extras)}")
-
-    if not table_is_local:
-        lines.append(
-            "Not: bu proje kendi routing.yml'ini taşımıyor, kanonik AurasAgents "
-            "tablosu kullanıldı.")
-    eksik = [s for s in ([primary["skill"]] if primary else []) + extras
-             if not skill_installed(s, pdir)]
-    if eksik:
-        lines.append(
-            f"Uyarı: {', '.join(eksik)} bu projede kurulu değil — /auras ile "
-            "bağla, ya da kurulu olmadığını kullanıcıya söyleyip skill'siz çalış.")
-
-    lines.append(
-        "Kural: yönlendirilen skill'i YÜKLEMEDEN başlama; yanlışsa tek "
-        "cümleyle gerekçelendir — sessizce atlama.")
-
-    lines += _davranis_satirlari(prompt, cfg, primary, task_class)
-
-    context = "\n".join(lines)
-    picked = primary["skill"] if primary else "—"
-    if explicit:
-        picked = f"/{explicit}"
-    summary = f"router → {task_class} · {picked}"
-    if extras:
-        summary += f" (+{len(extras)})"
-    return context, summary
-
-
-def _davranis_satirlari(prompt, cfg, primary, task_class):
-    """Her turda enjekte edilen davranış sözleşmesi (metinler: davranis.py)."""
-    # Risk kuraldan; kural yoksa SINIFTAN türer. Primary'siz incident'a
-    # 'auto' yazmak yanlış güven verirdi (inceleme bulgusu, 2026-08-12):
-    # research dışı her sınıf temkinli tarafta approval'dır.
-    risk = ((primary or {}).get("risk")
-            or ("auto" if task_class == "research" else "approval"))
-    return davranis.sozlesme(sahip(prompt, cfg, primary), task_class, risk)
+    sonuc = route(prompt, cfg, pdir)
+    return enjekte.govde(prompt, cfg, pdir, table_is_local, sonuc, sahip)
 
 
 def _kaydet(prompt, cfg, pdir, session=None, log=None):

@@ -110,12 +110,29 @@ gösteriyordu ("code-change" < "incident") — test yeşildi, mekanizma yanlış
 gözden geçirilmiş beyanı), yalnız kuralsız skill'de profile düşer ve birden
 çok profilde geçiyorsa None döner. Bekçi: `test_sinif_profil_ALFABESINE_bagli_degil`.
 
-**Yönlendirme açılmadı — ölçülmüş sebep.** `design` için kural yazıldı, canlı
-denendi ve geri alındı: `bin/niyet.py::_okuma_sinifi` `"research"`i TEK
-salt-okunur sınıf sayıyor ve okuma niyetli her kuralı oraya düşürüyor. Sonuç,
-`design` profilindeki chrome-devtools'u kaybeden bir SEO kuralı olurdu — yani
-çalışmayan ama çalışır görünen bir yönlendirme. İkinci salt-okunur sınıfı
-tanıtmak router'ın güvenlik kapısına dokunur ve ayrı bir PR ister.
+**Yönlendirme AÇILDI (aynı gün, ayrı PR).** Önce kural yazıldı, canlı denendi
+ve geri alındı: `bin/niyet.py::_okuma_sinifi` `"research"`i TEK salt-okunur
+sınıf sayıyordu ve okuma niyetli her kuralı oraya düşürüyordu — `design`
+profilindeki chrome-devtools'u kaybeden bir SEO kuralı olurdu. Çalışmayan ama
+çalışır görünen yönlendirme yayınlanmadı; sebep `routing.yml`'e yazıldı.
 
-Sınıf bu hâliyle ÇALIŞIR: issue form'dan seçilir, `/komut`la açılır. Açık olan
-tek şey otomatik yönlendirmedir.
+Sonra sebep giderildi. Salt-okunur sınıf kümesi artık profillerin KENDİ
+beyanından okunuyor (`tools.filesystem == "read-only"` →
+`skill_kayit.salt_okunur_siniflar`), sabit listeden değil. Düşürme kuralı İKİ
+YÖNLÜ ve daima kısıtlayıcı:
+
+  · salt-okunur sınıftaki kural KENDİ sınıfını korur (design aracını kaybetmez),
+  · yazma sınıfındaki kural EN KISITLI salt-okunur sınıfa (`research`) iner —
+    `design`e indirmek, kısıtlama adı altında dış SaaS yetkisi vermek olurdu.
+
+Bekçi: `tests/test_niyet_salt_okunur.py` (13 vaka; RED önce görüldü). Canlı:
+`seo denetimini yap` → `design`, `kod yaz` → `code-change`,
+`bunu araştır` → `research`, `prod çöktü` → `incident`.
+
+**Bedel — `route.py` bölündü.** Bu değişiklik `route.py`'yi 399'dan 406 satıra
+çıkardı ve ratchet'i deldi; dosya zaten haftalardır pusulada "sıradaki duvar"
+olarak duruyordu (`bin/marj.py`). Enjeksiyon METNİ `bin/enjekte.py`'ye ayrıldı
+(route.py 317). Bir bekçi bu taşınmayı yakaladı ve bu doğru davranıştı —
+`"karsilama_kayitlari" in route.py` diyen kontrol, davranış hiç değişmediği
+hâlde kırmızı yandı. Bekçi kuralı ölçecek biçimde düzeltildi: artık ROUTER
+KATMANINA bakıyor (`route.py` + `enjekte.py`), dosya yerleşimine değil.

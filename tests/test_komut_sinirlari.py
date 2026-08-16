@@ -145,8 +145,12 @@ class KuralsizKomutTest(unittest.TestCase):
         self.assertEqual((primary or {}).get("risk"), "approval")
 
     def test_meta_skill_izin_siniri_disinda_sayilmaz(self):
-        # Her profilde izinli olmak, "profilde yok" ile karıştırılmamalı
-        self.assertFalse(route.profil_disinda("aurasprime", ROOT))
+        # Her profilde izinli olmak, "profilde yok" ile karıştırılmamalı.
+        # `profil_disinda` SAHİBİNDEN çağrılır (bin/skill_kayit.py): 2026-08-16'da
+        # route.py'den enjekte.py'ye taşındı ve route üzerinden erişim koptu —
+        # test aracın yerine değil, sahibine bağlanmalı.
+        import skill_kayit
+        self.assertFalse(skill_kayit.profil_disinda("aurasprime", ROOT))
         self.assertIsNotNone(route.kuralsiz_komut_kurali("aurasprime", ROOT))
 
 

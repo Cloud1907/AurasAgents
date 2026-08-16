@@ -42,6 +42,7 @@ from gitleaks_muaf import (GITLEAKS_CFG, MUAFIYET_BLOGU,  # noqa: E402,F401
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
     "bin/validate.py", "bin/make_evidence.py", "bin/route.py",
+    "bin/enjekte.py",       # route.py'nin enjeksiyon metni (import'ta şart)
     "bin/skill_kayit.py", "bin/davranis.py", "bin/secim.py",   # route.py'nin bağımlılığı — birlikte taşınmalı
     "bin/niyet.py",         # route.py'nin niyet kapısı — taşınmazsa kapı susar
     "bin/anma.py",          # niyet.py'nin alıntı/anma ayrımı
