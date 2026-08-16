@@ -243,3 +243,44 @@ Private repo + Free plan'da dal koruması kapalıdır; koruma yerel kanca +
 CI'dır. `kernel` required check yapılamadığı sürece **uzak bütünlük sınırı
 yoktur** ve bu açık P1 olarak görünür kalır. Repo public olur ya da Pro
 alınırsa ilk iş budur.
+
+## `main` dal koruması — uzak bütünlük sınırı (2026-08-16)
+
+`kernel` required · **PR zorunlu** (`required_approving_review_count: 0`) ·
+`enforce_admins` açık · force-push ve dal silme kapalı. Payload: `README.md`.
+
+**PR zorunluluğu opsiyonel değildir.** Yalnız required status check ile,
+check'i ZATEN GEÇMİŞ bir SHA doğrudan `main`'e itilebilir: dalı it, CI koşsun,
+sonra aynı commit'i main'e it. Bağımsız inceleme bunu P0 olarak yakaladı
+(PR #52) ve ilk doğrulamam eksikti — yalnız check'i OLMAYAN bir commit'i
+denemiş, "doğrudan push kimse için mümkün değil" diye yazmıştım. Kapının
+gücünü olduğundan büyük yazmak, olmayan korumaya güvendirir.
+
+**Kurulum ≠ yürürlük.** Ayar değişikliği saniyeler içinde yerleşir; kurulumdan
+hemen sonraki push propagasyon penceresinden geçebilir. 2026-08-16'da bizzat
+yaşandı: koruma doğruydu, push geçti. Doğrulama yerleştikten SONRA yapılır ve
+reddin **iki gerekçesi** birden aranır:
+`Changes must be made through a pull request.` **ve**
+`Required status check "kernel" is expected.`
+Tek gerekçe görülüyorsa sınır eksiktir.
+
+## Ölçüm yokluğu ihlal değildir (2026-08-16)
+
+Bir kapı, aracı KOŞAMADIĞINDA "kirli" değil "ölçülemedi" demek zorundadır.
+Sahte kırmızı, sahte yeşil kadar zararlıdır: ikisi de kanıtı bozar.
+
+- **CI test-önce:** `check_test_first` exit 2 → `skipped`, `failed` değil.
+  İlk yazılan ders bu oldu (`evidence.yml:61`).
+- **`incele.py`:** kota/kimlik/kurulum/ağ hatası → ENGEL DEĞİL İNSAN. Codex
+  kotası bittiğinde ENGEL verip "çıktı ayrıştırılamadı" yazıyordu — oysa çıktı
+  diye bir şey yoktu. Zaman aşımı bilinçle DIŞARIDA: araç koştu, iş bitmedi;
+  o bir bütçe sorunudur. Biçim hatası da dışarıda: araç koştu, hükmü okunamadı
+  — orada fail-closed doğrudur.
+- **`anlik.py`:** commit grafiğinden gelen içerik ajanın düzenlemesi sayılmaz.
+  PR birleştirilip `git pull` yapılınca tur kapısı "kaynak değişti ama test
+  koşmadı" diye bloklamıştı; ajan o dosyaya hiç dokunmamıştı. Ayraç dar:
+  yalnız HEAD oynadıysa VE dosya HEAD ile birebir aynıysa dışarıda kalır —
+  ajan merge'in üstüne yazdıysa dosya kirlidir ve görünür kalır.
+
+Gevşetme yalnız ETİKETTEDİR. `deny`, kırmızı CI ve kanıtsız merge hiçbir
+durumda açılmaz; bunlar politika ve ölçümdür, hüküm değil.
