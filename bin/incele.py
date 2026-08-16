@@ -48,6 +48,7 @@ from risk import (APPROVAL, AUTO, DENY, ENJEKSIYON,  # noqa: E402,F401
                   birlestir, enjeksiyon_var_mi, risk_sinifi, yikici_aksiyon)
 from contract import (birlesik_risk, on_risk_oku,  # noqa: E402,F401
                       pr_contract)
+from yorum import ozet_govde  # noqa: E402,F401
 
 
 # CI "yeşil" sayılması için KANIT üreten check'in varlığı şart. Önceden
@@ -213,7 +214,15 @@ def codex_incele(pr, butce=None, base=""):
         komut.append(f"--base={base}")
     kod, out, err = _kos(*komut, timeout=butce)
     if kod != 0:
+        # Sınıflandırma KIRPMADAN ÖNCE yapılır. Canlı ölçüm 2026-08-16: kota
+        # mesajı ("usage limit") çıktının SONUNDAydı, `[:200]` onu kesiyordu
+        # ve `arac_kosamadi` göremiyordu — birim test temiz mesajla geçmiş,
+        # entegrasyon kırpılmış gerçekle düşmüştü. Sinyali kaybeden kırpma,
+        # kırpmadan önce sınıflandırmayı zorunlu kılar.
         hata = f"codex-review.sh exit {kod}: {(err or '').strip()[:200]}"
+        m = ARAC_YOK.search(f"{err or ''}\n{out or ''}")
+        if m:
+            hata = f"araç koşamadı ({m.group(0)}) — {hata}"
         if "timed out" in (err or "").lower():
             hata = f"zaman aşımı ({butce}s)\n\n{zaman_asimi_notu(butce)}"
         return out, hata
@@ -226,42 +235,6 @@ def yorum_dus(pr, govde):
     kod, _o, err = _kos("gh", "pr", "comment", str(pr), "--body-file", "-",
                         girdi=govde)
     return kod == 0, err
-
-
-def ozet_govde(risk, bulgular, sonuc, k, gerekce, ci_ozet,
-               enjeksiyon=False, tani="", tur=1, head_sha="",
-               p0gecmis=False, artimli=False, yeniden=False,
-               incelendi=True):
-    """PR yorumu — duvar değil, KARAR biçiminde. Okunmayan yorum yoktur."""
-    simge = {"merge": "✅", "insan": "👤", "engel": "⛔"}[k]
-    kapsam = "son turdan beri" if artimli else "tüm diff"
-    satir = [f"## {simge} Bağımsız inceleme — {k.upper()}",
-             "",
-             f"**Karar:** {gerekce}",
-             f"**Risk sınıfı:** `{risk}` · **CI:** {ci_ozet} · "
-             f"**Codex:** {sonuc or '—'}",
-             f"**Tur:** {tur}/{TUR_TAVANI} · **Kapsam:** {kapsam}"
-             + (" · biçim hatası sonrası yeniden soruldu" if yeniden else ""),
-             ""]
-    if tani:
-        satir += ["<details><summary>Ayrıştırılamayan çıktının sonu</summary>",
-                  "", "```", tani, "```", "</details>", ""]
-    if enjeksiyon:
-        satir += ["> ⚠️ Diff, inceleyiciye talimat veriyor olabilir "
-                  "(enjeksiyon şüphesi). Hüküm otomatik merge için yeterli "
-                  "sayılmadı.", ""]
-    for sev in ("P0", "P1", "P2"):
-        for b in bulgular[sev]:
-            satir.append(f"- `{sev}` {b}")
-    if not any(bulgular.values()):
-        satir.append("Bulgu yok.")
-    satir += ["", "---",
-              "Çapraz-vendor risk sinyali (Codex), makine kanıtı değil. "
-              "Merge koşulu: CI yeşil **ve** P0 yok. P1 bloklamaz, kararı "
-              "insana taşır.",
-              # SHA yalnız GERÇEKTEN incelendiyse yazılır (bkz. marker_uret).
-              marker_uret(tur, head_sha if incelendi else "", p0gecmis)]
-    return "\n".join(satir)
 
 
 def _incele_bir_kez(pr, base):

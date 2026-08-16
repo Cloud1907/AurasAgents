@@ -64,6 +64,40 @@ class AracKosamadiTest(unittest.TestCase):
         self.assertFalse(incele.arac_kosamadi(self.BICIM))
         self.assertFalse(incele.arac_kosamadi(""))
 
+    def test_kirpma_sinyali_yutmaz(self):
+        """İşaret çıktının SONUNDA olsa bile sınıflandırmaya ulaşmalı.
+
+        CANLI ÖLÇÜM 2026-08-16 — birim test geçmiş, entegrasyon DÜŞMÜŞTÜ:
+        `codex_incele` stderr'i `[:200]` ile kırpıyordu ve kota mesajı
+        ("usage limit") çıktının SONUNDAydı. Kırpılmış metinde işaret hiç
+        yoktu; `arac_kosamadi` False dönüyor, kapı ENGEL veriyordu. Temiz
+        mesajla yazılmış test bunu göremez — gerçek çıktı temiz gelmiyor.
+
+        Daha kötüsü: düzeltme PR'ı bu commit OLMADAN squash edildi ve main'de
+        `arac_kosamadi` VAR ama hiç tetiklenmeyen hâlde kaldı. Düzelmiş
+        görünen, düzelmemiş kapı — bu bekçi onun tekrarını engeller.
+        """
+        uzun = ("Codex inceliyor...\n" + "+ diff satırı\n" * 60
+                + "ERROR: You've hit your usage limit. Try again Aug 20th.")
+        self.assertGreater(len(uzun), 200)
+        self.assertNotIn("usage limit", uzun[:200])   # kırpma sinyali keser
+        m = incele.ARAC_YOK.search(uzun)
+        self.assertTrue(m, "işaret ham çıktıda bulunmalı")
+        self.assertTrue(
+            incele.arac_kosamadi(f"araç koşamadı ({m.group(0)}) — {uzun[:200]}"))
+
+    def test_codex_incele_isareti_hata_metnine_tasir(self):
+        """Uçtan uca: kırpılmış hata metni sınıflandırılabilir olmalı."""
+        uzun_err = "x\n" * 300 + "ERROR: You've hit your usage limit."
+        eski = incele._kos
+        try:
+            incele._kos = lambda *a, **k: (1, "", uzun_err)
+            _out, hata = incele.codex_incele(1, butce=1)
+        finally:
+            incele._kos = eski
+        self.assertTrue(incele.arac_kosamadi(hata),
+                        f"kırpma sinyali yuttu: {hata[:80]}")
+
     def test_zaman_asimi_arac_yoklugu_DEGILDIR(self):
         """Zaman aşımı bütçe sorunudur; araç vardı, iş bitmedi."""
         self.assertFalse(incele.arac_kosamadi("zaman aşımı (900s)"))

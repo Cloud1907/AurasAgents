@@ -50,6 +50,7 @@ MOTOR = [
     "bin/yuzey.py",         # yol → yükümlülük sınıflandırması (kapi.py'nin ölçüsü)
     "bin/contract.py",      # incele.py'nin contract okuması
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
+    "bin/yorum.py",         # incele.py'nin PR yorum gövdesi (import'ta şart)
     "bin/surec.py",
     "bin/tur.py", "bin/risk.py",   # incele.py'nin bağımlılıkları — birlikte taşınmalı
     "bin/codex-review.sh",
