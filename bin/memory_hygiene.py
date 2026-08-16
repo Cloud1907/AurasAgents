@@ -23,7 +23,6 @@ import argparse
 import datetime as dt
 import os
 import re
-import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -55,10 +54,6 @@ def parse_date(s):
         return None
 
 
-def read_frontmatter(text):
-    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
-    return m.group(1) if m else ""
-
 
 def scan_file(path, today, max_age, findings):
     rel = os.path.relpath(path, ROOT)
@@ -69,8 +64,6 @@ def scan_file(path, today, max_age, findings):
         # Okunamayan dosyayı sessizce yutma — bulgu olarak raporla.
         findings.append(("OKUNAMADI", rel, f"taranamadı: {type(e).__name__}"))
         return
-    fm = read_frontmatter(text)
-
     # Secret sızıntısı — her katmanda kritik
     if SECRET_RE.search(text):
         findings.append(("KRİTİK", rel, "olası secret sızıntısı — hafızadan temizle"))

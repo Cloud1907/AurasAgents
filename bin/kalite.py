@@ -27,6 +27,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bin"))
 import diller  # noqa: E402  (dil kapsamının tek tanımı)
+from olukod import olu_importlar  # noqa: E402  (ölü kod ayrı konu)
 
 TABAN_YOL = os.path.join(ROOT, ".agents", "kalite-baseline.json")
 AYAR_YOL = os.path.join(ROOT, ".agents", "kalite.yml")
@@ -54,6 +55,8 @@ JS_FONK = re.compile(
     r"(?:public|private|protected|internal|static|\s)*[\w<>\[\],\s]+\s+\w+\s*\([^;]*\)\s*\{)")
 DAL = re.compile(r"(?<![\w.])(if|elif|else\s+if|for|while|case|catch|except)"
                  r"(?![\w])|&&|\|\||\?\?|\?[^.:]")
+
+
 BORC = re.compile(r"(?<![\w])(TODO|FIXME|XXX|HACK)(?![\w])")
 # Desen parçalı kurulur: düz yazılırsa bu dosyanın KENDİSİ bulgu üretir
 # (tarayıcının kendini yakalaması — tests/test_skill_validators.py'deki
@@ -149,7 +152,7 @@ def suslu_fonksiyonlar(satirlar):
 def olc(kok=ROOT, esik=None):
     esik = esik or ayarlar()
     sayac = {"buyuk_dosya": 0, "uzun_fonksiyon": 0, "karmasik_fonksiyon": 0,
-             "borc_isareti": 0, "debug_artigi": 0}
+             "borc_isareti": 0, "debug_artigi": 0, "olu_import": 0}
     bulgular = []
     dosya_sayisi = fonk_analizli = 0
     for yol in sorted(kod_dosyalari(kok)):
@@ -176,6 +179,9 @@ def olc(kok=ROOT, esik=None):
 
         uzanti = os.path.splitext(yol)[1]
         if uzanti == ".py":
+            olu = _olu_import_bulgulari(rel, metin)
+            sayac["olu_import"] += len(olu)
+            bulgular.extend(olu)
             fonklar = py_fonksiyonlar(satirlar)
         elif uzanti in SUSLU:
             fonklar = suslu_fonksiyonlar(satirlar)
@@ -203,6 +209,13 @@ def olc(kok=ROOT, esik=None):
                      for d, s, t, x, b in bulgular],
         "buyuklukler": buyuklukler(bulgular),
     }
+
+
+def _olu_import_bulgulari(rel, metin):
+    """Ölü import bulgularını ölçüm biçimine çevirir (olc'yi sade tutar)."""
+    return [(rel, satir, "olu_import",
+             f"'{ad}' import edilmiş ama kullanılmıyor", 1)
+            for satir, ad in olu_importlar(metin)]
 
 
 def buyuklukler(bulgular):

@@ -15,7 +15,6 @@ Bu dosya aynı üçünü MCP için zorlar. Kural tek cümle: **kayıtsız sunucu
 yapılandırılamaz, profilsiz sunucu kayıtta duramaz.**
 """
 import importlib.util
-import json
 import os
 import sys
 import unittest

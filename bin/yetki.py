@@ -28,7 +28,6 @@ Kabuk üzerinden yazım hiç engellenmez; onun karşılığı önleme değil TES
 import argparse
 import json
 import os
-import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

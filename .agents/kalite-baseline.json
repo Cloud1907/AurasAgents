@@ -8,14 +8,14 @@
     "bin/kalite.py#uzun_fonksiyon": 70,
     "bin/kapi.py#karmasik_fonksiyon": 34,
     "bin/kapi.py#uzun_fonksiyon": 125,
-    "bin/make_evidence.py#karmasik_fonksiyon": 14,
-    "bin/make_evidence.py#uzun_fonksiyon": 73,
+    "bin/make_evidence.py#karmasik_fonksiyon": 12,
+    "bin/make_evidence.py#uzun_fonksiyon": 71,
     "bin/memory_hygiene.py#karmasik_fonksiyon": 13,
     "bin/route.py#karmasik_fonksiyon": 14,
     "bin/route.py#uzun_fonksiyon": 70,
     "bin/run_event.py#karmasik_fonksiyon": 12,
     "bin/run_event.py#uzun_fonksiyon": 57,
-    "bin/validate.py#buyuk_dosya": 975,
+    "bin/validate.py#buyuk_dosya": 922,
     "bin/validate.py#karmasik_fonksiyon": 17,
     "bin/validate.py#uzun_fonksiyon": 113
   },
@@ -25,6 +25,7 @@
     "buyuk_dosya": 1,
     "debug_artigi": 0,
     "karmasik_fonksiyon": 14,
+    "olu_import": 0,
     "uzun_fonksiyon": 9
   }
 }
