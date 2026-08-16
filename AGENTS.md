@@ -97,7 +97,7 @@ getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
 | `bin/hooks/pre-push` | kernel doğrulama + sır/PII/geçmiş taraması + proje kapısı; hepsi fail-closed | `git push --no-verify` |
 | CI `evidence` job | aynı doğrulamayı bağımsız makinede tekrarlar | required check değil; **self-hosted runner'da bağımsızlık YOK** (`bin/kopru.py`, `runner.independent`) |
 | `bin/kapi.py` (Stop) | kanıtsız tur kapanmaz: test / inceleme / tıklama | olay kaydı silinirse susar |
-| `bin/incele.py` | merge yolu: P0 → RED, P1 → insan, `deny` → insan, fail-closed | `gh pr merge` doğrudan |
+| `bin/incele.py` | merge yolu: P0 → RED, P1/araç-yok → insan, `deny` → insan | `gh pr merge` doğrudan |
 | `bin/kalite.py --check` | borç büyümesini bloklar (ADR-0004) | taban bilinçle yükseltilir |
 | UserPromptSubmit router | skill yönlendirmesi enjekte eder | **kapı değil, pusula** — asla bloklamaz |
 
@@ -109,8 +109,7 @@ getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
   kırmızı bağırır, yok olan test yalnız "Ran N"i sessizce küçültür.
 - **Skill doğrulayıcı sözleşmesi (ADR-0003).** `check_*` / `scan_*` önekli
   script en az bir kapıya bağlanmak zorundadır; bağlanmamışı `validate.py`
-  reddeder. Yazılmış ama çağrılmayan doğrulayıcı = kural belgede var,
-  sistemde yok.
+  reddeder — yazılmış ama çağrılmayan doğrulayıcı, kuralı belgede bırakır.
 - **Kernel senkronu çift yönlüdür (ADR-0002).** Kurulum önce kaynağı ileri
   sarar; ezme kararı manifest'e değil kanonik git geçmişine dayanır. Ters
   yön `bin/auras_geri.py`.
@@ -120,14 +119,9 @@ getirdiği `.agents/skills/kernel-work/references/kapilar.md` dosyasında
   kapıdır ki agent'ın yazamadığı bir yerde çalışır. Bedeli: `main`'e doğrudan
   push kimse için mümkün değil (admin dâhil). Break-glass = korumayı bilinçle
   kapatmak; GitHub audit log'a yazar (süreli + gerekçeli + kayıtlı).
-  - **PR zorunluluğu opsiyonel değildir.** Yalnız required status check ile,
-    check'i ZATEN GEÇMİŞ bir SHA doğrudan `main`'e itilebilir (dalı it, CI
-    koşsun, aynı commit'i main'e it). Bağımsız inceleme bunu P0 olarak
-    yakaladı ve ölçümle doğrulandı. Payload: `README.md`.
-  - **Kurulum ≠ yürürlük.** Ayar değişikliği saniyeler içinde yerleşir;
-    kurulumdan hemen sonraki push propagasyon penceresinden geçebilir
-    (2026-08-16'da yaşandı — koruma doğruydu, push geçti). Doğrulama
-    kurulumdan SONRA yapılır ve reddin **iki gerekçesi** birden aranır.
+  PR zorunluluğu OPSİYONEL DEĞİLDİR ve doğrulama kurulumdan SONRA yapılır —
+  ikisinin de ölçülmüş gerekçesi `references/kapilar.md`'de, payload
+  `README.md`'de.
 
 ## Kapıların gerçek sınıfı
 
@@ -155,6 +149,12 @@ korunmalı: yerel kapılar hâlâ atlanabilir ve hâlâ öyle adlandırılır; y
 `main`'e giden yol kapanmıştır. Koruma kapatılırsa bu paragraf da eski hâline
 döner — abartma yasağı sınırın varlığına değil, DOĞRU adlandırılmasına
 bağlıdır.
+
+**Ölçüm yokluğu ihlal değildir.** Kapı, aracı KOŞAMADIĞINDA "kirli" değil
+"ölçülemedi" der — sahte kırmızı, sahte yeşil kadar zararlıdır. Uygulandığı
+yerler: CI test-önce (exit 2 → `skipped`), `incele.py` (kota/kimlik/ağ →
+İNSAN), `anlik.py` (commit grafiğinden gelen içerik ajanın işi sayılmaz).
+Gevşetme yalnız ETİKETTEDİR: `deny`, kırmızı CI ve kanıtsız merge açılmaz.
 
 Sonuç: kapı çıktısı "doğrulandı" değil "bu turda şu kanıt görüldü" demektir.
 Kanıtın kaynağı kayda yazılır (`src`: `exit` = gerçek çıkış kodu, `event` =

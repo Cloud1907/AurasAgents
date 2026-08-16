@@ -11,23 +11,17 @@ Neden Codex: farklı SATICI, farklı kör nokta. Bağımsızlık modelin farklı
 olmasından gelir, sayısından değil. İnceleme yine de RİSK SİNYALİDİR, makine
 kanıtı değildir (AGENTS.md) — bu yüzden CI yeşili ayrıca aranır.
 
-Karar tablosu:
-  risk = deny             → ENGEL (break-glass insanın)
-  CI yeşil değil          → ENGEL (ölçüm, hüküm değil)
-  dalda yeni commit yok   → İNSAN (yeniden inceleme yeni bilgi üretmez)
-  okunamadı / tutarsız    → ENGEL (fail-closed: sessiz "temiz" yok)
-  P0 bulgu var            → ENGEL
-  ...ama tur > tavan      → İNSAN (döngü kapanır, karar insanın)
-  P1 bulgu var            → İNSAN (bloklamaz, görünür kalır)
-  risk = approval         → İNSAN (5 satır özet, karar kullanıcının)
-  risk = auto + CI yeşil  → MERGE
-  diğer                   → İNSAN (bilinmeyen yukarı eskale olur)
+Karar tablosu (sıra önemlidir; politika ve ölçüm en üstte):
+  risk = deny · CI kırmızı          → ENGEL
+  araç KOŞAMADI (kota/kimlik/ağ)    → İNSAN — "ölçülemedi" ≠ "temiz"
+  dalda yeni commit yok             → İNSAN
+  okunamadı / tutarsız · P0         → ENGEL (fail-closed) · tur > tavan → İNSAN
+  P1 · enjeksiyon şüphesi           → İNSAN (bloklamaz, görünür kalır)
+  risk = auto + temiz + CI yeşil    → MERGE ·  diğer → İNSAN
 
 2026-08-12 ölçümü — kapı doğru çalışıyordu ama ÇIKIŞI yoktu: 9 PR'da 62 tur,
-~17 saat, 62 hükmün yalnız 2'si temiz. Her tur TÜM birikmiş diff yeniden
-inceleniyordu: bir P1'i düzelten kod sonraki turun inceleme yüzeyi olup orada
-yeni bir P1 doğuruyordu. Dört çıkış: P1 bloklamaz · tur tavanı · biçim
-hatasında tek yeniden deneme · artımlı diff (bkz. bin/tur.py).
+~17 saat, 62 hükmün yalnız 2'si temiz. Dört çıkış: P1 bloklamaz · tur tavanı ·
+biçim hatasında tek yeniden deneme · artımlı diff (bkz. bin/tur.py).
 
 Kullanım:
   python3 bin/incele.py 13              # incele, PR'a yorum düş, karar bas
@@ -46,8 +40,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import surec  # noqa: E402
 from surec import INCELEME_BUTCESI, zaman_asimi_notu  # noqa: E402,F401
-from hukum import (BULGU, SONUC, bulgulari_ayikla,  # noqa: E402,F401
-                   tutarli_mi)
+from hukum import (ARAC_YOK, BULGU, SONUC,  # noqa: E402,F401
+                   arac_kosamadi, bulgulari_ayikla, tutarli_mi)
 from tur import (TUR_TAVANI, artimli_base, degismedi_mi,  # noqa: E402,F401
                  marker_oku, marker_uret)
 from risk import (APPROVAL, AUTO, DENY, ENJEKSIYON,  # noqa: E402,F401
@@ -119,12 +113,20 @@ def _hukum_engeli(bulgular, okunabildi, tutarli):
 
 
 def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
-          enjeksiyon=False, tur=1, degismedi=False):
+          enjeksiyon=False, tur=1, degismedi=False, hata=""):
     """(karar, gerekçe) — merge | insan | engel."""
     if risk == "deny":
         return "engel", "deny sınıfı — break-glass gerekir, kararı agent veremez"
     if not ci_yesil:
         return "engel", "CI yeşil değil"
+    if arac_kosamadi(hata):
+        # Araç KOŞAMADI: ölçüm yok, hüküm de yok. ENGEL yanlış etiket olurdu
+        # (kirli sanılır); MERGE ise kanıtsız geçiş olurdu. Doğru yer İNSAN.
+        # Politika ve ölçüm (deny, kırmızı CI) YUKARIDA kaldı — araç yokluğu
+        # onları gevşetemez.
+        return "insan", (f"bağımsız inceleme ÖLÇÜLEMEDİ (araç koşamadı): "
+                         f"{hata.strip()[:120]} — 'ölçülemedi' 'temiz' demek "
+                         "değildir; karar kullanıcının")
     if degismedi:
         # Artımlı modda boş diff "TEMİZ" görünür ve önceki turun bulgusunu
         # silerdi — bu yol otomatik merge'e ASLA açılmaz.
@@ -341,7 +343,8 @@ def main(argv=None):
     bulgular, sonuc, enjeksiyon = d["bulgular"], d["sonuc"], d["enjeksiyon"]
     k, gerekce = karar(risk, bulgular, d["ci_yesil"], d["okunabildi"],
                        tutarli=d["tutarli"], enjeksiyon=enjeksiyon,
-                       tur=d["tur"], degismedi=d["degismedi"])
+                       tur=d["tur"], degismedi=d["degismedi"],
+                       hata=d.get("hata", ""))
     if not d["okunabildi"]:
         gerekce += f" — {d['hata'] or 'SONUC satırı yok'}"
 

@@ -68,24 +68,66 @@ def _damga(kok, yol):
     return f"{st.st_size}:{st.st_mtime_ns}"
 
 
+HEAD_ANAHTARI = "__head__"
+
+
+def _head(kok):
+    """Anlık anındaki HEAD — commit grafiğinin oynadığını anlamak için."""
+    kod, out = _git(kok, "rev-parse", "HEAD")
+    return out.strip() if kod == 0 else ""
+
+
 def al(kok):
-    """Şu anki kirli yolların anlık görüntüsü {yol: damga|""}.
+    """Şu anki kirli yolların anlık görüntüsü {yol: damga|""} + HEAD.
 
     Silinmiş dosya boş damga taşır: sonradan geri gelirse fark görünür.
+    HEAD ayrı anahtarda tutulur (`__head__`) çünkü tur içinde commit grafiği
+    oynayabilir ve o hareket ajanın düzenlemesi DEĞİLDİR (bkz. degisenler).
     """
-    return {yol: (_damga(kok, yol) or "") for yol in _kirli_yollar(kok)}
+    veri = {yol: (_damga(kok, yol) or "") for yol in _kirli_yollar(kok)}
+    head = _head(kok)
+    if head:
+        # Git dışı dizinde anahtar HİÇ eklenmez: `al()` orada boş sözlük
+        # döndürmeye devam etsin (sözleşme değişmesin, bekçi: test_anlik).
+        veri[HEAD_ANAHTARI] = head
+    return veri
+
+
+def _temiz_mi(kok, yol):
+    """Dosya HEAD ile birebir aynı mı (yani çalışma ağacında değişmemiş)?"""
+    kod, out = _git(kok, "status", "--porcelain", "--", yol)
+    return kod == 0 and not out.strip()
 
 
 def degisenler(kok, onceki):
-    """Anlıktan BERİ değişen yollar (yeni, düzenlenen, silinen)."""
+    """Anlıktan BERİ değişen yollar (yeni, düzenlenen, silinen).
+
+    COMMIT GRAFİĞİNDEN gelen içerik SAYILMAZ (öz-denetim, 2026-08-16): PR
+    birleştirilip `git pull` yapılınca çalışma ağacı değişiyor ve kapı
+    "kaynak değişti ama test koşmadı" diye BLOKLUYORDU — ajan o dosyaya hiç
+    dokunmamıştı. Ölçü doğruydu, ETİKET yanlıştı; `evidence.yml:61`'in
+    "araç hatası ihlal değildir" ayrımıyla aynı aile.
+
+    Ayraç dar tutuldu: yalnız (a) HEAD oynadıysa VE (b) dosya HEAD ile
+    birebir aynıysa dışarıda bırakılır. Ajan merge'in üstüne yazdıysa dosya
+    kirlidir ve GÖRÜNÜR kalır — gevşetme yalnız "içerik commit'ten geldi ve
+    kimse üstüne dokunmadı" hâlini kapsar. O commit'ler kendi kapılarından
+    geçti; ikinci kez kanıt istemek, kanıtı değil gürültüyü çoğaltır.
+    """
     if onceki is None:
         return []
     simdi = al(kok)
+    eski_head = onceki.get(HEAD_ANAHTARI, "")
+    head_oynadi = bool(eski_head) and eski_head != simdi.get(HEAD_ANAHTARI, "")
+
     degisen = [yol for yol, damga in simdi.items()
-               if onceki.get(yol) != damga]
+               if yol != HEAD_ANAHTARI and onceki.get(yol) != damga]
     # Anlıkta kirliyken şimdi temiz olan yol da bu turda değişmiştir
     # (geri alındı ya da commit'lendi) — görünmezse kapı yanlış sayar.
-    degisen += [yol for yol in onceki if yol not in simdi]
+    degisen += [yol for yol in onceki
+                if yol != HEAD_ANAHTARI and yol not in simdi]
+    if head_oynadi:
+        degisen = [yol for yol in degisen if not _temiz_mi(kok, yol)]
     return sorted(set(degisen))
 
 

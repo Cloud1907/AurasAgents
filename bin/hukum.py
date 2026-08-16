@@ -136,3 +136,33 @@ def tutarli_mi(bulgular, sonuc):
         return (int(m.group(1)) == sayi
                 and m.group(2) == _en_yuksek(bulgular))
     return False
+
+
+# İnceleyicinin HİÇ KOŞAMADIĞI durumlar. Bunlar hüküm değildir — ölçüm
+# yokluğudur. `evidence.yml:61` aynı ayrımı zaten yapıyordu:
+#   "Araç hatası (exit 2) disiplin ihlali DEĞİLDİR — sahte kırmızı üretmek,
+#    sahte yeşil kadar zararlıdır: ikisi de kanıtı bozar."
+# `incele.py` o dersi almamıştı: 2026-08-16'da Codex kotası bitince ENGEL
+# verip gerekçe olarak "çıktı ayrıştırılamadı" yazdı — oysa çıktı diye bir
+# şey YOKTU. Yanlış teşhis, kullanıcıya var olmayan sorunu aratır.
+ARAC_YOK = re.compile(
+    r"usage limit|rate limit|quota|insufficient.credit"      # kota
+    r"|not logged in|unauthor|authentication|401|403"        # kimlik
+    r"|command not found|no such file|ENOENT|exit 127"       # kurulum
+    r"|connection refused|network is unreachable|ECONNREFUSED",  # ağ
+    re.I)
+
+
+def arac_kosamadi(hata):
+    """İnceleyici KOŞAMADI mı (kota/kimlik/kurulum/ağ) — hüküm veremedi mi?
+
+    Zaman aşımı BİLİNÇLE dışarıda: araç vardı ve koştu, iş bitmedi. O bir
+    bütçe sorunudur ve kendi notunu (`zaman_asimi_notu`) zaten taşır.
+    Biçim hatası da dışarıda: araç koştu, hükmü okunamadı — orada
+    fail-closed doğru davranıştır.
+    """
+    if not hata:
+        return False
+    if "zaman aşımı" in hata:
+        return False
+    return bool(ARAC_YOK.search(hata))
