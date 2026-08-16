@@ -215,22 +215,33 @@ def uret_motorlar(kok=ROOT):
     ag = ((prof.get("code-change") or {}).get("network") or {})
     izinli = ", ".join(f'"{d}"' for d in (ag.get("domains") or []))
 
+    # SADECE proje düzeyinde GEÇERLİ anahtarlar yazılır. Ölçüldü 2026-08-16:
+    # `[profiles.*]` bloğu Codex tarafından REDDEDİLİYOR —
+    #   "Ignored unsupported project-local config keys ...: profiles.
+    #    If you want these settings to apply, manually set them in your
+    #    user-level config.toml."
+    # Yok sayılan anahtarı yazmak, yapılandırdığını sanmaktır: tam da bu
+    # sistemin kapatmaya çalıştığı hata sınıfı. Bekçi: tests/test_mcp_kaydi.py
+    # (üretilen dosya UYARISIZ kabul edilmeli).
     codex = f"""# ÜRETİLDİ — elle düzenleme: bin/yetki.py --uygula
 # Kaynak: .agents/capability-profiles/*.yml
-# Codex'in kendi sözleşmesi: sandbox_mode + approval_policy.
+#
+# Burada YALNIZ proje düzeyinde geçerli anahtarlar var. `[profiles.*]` Codex
+# tarafından proje-yerel olarak reddedilir (ölçüldü) ve bilinçle YAZILMAZ.
+# Salt-okunur araştırma profilini istiyorsan KENDİ `~/.codex/config.toml`
+# dosyana ekle — bu repo senin kullanıcı ayarını değiştiremez, değiştirmemeli:
+#
+#   [profiles.research]          # {arastirma.get("description", "")}
+#   sandbox_mode = "read-only"
+#   approval_policy = "on-request"
 
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 
 [sandbox_workspace_write]
+# Profil ağ sınırı: code-change allowlist ({izinli or "yok"}). Codex bunu
+# boolean olarak ifade eder; allowlist ≠ açık ağ olduğundan kapalı yazılır.
 network_access = false
-
-# Salt-okunur araştırma profili ({arastirma.get("description", "")})
-[profiles.research]
-sandbox_mode = "read-only"
-approval_policy = "on-request"
-
-# İzinli alanlar (code-change profili): {izinli or "yok"}
 """
 
     copilot = json.dumps({

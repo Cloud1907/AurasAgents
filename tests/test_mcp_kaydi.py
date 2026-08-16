@@ -135,6 +135,31 @@ class McpKaydiTest(unittest.TestCase):
                         "hiçbir sunucu 'kanit: ui' taşımıyor — kapı tıklama "
                         "kanıtı isterken çareyi gösteremez")
 
+    def test_codex_config_yok_sayilan_anahtar_tasimaz(self):
+        """Üretilen Codex yapılandırması motorca KABUL edilmeli.
+
+        Ölçüldü 2026-08-16: ilk üretim `[profiles.*]` bloğu yazıyordu ve
+        Codex onu proje-yerel olarak REDDEDİYORDU —
+          "Ignored unsupported project-local config keys ...: profiles."
+        Yani dosya vardı, hiçbir şey yapmıyordu. Yok sayılan anahtar yazmak,
+        yapılandırdığını sanmaktır; bu sistemin kapatmaya çalıştığı hata
+        sınıfının ta kendisi.
+
+        Bekçi metin düzeyinde: `profiles` bloğu üretilirse test düşer.
+        (Codex CLI'ı testte koşturmak dış bağımlılık olurdu; ölçüm bir kez
+        yapıldı ve sonucu buraya sabitlendi.)
+        """
+        icerik = yetki.uret_motorlar(ROOT)[".codex/config.toml"]
+        for satir in icerik.splitlines():
+            self.assertFalse(
+                satir.strip().startswith("[profiles"),
+                "üretilen config.toml proje-yerel reddedilen `[profiles.*]` "
+                "bloğu taşıyor — yapılandırdığını sanmak")
+        # Gerçekten geçerli olanlar duruyor mu (boş dosya da 'uyarısız'dır)
+        for anahtar in ("approval_policy", "sandbox_mode",
+                        "[sandbox_workspace_write]"):
+            self.assertIn(anahtar, icerik)
+
     def test_hafiza_sunucusu_otorite_sanilmaz(self):
         """AGENTS.md hafıza hiyerarşisi: MCP hafızası 3. katmandır.
 
