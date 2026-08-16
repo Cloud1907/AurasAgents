@@ -69,7 +69,7 @@ Eskalasyon yalnız yukarı olur. `deny` her zaman önceliklidir.
 ## Skill ve capability mekanizması
 
 - Kanonik skill kaynağı: `.agents/skills/` (Agent Skills açık standardı).
-- Görev sınıfı (`code-change` | `research` | `incident`) →
+- Görev sınıfı (`code-change` | `research` | `incident` | `design`) →
   `.agents/capability-profiles/<sınıf>.yml` profili → izinli skill/araç/ağ
   kümesi. Agent seçimini yalnız bu küme içinde yapar ve seçim loglanır.
 - Skill seçimi takdire bırakılmaz: `.agents/routing.yml` tabloya bağlar,

@@ -24,11 +24,16 @@ def skill_installed(skill, pdir):
 
 
 def skill_task_class(skill, pdir):
-    """Skill'i izinli sayan profilin sınıfı (yoksa None).
+    """Skill'in görev sınıfı (belirlenemiyorsa None).
 
-    Profil izin sınırıdır, dolayısıyla sınıfın OTORİTESİ odur — tahmin değil.
-    Bilinmeyen skill'de None döner; çağıran o zaman zorunluluk iddia etmez,
-    çünkü sınıfı uydurmak izin sınırını uydurmaktır.
+    Kaynak sırası: (1) `routing.yml`'deki İLK kural — yazarın açık beyanı,
+    (2) skill tam olarak BİR profilde geçiyorsa o profilin sınıfı. İkisi de
+    belirsizse None. Bilinmeyen skill'de de None döner; çağıran o zaman
+    zorunluluk iddia etmez, çünkü sınıfı uydurmak izin sınırını uydurmaktır.
+
+    Profil hâlâ İZİN sınırıdır (`skill_izinli`, `sinifta_izinli`) ama SINIFIN
+    otoritesi değildir: bir skill birden çok sınıfta izinli olabilir ve
+    izinden sınıf türetmek yapısal olarak belirsizdir (bkz. aşağıdaki ölçüm).
 
     Proje profilleri YOKSA kanonik profillere düşülür. Önyükleme durumu:
     repoyu sisteme bağlayan skill, henüz `.agents/`ı olmayan repoda çağrılır;
@@ -51,12 +56,26 @@ def skill_task_class(skill, pdir):
     except ImportError:
         return None
     kok = pdir if _profil_dizini_var(pdir) else KANONIK
-    sinirlar, toplam = _profil_siniflari(skill, kok, yaml)
-    # toplam > 1 şartı: tek profilli projede "hepsinde var" bir meta sinyali
-    # değildir, sınıf belirsizliği yoktur.
-    if not sinirlar or (toplam > 1 and len(sinirlar) == toplam):
-        return None
-    return sinirlar[0]
+    # 1) routing.yml — YAZARIN beyanı. Sıra oradaki insan kararıdır.
+    #
+    # Önceki ölçü yalnız profillere bakıyordu ve birden çok profilde geçen
+    # skill için `sinirlar[0]`ı döndürüyordu — yani DOSYA ADI ALFABESİNDEN
+    # gelen bir sınıf. Dördüncü profil (`design.yml`) eklenince iki sessiz
+    # kayma ölçüldü (2026-08-16): `research-with-evidence` incident → design,
+    # `security-review` None → code-change; ikisi de o profillere hiç
+    # dokunulmadan, yalnızca yeni bir dosya sıraya girdiği için. Aynı şans
+    # `implement-change`i de "code-change" yapıyordu (c < i).
+    #
+    # Profil İZİN sınırıdır ve bir skill birden çok sınıfta izinli olabilir;
+    # izinden sınıf türetmek yapısal olarak belirsizdir. `routing.yml` ise
+    # sınıfı AÇIKÇA beyan eder ve gözden geçirilmiş bir dosyadır.
+    sinif = _routing_sinifi(skill, kok, yaml)
+    if sinif:
+        return sinif
+    # 2) Kuralı olmayan skill: tam olarak BİR profilde geçiyorsa sınıf odur.
+    #    Birden çoksa sınıf yoktur — "sınıfı uydurmak izin sınırını uydurmaktır".
+    sinirlar, _toplam = _profil_siniflari(skill, kok, yaml)
+    return sinirlar[0] if len(sinirlar) == 1 else None
 
 
 def skill_izinli(skill, pdir):
@@ -113,6 +132,26 @@ def _profil_dizini_var(kok):
         return any(ad.endswith(".yml") for ad in os.listdir(pd))
     except OSError:
         return False
+
+
+def _routing_sinifi(skill, kok, yaml):
+    """routing.yml'de bu skill'e ait İLK kuralın task_class'ı (yoksa None).
+
+    "İlk" dosya sırasıdır ve bu bilinçlidir: `routing.yml` elle yazılan,
+    gözden geçirilen bir tablodur — sırası yazarın kararıdır. Aynı skill'in
+    ikinci kuralı ikincil bağlamdır (ör. `implement-change` önce code-change,
+    sonra incident); birincisi varsayılan sınıftır.
+    """
+    yol = os.path.join(kok, ".agents", "routing.yml")
+    try:
+        with open(yol, encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh) or {}
+    except (OSError, ValueError):
+        return None
+    for kural in cfg.get("rules") or []:
+        if isinstance(kural, dict) and kural.get("skill") == skill:
+            return kural.get("task_class")
+    return None
 
 
 def _profil_siniflari(skill, kok, yaml):

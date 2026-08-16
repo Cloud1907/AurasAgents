@@ -25,7 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Görev sınıflarının TEK tanımı. Sınıf = capability profili seçicisi; konu
 # değil YETENEK SINIRI adlandırır (bkz. ADR-0005).
-GOREV_SINIFLARI = ("code-change", "research", "incident")
+GOREV_SINIFLARI = ("code-change", "research", "incident", "design")
 
 
 def kur(check_fn):

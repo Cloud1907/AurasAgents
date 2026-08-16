@@ -1,9 +1,9 @@
 # ADR-0005 — Uzak MCP sunucuları ve dördüncü görev sınıfı (`design`)
 
 **Tarih:** 2026-08-16
-**Durum:** Kısmen uygulandı — uzak MCP ayrımı KABUL ve YÜRÜRLÜKTE; `design`
-sınıfı KABUL ama yürürlükte değil (profil dosyası `deny` yüzeyinde, insan eli
-gerekir; bkz. §4)
+**Durum:** Uygulandı — uzak MCP ayrımı ve `design` sınıfı YÜRÜRLÜKTE
+(profil 2026-08-16'da kullanıcı eliyle konuldu). Yönlendirme AÇIK DEĞİL: sebep
+ölçüldü ve `routing.yml` `not_routed`'a yazıldı (bkz. §5)
 **Bağlam belgeleri:** AGENTS.md "Skill ve capability mekanizması",
 `VIBE_CODING_TASARIM_TEMMUZ_2026.md` §5, ADR-0004
 
@@ -96,3 +96,26 @@ başına zorlayamaz. `design` sınıfı bu sınırı değiştirmez.
 kapı OLMADIĞINI yazıyor. Bu ADR onu değiştirmez: Figma/Canva/Nim kapı
 getirmez, yetenek getirir. O satır ancak bir doğrulayıcı kapıya bağlandığında
 değişir (ör. `contrast_check.py` — yazılı, hâlâ bağlı değil).
+
+## 5. Ek karar (aynı gün) — sınıfın kaynağı ve açık kalan yönlendirme
+
+**Sınıfın kaynağı `routing.yml` oldu.** `design.yml` eklenince İKİ sessiz
+kayma ölçüldü: `research-with-evidence` incident → design, `security-review`
+None → code-change. Hiçbir profile dokunulmamıştı; sınıf
+`sorted(os.listdir())`'in İLK elemanından türetiliyordu ve yeni dosya adı
+("design") alfabede öne geçmişti. Aynı şans `implement-change`i doğru
+gösteriyordu ("code-change" < "incident") — test yeşildi, mekanizma yanlıştı.
+
+`skill_task_class` artık önce `routing.yml`'deki ilk kurala bakar (yazarın
+gözden geçirilmiş beyanı), yalnız kuralsız skill'de profile düşer ve birden
+çok profilde geçiyorsa None döner. Bekçi: `test_sinif_profil_ALFABESINE_bagli_degil`.
+
+**Yönlendirme açılmadı — ölçülmüş sebep.** `design` için kural yazıldı, canlı
+denendi ve geri alındı: `bin/niyet.py::_okuma_sinifi` `"research"`i TEK
+salt-okunur sınıf sayıyor ve okuma niyetli her kuralı oraya düşürüyor. Sonuç,
+`design` profilindeki chrome-devtools'u kaybeden bir SEO kuralı olurdu — yani
+çalışmayan ama çalışır görünen bir yönlendirme. İkinci salt-okunur sınıfı
+tanıtmak router'ın güvenlik kapısına dokunur ve ayrı bir PR ister.
+
+Sınıf bu hâliyle ÇALIŞIR: issue form'dan seçilir, `/komut`la açılır. Açık olan
+tek şey otomatik yönlendirmedir.

@@ -131,6 +131,37 @@ class RouteTest(unittest.TestCase):
                          "code-change")
         self.assertIsNone(route.skill_task_class("boyle-bir-skill-yok", ROOT))
 
+    def test_sinif_profil_ALFABESINE_bagli_degil(self):
+        """Sınıf yazarın beyanından gelir; dosya adı sırasından DEĞİL.
+
+        ÖLÇÜM 2026-08-16 — dördüncü profil (`design.yml`) eklenince İKİ sessiz
+        kayma oldu, o profillere hiç dokunulmadan: `research-with-evidence`
+        incident → design, `security-review` None → code-change. Sebep,
+        sınıfın `sorted(os.listdir())` sırasının İLK elemanından türetilmesiydi
+        ("design" < "incident"). Aynı şans `implement-change`i doğru
+        gösteriyordu ("code-change" < "incident") — yani test yeşildi ama
+        mekanizma yanlıştı.
+
+        Bu bekçi eşlemeyi routing.yml'e sabitler: yeni bir profil dosyası
+        eklemek hiçbir skill'in sınıfını değiştiremez.
+        """
+        for skill, beklenen in (("implement-change", "code-change"),
+                                ("research-with-evidence", "research"),
+                                ("designing-interfaces", "code-change"),
+                                ("security-review", "code-change"),
+                                ("kernel-work", "code-change")):
+            with self.subTest(skill=skill):
+                self.assertEqual(route.skill_task_class(skill, ROOT), beklenen,
+                                 f"{skill}: sınıf routing.yml beyanına uymuyor")
+
+    def test_kuralsiz_skill_tek_profildeyse_sinifini_alir(self):
+        """routing.yml'de kuralı olmayan skill: profil tek ise sınıf odur."""
+        self.assertEqual(route.skill_task_class("grilling", ROOT), "research")
+
+    def test_cok_profilli_kuralsiz_skill_sinifsizdir(self):
+        """aurasprime her profilde: sınıfı işten gelir, uydurulmaz."""
+        self.assertIsNone(route.skill_task_class("aurasprime", ROOT))
+
     def test_profil_sinifi_kelime_puanlamasini_yener(self):
         """Otorite profildir: kelimeler başka sınıf söylese bile.
 
