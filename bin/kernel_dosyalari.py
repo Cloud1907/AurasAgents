@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Motor (kernel) dosyalarının TEK tanımı + kanonik↔proje karşılaştırması.
 
+Kapsam DIŞI (2026-08-16'da ayrıldı, ikisi de burada kiracıydı): kurulum
+kaynağının tazeliği `bin/kaynak.py`, gitleaks yanlış-pozitif muafiyeti
+`bin/gitleaks_muaf.py`. İkisi de bu dosyanın docstring'inde hiç anılmıyordu —
+adı konmamış sorumluluk, dosyayı sessizce eşiğe (400/400) dayamıştı.
+
 Neden tek tanım: liste iki yerde yaşıyordu (auras-init.sh içi + validate.py
 bekçisi) ve üçüncüsü geri-taşımada gerekiyordu. Üç kopya = sürüklenme; tek
 tanım + bekçi (validate.py test_onboarding_parity) ile sürüklenme yapısal
@@ -28,6 +33,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # çağıranlar (auras-init.sh, testler) tek import yüzeyi görsün.
 from manifest import (MANIFEST_SURUM, kurulu_surum,  # noqa: E402,F401
                       manifest_dosyalari, manifest_govde)
+# Kurulumun iki ayrı sorusu ayrı modüllerde; import yüzeyi TEK kalsın diye
+# buradan yeniden dışa verilir (auras-init.sh ve validate.py `kd.<ad>` çağırır).
+from kaynak import kaynak_tazele, FETCH_ZAMAN, git as _git  # noqa: E402,F401
+from gitleaks_muaf import (GITLEAKS_CFG, MUAFIYET_BLOGU,  # noqa: E402,F401
+                           gitleaks_kullaniyor, manifest_muaf_mi)
 
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
@@ -45,11 +55,15 @@ MOTOR = [
     "bin/kapsam_bekcisi.py",
     "bin/dogrula_ci.py",    # validate.py'nin CI/kanıt doğrulayıcıları
     "bin/kalite.py",
+    "bin/kalite_rapor.py",  # kalite.py'nin insan raporu (import'ta şart)
     "bin/olukod.py",     # ölü kod tespiti — kalite.py'nin bağımlılığı
+    "bin/marj.py",       # eşiğe yakınlık pusulası — kalite.py import eder
     "bin/diller.py",        # dil kapsamının tek tanımı — kapılar buradan okur
     "bin/yuzey.py",         # yol → yükümlülük sınıflandırması (kapi.py'nin ölçüsü)
     "bin/contract.py",      # incele.py'nin contract okuması
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
+    "bin/kaynak.py",        # kurulum kaynağının tazeliği (ADR-0002)
+    "bin/gitleaks_muaf.py",  # tarayıcı yanlış-pozitif muafiyeti
     "bin/yorum.py",         # incele.py'nin PR yorum gövdesi (import'ta şart)
     "bin/surec.py",
     "bin/tur.py", "bin/risk.py",   # incele.py'nin bağımlılıkları — birlikte taşınmalı
@@ -193,158 +207,6 @@ def motor_dosyalari(kok):
 
 
 MANIFEST_REL = ".agents/.kernel-manifest.json"
-GITLEAKS_CFG = ".gitleaks.toml"
-# Manifest yalnız sha256 özeti taşır; gitleaks'in generic-api-key kuralı
-# uzun hex bloklarını anahtar sanar. 4cast'te bu 7 yanlış pozitif üretip
-# CI'ı bir haftadan uzun kırmızıda tuttu (2026-08-07). Dosyayı kernel
-# ÜRETTİĞİ için sorun bağlı HER projede tekrarlanır — kurulumda çözülmeli.
-MUAFIYET_BLOGU = """
-[allowlist]
-description = "AurasAgents kernel dosyalari — sir degil, kapinin kendi malzemesi"
-paths = [
-  # Manifest yalniz sha256 OZETI tasir; generic-api-key kurali uzun hex'i
-  # anahtar saniyor (4cast: 7 yanlis pozitif, CI bir haftadan uzun kirmizi).
-  '''\\.agents/\\.kernel-manifest\\.json''',
-  # Skill eval fixture'lari KASITLI sahte anahtar tasir — tarayicinin kendi
-  # kabul vakalari. Bizim tarayicimiz `--exclude */eval/*` ile diliyor ama
-  # gitleaks bunu bilmiyordu ve her projede ayni yanlis pozitifi uretiyordu
-  # (4Flow: stripe-access-token @ security-review/eval/cases.md, 2026-08-07).
-  '''\\.agents/skills/.*/eval/.*''',
-]
-"""
-
-
-def gitleaks_kullaniyor(kok):
-    """Proje gitleaks koşuyor mu (config'i var ya da workflow'da anılıyor)."""
-    if os.path.isfile(os.path.join(kok, GITLEAKS_CFG)):
-        return True
-    wf = os.path.join(kok, ".github", "workflows")
-    if not os.path.isdir(wf):
-        return False
-    for ad in sorted(os.listdir(wf)):
-        try:
-            with open(os.path.join(wf, ad), encoding="utf-8",
-                      errors="replace") as fh:
-                if "gitleaks" in fh.read():
-                    return True
-        except OSError:
-            continue
-    return False
-
-
-def manifest_muaf_mi(kok):
-    """Manifest gitleaks allowlist'inde mi (yoksa yanlış pozitif üretir).
-
-    'kernel-manifest' aranır, '.kernel-manifest.json' DEĞİL: gitleaks yol
-    desenleri regex'tir ve nokta kaçışlıdır (`\\.kernel-manifest\\.json`).
-    Düz nokta aramak kendi şablonumuzu bile eşleştirmiyordu (test yakaladı).
-    """
-    try:
-        with open(os.path.join(kok, GITLEAKS_CFG), encoding="utf-8") as fh:
-            metin = fh.read()
-        # Eval fixture muafiyeti sonradan eklendi; ikisi de olmalı yoksa
-        # kurulum "muaf" sanıp CI'ı yanlış pozitifle kırmızı bırakır.
-        return "kernel-manifest" in metin and "skills/.*/eval" in metin
-    except OSError:
-        return False
-
-
-def _git(kok, *arg, girdi=None, zaman=20):
-    try:
-        p = subprocess.run(["git", "-C", kok, *arg], capture_output=True,
-                           text=True, input=girdi, timeout=zaman)
-        return p.stdout if p.returncode == 0 else None
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-
-FETCH_ZAMAN = 20
-
-
-def _yukari_akim(kok):
-    """Mevcut dalın upstream'i (ör. `origin/main`) ya da None.
-
-    Dal adı sabitlenmez: `origin/main` varsayan kod, main'den başka dalda
-    çalışan projede sessizce "doğrulanamadı"ya düşerdi.
-    """
-    ref = _git(kok, "rev-parse", "--abbrev-ref", "@{upstream}")
-    return ref.strip() if ref and ref.strip() else None
-
-
-def _fark(kok, upstream):
-    """(ileri, geri) — HEAD upstream'e göre kaç commit önde/arkada."""
-    sayim = _git(kok, "rev-list", "--left-right", "--count", f"HEAD...{upstream}")
-    try:
-        ileri, geri = sayim.split()[:2]
-        return int(ileri), int(geri)
-    except (AttributeError, ValueError):
-        return None
-
-
-def _kirli(kok):
-    """İzlenen dosyalarda kaydedilmemiş değişiklik var mı.
-
-    İzlenmeyen dosya sayılmaz: scratch dosyası ne ileri sarmayı bozar ne de
-    kurulumu durdurmayı hak eder.
-    """
-    cikti = _git(kok, "status", "--porcelain", "--untracked-files=no")
-    return bool(cikti and cikti.strip())
-
-
-def _ileri_sar(kok, upstream, ileri, geri):
-    """Geride kalan kaynağı upstream'e taşımayı dener → (durum, mesaj)."""
-    geride = f"kaynak {upstream}'in {geri} commit gerisinde"
-    if ileri:
-        return "engel", f"{geride} ve {ileri} yerel commit var — ileri sarılamaz"
-    if _kirli(kok):
-        return "engel", f"{geride} ve çalışma ağacı kirli — ileri sarılamaz"
-    if _git(kok, "merge", "--ff-only", upstream) is None:
-        return "engel", f"{geride}; ileri sarma başarısız — elle çöz"
-    return "ilerletildi", f"kaynak {geri} commit ileri sarıldı → {upstream}"
-
-
-def kaynak_tazele(kok):
-    """Kurulum kaynağını upstream'e ileri sarmayı dener → (durum, mesaj).
-
-    guncel        — HEAD upstream ile aynı (fetch doğrulandı)
-    ilerletildi   — geride idi, fast-forward ile upstream'e taşındı
-    engel         — geride ama güvenle ileri sarılamıyor (yerel commit/kirli)
-    dogrulanamadi — git yok, upstream yok ya da fetch başarısız
-
-    Neden kapı: `/auras` dosyaları kanonik ÇALIŞMA AĞACINDAN kopyalar. Ağaç
-    origin'in gerisindeyse kurulan motor eskidir ama manifest onu "güncel"
-    diye damgalar — kapı var, koruma yok. 2026-08-15 ölçümü: ağaç e3f1ec1'de,
-    origin/main 2d42b90'daydı; o gün koşulacak her /auras eski niyet kapısını
-    yayacaktı. Fast-forward seçilmesi bilinçli: iş kaybettiremeyen tek
-    ilerletme biçimidir; sarılamıyorsa kararı insan verir.
-    """
-    if _git(kok, "rev-parse", "--git-dir") is None:
-        return "dogrulanamadi", "git deposu değil — kaynak sürümü bilinmiyor"
-    upstream = _yukari_akim(kok)
-    if upstream is None:
-        return "dogrulanamadi", "dalın upstream'i yok — karşılaştıracak uzak sürüm yok"
-    taze = _git(kok, "fetch", "--quiet", upstream.split("/", 1)[0],
-                zaman=FETCH_ZAMAN) is not None
-    fark = _fark(kok, upstream)
-    if fark is None:
-        return "dogrulanamadi", f"{upstream} okunamadı — karşılaştırma yapılamadı"
-    ileri, geri = fark
-    if geri:
-        return _ileri_sar(kok, upstream, ileri, geri)
-    if not taze:
-        return "dogrulanamadi", f"fetch başarısız — {upstream} tazeliği doğrulanamadı"
-    # Push edilmemiş commit ve kaydedilmemiş değişiklik engel DEĞİLDİR —
-    # kernel burada geliştirilir. Ama sessiz de kalamaz: ikisi de bağlı
-    # repolara İNCELENMEMİŞ içerik taşır ve "guncel" onu görünmez kılar.
-    uyari = []
-    if ileri:
-        uyari.append(f"{ileri} yerel commit henüz uzakta yok")
-    if _kirli(kok):
-        uyari.append("çalışma ağacı kirli — kaydedilmemiş içerik kurulur")
-    ek = f" (uyarı: {'; '.join(uyari)})" if uyari else ""
-    return "guncel", f"kaynak {upstream} ile aynı{ek}"
-
-
 def gecmis_blob_idler(kanonik, rel):
     """rel için kanonik git geçmişindeki TÜM sürümlerin blob id'leri.
 

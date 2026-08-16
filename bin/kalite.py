@@ -27,6 +27,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bin"))
 import diller  # noqa: E402  (dil kapsamının tek tanımı)
+import marj  # noqa: E402  (eşiğe yakınlık — pusula, kapı değil)
+from kalite_rapor import (bulgu_yaz, ratchet_yaz,  # noqa: E402
+                          sayac_yaz)
 from olukod import olu_importlar  # noqa: E402  (ölü kod ayrı konu)
 
 TABAN_YOL = os.path.join(ROOT, ".agents", "kalite-baseline.json")
@@ -277,6 +280,20 @@ def buyumeler(simdiki, taban):
             if k in taban and v > taban[k]]
 
 
+def _taban_yaz(rapor):
+    """Mevcut ölçümü ratchet tabanı olarak diske yazar."""
+    os.makedirs(os.path.dirname(TABAN_YOL), exist_ok=True)
+    with open(TABAN_YOL, "w", encoding="utf-8") as fh:
+        json.dump({"sayaclar": rapor["sayaclar"],
+                   "buyuklukler": rapor["buyuklukler"],
+                   "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz "
+                          "VE mevcut ihlaller büyüyemez (buyuklukler). "
+                          "Düşürmek serbest ve teşvik edilir."},
+                  fh, ensure_ascii=False, indent=2, sort_keys=True)
+        fh.write("\n")
+    print(f"kalite: taban yazıldı → {os.path.relpath(TABAN_YOL, ROOT)}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
@@ -291,16 +308,7 @@ def main(argv=None):
     taban = taban_oku()
 
     if args.baseline:
-        os.makedirs(os.path.dirname(TABAN_YOL), exist_ok=True)
-        with open(TABAN_YOL, "w", encoding="utf-8") as fh:
-            json.dump({"sayaclar": rapor["sayaclar"],
-                       "buyuklukler": rapor["buyuklukler"],
-                       "not": "Ratchet tabanı: sayaçlar bunun üstüne çıkamaz "
-                              "VE mevcut ihlaller büyüyemez (buyuklukler). "
-                              "Düşürmek serbest ve teşvik edilir."},
-                      fh, ensure_ascii=False, indent=2, sort_keys=True)
-            fh.write("\n")
-        print(f"kalite: taban yazıldı → {os.path.relpath(TABAN_YOL, ROOT)}")
+        _taban_yaz(rapor)
         return 0
 
     kotu = regresyonlar(rapor["sayaclar"], taban) if taban is not None else []
@@ -311,41 +319,19 @@ def main(argv=None):
                           for k, a, b in kotu]
     rapor["buyume"] = [{"ihlal": k, "taban": a, "simdi": b}
                        for k, a, b in buyuyen]
+    # Eşiğe yakınlık PUSULADIR: rapora girer, çıkış koduna GİRMEZ (bin/marj.py).
+    rapor["yaklasan"] = [{"oran": round(o, 3), "tur": t, "kimlik": k,
+                          "deger": d, "limit": lim}
+                         for o, t, k, d, lim in marj.bul(args.path,
+                                                         rapor["esikler"])]
 
     if args.json:
         print(json.dumps(rapor, ensure_ascii=False, indent=2))
         return 1 if (args.check and (kotu or buyuyen)) else 0
 
-    kap = rapor["kapsam"]
-    print(f"KALİTE: {kap['kod_dosyasi']} kod dosyası "
-          f"({kap['fonksiyon_analizli']} fonksiyon-analizli, "
-          f"{kap['yalniz_satir_sayilan']} yalnız satır sayıldı)")
-    for k, v in sorted(rapor["sayaclar"].items()):
-        t = "—" if taban is None else taban.get(k, 0)
-        isaret = "✗" if (taban is not None and v > taban.get(k, 0)) else " "
-        print(f"  {isaret} {k:20} {v:4}   (taban: {t})")
-    if taban is None:
-        print("\n  Taban yok — ratchet kapalı. Kur: python3 bin/kalite.py --baseline")
-    elif kotu:
-        print("\n  RATCHET İHLALİ — sayaç tabanın üstüne çıktı:")
-        for k, a, b in kotu:
-            print(f"    {k}: {a} → {b}")
-        print("  Ya borcu geri al ya da tabanı bilinçli yükselt "
-              "(gerekçesini commit mesajına yaz).")
-    if buyuyen:
-        print("\n  RATCHET İHLALİ — mevcut borç BÜYÜDÜ (sayaç değişmese de):")
-        for k, a, b in buyuyen:
-            print(f"    {k}: {a} → {b}")
-        print("  Borcu büyütmek, onu kabul etmekle aynı şey değildir.")
-    elif taban is not None and taban_b is None:
-        # Sessiz korumasızlık yok: eski taban biçimi büyüme kontrolünü
-        # kapatır ve bunu SÖYLEMEK zorundayız.
-        print("\n  UYARI: taban 'buyuklukler' alanını taşımıyor — mevcut "
-              "borcun BÜYÜMESİ ölçülemiyor. Tazele: python3 bin/kalite.py --baseline")
-    for b in rapor["bulgular"][:12]:
-        print(f"    {b['dosya']}:{b['satir']}  [{b['tur']}]  {b['detay']}")
-    if len(rapor["bulgular"]) > 12:
-        print(f"    … {len(rapor['bulgular']) - 12} bulgu daha (--json)")
+    sayac_yaz(rapor, taban)
+    ratchet_yaz(taban, taban_b, kotu, buyuyen)
+    bulgu_yaz(rapor)
     return 1 if (args.check and (kotu or buyuyen)) else 0
 
 
