@@ -125,9 +125,12 @@ def karar(risk, bulgular, ci_yesil, okunabildi, tutarli=True,
         # (kirli sanılır); MERGE ise kanıtsız geçiş olurdu. Doğru yer İNSAN.
         # Politika ve ölçüm (deny, kırmızı CI) YUKARIDA kaldı — araç yokluğu
         # onları gevşetemez.
-        return "insan", (f"bağımsız inceleme ÖLÇÜLEMEDİ (araç koşamadı): "
-                         f"{hata.strip()[:120]} — 'ölçülemedi' 'temiz' demek "
-                         "değildir; karar kullanıcının")
+        # Sınıfı burada TEKRAR yazmıyoruz: `hata` zaten "araç koşamadı
+        # (usage limit)" gibi ÖZGÜL işareti taşıyor. Genel etiketi öne
+        # koymak, teşhisin tek işe yarar parçasını gölgeliyordu.
+        return "insan", (f"bağımsız inceleme ÖLÇÜLEMEDİ: {hata.strip()[:120]}"
+                         " — 'ölçülemedi' 'temiz' demek değildir; karar "
+                         "kullanıcının")
     if degismedi:
         # Artımlı modda boş diff "TEMİZ" görünür ve önceki turun bulgusunu
         # silerdi — bu yol otomatik merge'e ASLA açılmaz.
