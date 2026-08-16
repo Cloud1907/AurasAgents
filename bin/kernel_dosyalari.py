@@ -17,7 +17,6 @@ Kullanım (kütüphane):
     for rel, sinif in kd.karsilastir(kanonik, hedef): ...
 """
 import hashlib
-import json
 import os
 import re
 import subprocess
@@ -46,6 +45,7 @@ MOTOR = [
     "bin/kapsam_bekcisi.py",
     "bin/dogrula_ci.py",    # validate.py'nin CI/kanıt doğrulayıcıları
     "bin/kalite.py",
+    "bin/olukod.py",     # ölü kod tespiti — kalite.py'nin bağımlılığı
     "bin/diller.py",        # dil kapsamının tek tanımı — kapılar buradan okur
     "bin/yuzey.py",         # yol → yükümlülük sınıflandırması (kapi.py'nin ölçüsü)
     "bin/contract.py",      # incele.py'nin contract okuması

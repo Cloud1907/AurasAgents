@@ -25,7 +25,6 @@ Sezgi (kaba, kasıtlı basit):
 """
 import argparse
 import re
-import sys
 
 URL = re.compile(r"https?://\S+")
 FILE_LINE = re.compile(r"\b[\w./-]+\.\w+:\d+")

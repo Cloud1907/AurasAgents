@@ -1,6 +1,5 @@
 """memory_hygiene çekirdek mantığı — bekçinin bekçisi."""
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
