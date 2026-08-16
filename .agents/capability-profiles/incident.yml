@@ -13,6 +13,12 @@ network:
   mode: allowlist
   domains:
     - api.github.com
+# MCP izin sınırı — kayıt: .agents/mcp.yml, üretici: bin/yetki.py
+# Olay sınıfı: teşhis için indeks + tarayıcı + ofis run durumu.
+mcp:
+  - codegraph
+  - chrome-devtools
+  - agent-ofis
 evidence_required:
   - reproduction
   - tests

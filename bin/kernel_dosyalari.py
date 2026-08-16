@@ -60,6 +60,8 @@ MOTOR = [
     ".agents/routing.yml",
     ".agents/routing-eval.yml",   # yönlendirme doğruluğunun ölçülen hâli;
                                   # taşınmazsa bağlı projede eval koşamaz
+    ".agents/mcp.yml",            # MCP sunucu kaydı — skill'lerle aynı yönetim;
+                                  # taşınmazsa bağlı proje MCP'yi yönetemez
     # Motorun kendi kapsamı hakkındaki beyanı. Her projeye gitmeli: kullanıcı
     # hangi aşamada kapı OLMADIĞINI bilmeden korunduğunu sanır. Ayrıca
     # tests/test_evidence_workflow.py bu belgeyi şart koşuyor ve o test her
@@ -79,7 +81,9 @@ URETILEN = (".agents/kalite-baseline.json",
             # Kurucu üretir: hook'lar birleştirilir (auras-init.sh) ve yetki
             # politikası yazılır (bin/yetki.py --uygula). Projede kurulumdan
             # SONRA bulunur, motor listesinde değildir — projenin dosyasıdır.
-            ".claude/settings.json")
+            ".claude/settings.json",
+            # yetki.py --uygula üretir; kayıt + profil kesişiminden gelir
+            ".mcp.json")
 
 # tests/ içinde `os.path.join(ROOT, "a", "b")` biçimindeki dosya bağımlılığı
 _ROOT_YOLU = re.compile(r"os\.path\.join\(\s*ROOT\s*,\s*((?:\"[^\"]+\"\s*,?\s*)+)\)")

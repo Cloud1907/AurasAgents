@@ -19,6 +19,13 @@ network:
   mode: allowlist
   domains:
     - api.github.com
+# MCP izin sınırı — kayıt: .agents/mcp.yml, üretici: bin/yetki.py
+# Yazma sınıfı: kod indeksi + tarayıcı (tıklama kanıtı) + ofis.
+# agentmemory YOK: yazma turunda ikinci hafıza otoritesi doğurmasın.
+mcp:
+  - codegraph
+  - chrome-devtools
+  - agent-ofis
 evidence_required:
   - tests
   - lint

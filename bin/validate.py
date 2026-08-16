@@ -122,7 +122,7 @@ def test_profiles(skill_names):
         izinli_kume[tc] = set(data.get("skills") or [])
         check(f == f"{tc}.yml", f"profil {f}: dosya adı task_class ile uyuşmuyor")
         for key in ("schema_version", "skills", "tools", "network",
-                    "evidence_required", "risk"):
+                    "mcp", "evidence_required", "risk"):
             check(key in data, f"profil {f}: '{key}' alanı eksik")
         for s in data.get("skills", []):
             check(s in skill_names,
