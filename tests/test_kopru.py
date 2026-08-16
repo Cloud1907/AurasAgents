@@ -154,5 +154,30 @@ class MakineyeOzguYollar(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(dizin, ".env")))
 
 
+class PathBicimi(unittest.TestCase):
+    """`.path` TEK PATH dizesidir; satır satır yazılırsa yalnız ilki geçerli olur."""
+
+    def _yaz(self):
+        dizin = tempfile.mkdtemp()
+        kopru.yol_dosyasi(dizin)
+        with open(os.path.join(dizin, ".path")) as f:
+            return f.read()
+
+    def test_tek_satir(self):
+        # Ölçüm 2026-08-16: satır satır yazılmış .path ile ilk koşular geçti
+        # (action'lar önbellekteydi), yeni indirme gerekince `tar: command not
+        # found`. Hata kurulumda değil, günler sonra ilgisiz yerde patladı.
+        self.assertEqual(len(self._yaz().strip().split("\n")), 1)
+
+    def test_iki_nokta_ile_ayrilir(self):
+        self.assertIn(":", self._yaz())
+
+    def test_temel_sistem_yollari_var(self):
+        # /usr/bin olmadan tar, curl, git bulunamaz — runner ilk adımda ölür.
+        yol = self._yaz().strip().split(":")
+        for gerekli in ("/usr/bin", "/bin"):
+            self.assertIn(gerekli, yol)
+
+
 if __name__ == "__main__":
     unittest.main()

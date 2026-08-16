@@ -90,12 +90,19 @@ def runner_indir(dizin):
 
 
 def yol_dosyasi(dizin):
-    """LaunchAgent minimal PATH ile koşar; homebrew/dotnet yolları açıkça verilir."""
+    """LaunchAgent minimal PATH ile koşar; homebrew/dotnet yolları açıkça verilir.
+
+    BİÇİM KRİTİK: runner `.path`i TEK BİR PATH DİZESİ olarak okur — satır satır
+    yazılırsa yalnız ilk satır geçerli olur. Ölçüm 2026-08-16 (4Flow): satır
+    satır yazılmış `.path` ile ilk koşular geçti (action'lar önbellekteydi),
+    yeni bir action indirilmesi gerekince `tar: command not found` ile çöktü —
+    yani hata KURULUMDA değil, günler sonra ilgisiz bir yerde patladı.
+    """
     yollar = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin",
               "/usr/local/share/dotnet", os.path.join(KOK, ".dotnet/tools"),
               "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
     with open(os.path.join(dizin, ".path"), "w") as f:
-        f.write("\n".join(yollar) + "\n")
+        f.write(":".join(yollar) + "\n")
 
 
 def env_dosyasi(dizin):
