@@ -125,5 +125,34 @@ class WorkflowYamasi(unittest.TestCase):
         self.assertEqual(self._yamala(tempfile.mkdtemp()), 2)
 
 
+class MakineyeOzguYollar(unittest.TestCase):
+    """Araç yolu repoya yazılırsa o yolu olmayan makinede kapı kırılır."""
+
+    def test_android_sdk_varsa_env_yazilir(self):
+        dizin = tempfile.mkdtemp()
+        gercek = kopru.KOK
+        try:
+            sahte_kok = tempfile.mkdtemp()
+            os.makedirs(os.path.join(sahte_kok, "Library", "Android", "sdk"))
+            kopru.KOK = sahte_kok
+            satirlar = kopru.env_dosyasi(dizin)
+        finally:
+            kopru.KOK = gercek
+        self.assertTrue(any(s.startswith("ANDROID_HOME=") for s in satirlar))
+        with open(os.path.join(dizin, ".env")) as f:
+            self.assertIn("ANDROID_SDK_ROOT=", f.read())
+
+    def test_sdk_yoksa_bos_env_yazilmaz(self):
+        # Boş .env yazmak "ayarlandı" izlenimi verir; yokluk görünür kalmalı.
+        dizin = tempfile.mkdtemp()
+        gercek = kopru.KOK
+        try:
+            kopru.KOK = tempfile.mkdtemp()
+            self.assertEqual(kopru.env_dosyasi(dizin), [])
+        finally:
+            kopru.KOK = gercek
+        self.assertFalse(os.path.exists(os.path.join(dizin, ".env")))
+
+
 if __name__ == "__main__":
     unittest.main()

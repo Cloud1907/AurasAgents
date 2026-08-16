@@ -98,6 +98,25 @@ def yol_dosyasi(dizin):
         f.write("\n".join(yollar) + "\n")
 
 
+def env_dosyasi(dizin):
+    """Makineye özgü araç yolları — repoya DEĞİL runner'a yazılır.
+
+    Ölçüm 2026-08-16 (4Flow mobile-tests): workflow yorumu "Android SDK
+    ubuntu-latest imajında kurulu gelir" diyor ve bu doğru; self-hosted
+    runner'da ise gelmez. Aynı yolu repo workflow'una mutlak olarak yazmak,
+    o yolu olmayan HER makinede kapıyı kırar — o yüzden makine bilgisi
+    makinede durur. Runner kök dizinindeki `.env`i kendisi okur.
+    """
+    satirlar = []
+    sdk = os.path.join(KOK, "Library", "Android", "sdk")
+    if os.path.isdir(sdk):
+        satirlar += [f"ANDROID_HOME={sdk}", f"ANDROID_SDK_ROOT={sdk}"]
+    if satirlar:
+        with open(os.path.join(dizin, ".env"), "w") as f:
+            f.write("\n".join(satirlar) + "\n")
+    return satirlar
+
+
 def tek_runner_kur(repo, dizin, ad):
     jeton = gh("api", "-X", "POST",
                f"/repos/{repo}/actions/runners/registration-token", "-q", ".token")
@@ -130,6 +149,8 @@ def kur(repo, adet):
             print(f"  ✗ runner {sira}: indirilemedi", file=sys.stderr)
             continue
         yol_dosyasi(dizin)
+        for satir in env_dosyasi(dizin):
+            print(f"    .env: {satir}")
         ad = f"{os.uname().nodename.split('.')[0]}-{ETIKET}-{sira}"
         if tek_runner_kur(repo, dizin, ad):
             print(f"  ✓ runner {sira}/{adet}: {ad}")
