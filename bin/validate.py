@@ -47,6 +47,28 @@ test_profiles = dogrula_sema.test_profiles
 test_issue_form = dogrula_sema.test_issue_form
 
 
+def _router_katmani():
+    """route.py + enjekte.py birleşik kaynağı — bekçiler DOSYAYA bakmasın.
+
+    Karşılama hafızası çağrısı 2026-08-16'da `bin/enjekte.py`'ye taşındı
+    (route.py 406 satıra çıkıp ratchet'i delince enjeksiyon metni ayrıldı) ve
+    `"karsilama_kayitlari" in route.py` diyen bekçi anında kırmızı yandı —
+    oysa davranış hiç değişmemişti. Mekanizmanın hangi modülde durduğu bir
+    TASARIM kararıdır; kural ise "hafıza gerçekten okunuyor mu". Bekçi
+    kuralı ölçmeli, dosya yerleşimini değil.
+
+    Eksik dosya boş dize verir: bekçi ölçemediği şeyde çökmez.
+    """
+    metin = []
+    for ad in ("route.py", "enjekte.py"):
+        try:
+            with open(os.path.join(ROOT, "bin", ad), encoding="utf-8") as fh:
+                metin.append(fh.read())
+        except OSError:
+            continue
+    return "".join(metin)
+
+
 def _bin_modul(ad):
     """bin/<ad>.py'yi kütüphane olarak yükler (yoksa None)."""
     try:
@@ -354,9 +376,9 @@ def test_routing(skill_names, profil_skills=None):
 
     # Karşılamanın hafızası mekanizma mı, temenni mi? 2026-08-15'e kadar
     # temenniydi: metin ajana "hatirla.py ile bak" diyordu, ajan bakmıyordu.
-    check("karsilama_kayitlari" in open(router, encoding="utf-8").read(),
-          "route.py: karşılama hafızayı ÇAĞIRMIYOR — hatirla.py yazılmış ama "
-          "kullanılmayan araç olur, 📌 Geçmiş modelin belleğine kalır")
+    check("karsilama_kayitlari" in _router_katmani(),
+          "router katmanı karşılama hafızasını ÇAĞIRMIYOR — hatirla.py yazılmış "
+          "ama kullanılmayan araç olur, 📌 Geçmiş modelin belleğine kalır")
 
     # Golden vaka: router gerçekten doğru skill'i seçiyor mu (regresyon kapısı).
     # Doğrulama koşumu kullanıcının aktivite kaydını kirletmemeli (izolasyon).

@@ -134,6 +134,45 @@ def _profil_dizini_var(kok):
         return False
 
 
+SALT_OKUNUR_VARSAYILAN = frozenset({"research"})
+
+
+def salt_okunur_siniflar(pdir):
+    """Dosya sistemine YAZMAYAN sınıflar — profilin kendi beyanından.
+
+    Kaynak `tools.filesystem == "read-only"`; sabit liste DEĞİL. Sabit liste
+    tam da bu sorunu doğurdu: `niyet.py` `"research"`i tek salt-okunur sınıf
+    sayıyordu ve `design` açılınca (o da read-only) okuma niyetli design
+    kuralı `research`e düşürülüp aracını kaybediyordu (ADR-0005 §5).
+
+    Ölçüm yoksa EN KISITLI varsayıma düşer (`{"research"}`): bilinmeyen bir
+    sınıfı "yazmıyor" saymak, kapıyı ölçmediği şey için gevşetmek olurdu.
+    """
+    try:
+        import yaml
+    except ImportError:
+        return SALT_OKUNUR_VARSAYILAN
+    # pdir None gelebilir (router yolu): burada çökmek router'ı bloklardı.
+    kok = pdir if (pdir and _profil_dizini_var(pdir)) else KANONIK
+    pd = os.path.join(kok, ".agents", "capability-profiles")
+    bulunan = set()
+    try:
+        adlar = sorted(os.listdir(pd))
+    except OSError:
+        return SALT_OKUNUR_VARSAYILAN
+    for ad in adlar:
+        if not ad.endswith(".yml"):
+            continue
+        try:
+            with open(os.path.join(pd, ad), encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if (data.get("tools") or {}).get("filesystem") == "read-only":
+            bulunan.add(data.get("task_class"))
+    return frozenset(bulunan) or SALT_OKUNUR_VARSAYILAN
+
+
 def _routing_sinifi(skill, kok, yaml):
     """routing.yml'de bu skill'e ait İLK kuralın task_class'ı (yoksa None).
 

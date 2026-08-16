@@ -284,6 +284,28 @@ rules:
 
 # Birincil kural seçildikten sonra, isteğin içinde bu tetiklerden biri varsa
 # ilgili skill ek skill olarak DAİMA eklenir (risk yüzeyi kuralı).
+  # --- design sınıfı (ADR-0005) ---
+  # ÖLÇÜLEBİLİR ayak: SEO/erişilebilirlik/performans denetimi kaynaklı rapor
+  # üretir ve `design` profilindeki chrome-devtools'a ihtiyaç duyar (research
+  # profilinde tarayıcı YOK). Bu kural 2026-08-16'da bir kez geri alınmıştı:
+  # niyet kapısı sınıfı research'e düşürüp kuralın aracını elinden alıyordu.
+  # `salt_okunur_siniflar` ile o kapatıldı; kural artık ayakta duruyor.
+  # research-with-evidence kuralından SONRA gelir → skill'in varsayılan
+  # sınıfı `research` kalır (skill_kayit._routing_sinifi: ilk kural kazanır).
+  - skill: research-with-evidence
+    owner: ux-designer
+    specificity: 2
+    task_class: design
+    intent: read
+    risk: approval
+    triggers:
+      - seo denetimi
+      - lighthouse
+      - erişilebilirlik denetimi
+      - pazarlama araştırması
+      - rakip analizi
+      - marka denetimi
+
 always_add:
   - skill: security-review
     triggers:
@@ -309,7 +331,8 @@ not_routed:
   #     değildir. Skill yayın koşulu üçlüdür (eval + tetik + profil kaydı);
   #     eval'siz skill uydurmak tam da bu dosyanın engellediği şeydir.
   #
-  # (b) DENETİM ayağı: kural yazıldı, CANLI DENENDİ ve GERİ ALINDI. Ölçüm —
+  # (b) DENETİM ayağı ARTIK AÇIK (2026-08-16, aynı gün). Geçmişi: kural
+  #     yazıldı, canlı denendi, geri alındı, sebebi giderildi, geri kondu —
   #     `lighthouse çalıştır` kuralı doğru eşleştirdi ama `niyet.py`
   #     `_okuma_sinifi` sınıfı `design` → `research` düşürdü: o kod "research"i
   #     TEK salt-okunur sınıf sayıyor. Sonuç, `design` profilindeki

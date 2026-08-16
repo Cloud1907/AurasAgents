@@ -269,28 +269,44 @@ def okuma_niyeti(text):
                 or _hafif_fiil_yerleri(temiz))
 
 
-def kural_niyeti(rule):
-    """Kuralın niyet sınıfı. research okur, gerisi yazar sayılır; tablo
-    `intent` alanıyla ezer (security-review: denetim okur). Alan bekçisi:
-    bin/validate.py test_routing (geçersiz değer kesilir)."""
+SALT_OKUNUR_VARSAYILAN = ("research",)
+
+
+def kural_niyeti(rule, salt_okunur=SALT_OKUNUR_VARSAYILAN):
+    """Kuralın niyet sınıfı. SALT-OKUNUR sınıf okur, gerisi yazar sayılır;
+    tablo `intent` alanıyla ezer (security-review: denetim okur). Alan
+    bekçisi: bin/validate.py test_routing (geçersiz değer kesilir).
+
+    `salt_okunur` dışarıdan gelir (route.py → skill_kayit.salt_okunur_siniflar)
+    çünkü kaynak profillerin KENDİ beyanıdır. Sabit "research" varsayılanı
+    yalnız geriye uyum ve ölçüm yokluğu içindir — EN KISITLI hâl."""
     return rule.get("intent") or (
-        "read" if rule.get("task_class") == "research" else "write")
+        "read" if rule.get("task_class") in salt_okunur else "write")
 
 
-def _okuma_sinifi(rule):
+def _okuma_sinifi(rule, salt_okunur=SALT_OKUNUR_VARSAYILAN):
     """Okuma niyetinde seçilen kural salt-okunur profile iner.
 
     incele.py P1 (PR #43): intent:read kural code-change sınıfını
     koruyunca salt-okunur denetim yazma profili açıyordu. Skill
     zorunluluğu ve `risk` etiketi kuraldan gelir; yalnız profil iner.
     Mutasyon turunda kuralın kendi sınıfı geçerlidir (kopya cfg'yi bozmaz).
+
+    İki yönlü kural (ADR-0005 §5):
+      · Kural ZATEN salt-okunur bir sınıftaysa KENDİ sınıfı korunur. `design`
+        de read-only ama chrome-devtools/Figma taşır; onu `research`e indirmek
+        kuralın aracını elinden alır ve yönlendirmeyi işlevsiz bırakır.
+      · Yazma sınıfındaki kural EN KISITLI salt-okunur sınıfa (`research`)
+        iner — `design`e indirmek, kısıtlama adı altında dış SaaS yetkisi
+        vermek olurdu. İndirme daima kısıtlar, asla genişletmez.
     """
-    if rule.get("task_class") == "research":
+    if rule.get("task_class") in salt_okunur:
         return rule
     return dict(rule, task_class="research")
 
 
-def niyet_kapisi(text, scored, extras):
+def niyet_kapisi(text, scored, extras,
+                 salt_okunur=SALT_OKUNUR_VARSAYILAN):
     """Mutasyon doğrulanmadıysa yazma kurallarını zorunluluktan düşür.
 
     `scored`: route.py'nin (puan, özgüllük, kural, tetikler) listesi.
@@ -301,13 +317,13 @@ def niyet_kapisi(text, scored, extras):
     niyette scored'a dokunulmaz (tablo otoritesi).
     """
     if mutasyon_niyeti(text):
-        return _mutasyonda(scored), extras
+        return _mutasyonda(scored, salt_okunur), extras
     if not okuma_niyeti(text):
-        return _belirsizde(scored), extras
-    return _okumada(scored, extras)
+        return _belirsizde(scored, salt_okunur), extras
+    return _okumada(scored, extras, salt_okunur)
 
 
-def _mutasyonda(scored):
+def _mutasyonda(scored, salt_okunur=SALT_OKUNUR_VARSAYILAN):
     """Mutasyon DOĞRULANDI: okuma-niyetli kural birincil olamaz.
 
     Simetrik kusur (eval corpus, 2026-08-15): "auth akışını değiştirmemiz
@@ -316,12 +332,12 @@ def _mutasyonda(scored):
     sıranın altına iner ve öneri olarak görünür kalır (`always_add` zaten
     onu ek skill yapar).
     """
-    yazan = [s for s in scored if kural_niyeti(s[2]) != "read"]
-    okuyan = [s for s in scored if kural_niyeti(s[2]) == "read"]
+    yazan = [s for s in scored if kural_niyeti(s[2], salt_okunur) != "read"]
+    okuyan = [s for s in scored if kural_niyeti(s[2], salt_okunur) == "read"]
     return yazan + okuyan if yazan else scored
 
 
-def _belirsizde(scored):
+def _belirsizde(scored, salt_okunur=SALT_OKUNUR_VARSAYILAN):
     """Ne doğrulanmış mutasyon ne pozitif okuma emri → YAZMA YETKİSİ YOK.
 
     Skill seçimi korunur, sınıf salt-okunur profile iner. Gerekçe: yalnız
@@ -330,19 +346,20 @@ def _belirsizde(scored):
     yazılı: yanlış "okuma" ucuzdur — router bloklamaz, ajan skill'i öneriden
     yine yükler, kapılar kanıtı yine ister. Yanlış "yazma" pahalıdır.
     """
-    return [(p, sp, _okuma_sinifi(r), h) for p, sp, r, h in scored]
+    return [(p, sp, _okuma_sinifi(r, salt_okunur), h)
+            for p, sp, r, h in scored]
 
 
-def _okumada(scored, extras):
+def _okumada(scored, extras, salt_okunur=SALT_OKUNUR_VARSAYILAN):
     """Pozitif okuma emri: okuma kuralları öne alınır ve profile indirilir.
 
     Hiç okuma kuralı yoksa scored BOŞALIR (route fallback'e düşer, zorunlu
     skill üretilmez) ve yazma eşleşmeleri öneri olarak extras'a taşınır.
     """
-    okunur = [(p, sp, _okuma_sinifi(r), h) for p, sp, r, h in scored
-              if kural_niyeti(r) == "read"]
+    okunur = [(p, sp, _okuma_sinifi(r, salt_okunur), h) for p, sp, r, h in scored
+              if kural_niyeti(r, salt_okunur) == "read"]
     if okunur:
-        yazan = [s for s in scored if kural_niyeti(s[2]) != "read"]
+        yazan = [s for s in scored if kural_niyeti(s[2], salt_okunur) != "read"]
         return okunur + yazan, extras
     for _p, _sp, rule, _h in scored:
         if rule["skill"] not in extras:
