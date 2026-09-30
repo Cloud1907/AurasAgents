@@ -12,6 +12,18 @@ Herhangi bir proje klasöründe Claude Code aç ve `/auras` yaz. Kurulum
 Global skill: `~/.claude/skills/auras/` — kanonik kopyası
 `.agents/skills/auras/`. Motor: `bin/auras-init.sh` (idempotent).
 
+## Yeni bir makinede (klondan sonra bir kez)
+
+`git clone` sistemin üç parçasını taşımaz: global `/auras` skill'i, global
+router yedeği (`~/.claude/settings.json`) ve `pre-push` kapısı. Hepsini
+klonun kendisinden kurar, sonra durumu raporlar:
+
+```bash
+python3 bin/makine.py --install
+```
+
+Yalnız kontrol (eksik varsa exit 1): `python3 bin/makine.py`.
+
 ## Yapı
 
 ```
