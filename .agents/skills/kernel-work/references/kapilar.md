@@ -40,6 +40,14 @@ Worktree'den push'ta git kancayı KENDİ ortamıyla çalıştırır; `GIT_DIR` m
 alt süreçlere geçip doğrulayıcının geçici depolardaki `git` çağrılarını yanlış
 depoya yöneltiyordu (PR #17). Çözüm: ortamı temizle, keşfi normal yoldan yap.
 
+Kanca tek katman değildir: kernel kopyası eski kalan OICommand'da (2026-10-15)
+aynı miras testlerin `git init`/`git config`'ini GERÇEK depoya yazdırdı —
+paylaşılan config'e `core.bare = true` + `[user] t`, ayrıca worktree index'i
+ezildi ve secret kapısı 1 dosya tarayıp "temiz" dedi. Depoyu adlandıran (-C /
+cwd) her git alt süreci ortamını `bin/git_ortam.py` `temiz_ortam()`dan alır.
+Bekçisi validate.py'de: süit, linked worktree'li bir YEM depoya yönlendirilmiş
+ortamda koşar; yem değişirse kırmızı (`tests/test_git_ortam.py` negatif kontrolü).
+
 ### Proje kapısı (opsiyonel uzantı)
 
 `bin/hooks/proje-kapisi` varsa pre-push onu koşar. Projeye özel pazarlıksız

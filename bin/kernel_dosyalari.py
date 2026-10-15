@@ -38,6 +38,7 @@ from manifest import (MANIFEST_SURUM, kurulu_surum,  # noqa: E402,F401
 from kaynak import kaynak_tazele, FETCH_ZAMAN, git as _git  # noqa: E402,F401
 from gitleaks_muaf import (GITLEAKS_CFG, MUAFIYET_BLOGU,  # noqa: E402,F401
                            gitleaks_kullaniyor, manifest_muaf_mi)
+from git_ortam import temiz_ortam  # noqa: E402
 
 # Motorun dosyaları — projenin değil. Her /auras koşumunda senkronlanır.
 MOTOR = [
@@ -65,6 +66,8 @@ MOTOR = [
     "bin/contract.py",      # incele.py'nin contract okuması
     "bin/auras_geri.py", "bin/incele.py", "bin/hukum.py",
     "bin/kaynak.py",        # kurulum kaynağının tazeliği (ADR-0002)
+    "bin/git_ortam.py",     # git alt süreç ortamı — validate.py ve git
+                            # konuşan her araç import eder
     "bin/gitleaks_muaf.py",  # tarayıcı yanlış-pozitif muafiyeti
     "bin/yorum.py",         # incele.py'nin PR yorum gövdesi (import'ta şart)
     "bin/surec.py",
@@ -233,7 +236,7 @@ def blob_id(yol):
     """Bir dosyanın git blob id'si (repo gerektirmez)."""
     try:
         p = subprocess.run(["git", "hash-object", yol], capture_output=True,
-                           text=True, timeout=20)
+                           text=True, timeout=20, env=temiz_ortam())
         return p.stdout.strip() if p.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None

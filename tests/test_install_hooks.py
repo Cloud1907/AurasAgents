@@ -9,20 +9,13 @@ import os
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-GIT_YONLENDIRME = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
-                   "GIT_COMMON_DIR", "GIT_PREFIX")
-
-
-def temiz_ortam():
-    ortam = dict(os.environ)
-    for ad in GIT_YONLENDIRME:
-        ortam.pop(ad, None)
-    return ortam
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 
 
 class InstallHooksTest(unittest.TestCase):

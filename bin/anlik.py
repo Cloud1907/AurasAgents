@@ -26,6 +26,10 @@ import json
 import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from git_ortam import temiz_ortam  # noqa: E402
 
 RUNTIME = os.path.join(".agents", "runtime", "anlik")
 ZAMAN_ASIMI = 10
@@ -35,7 +39,8 @@ def _git(kok, *args):
     """(çıkış kodu, stdout) — git yoksa/çökerse (1, "")."""
     try:
         p = subprocess.run(["git", *args], cwd=kok, capture_output=True,
-                           text=True, timeout=ZAMAN_ASIMI)
+                           text=True, timeout=ZAMAN_ASIMI,
+                           env=temiz_ortam())
         return p.returncode, p.stdout
     except (OSError, subprocess.SubprocessError):
         return 1, ""

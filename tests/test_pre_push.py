@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ortam import KAPI_PYTHON, kapi_yorumlayicisi_gerekir  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
 GECMIS_REL = ".agents/skills/security-review/scripts/scan_gecmis.py"
@@ -56,12 +58,12 @@ def kur(td, proje_kapisi=None, kapi_calistirilabilir=True, tarayici=True,
         else:
             os.chmod(yol, 0o644)
     subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
-                   capture_output=True)
+                   capture_output=True, env=temiz_ortam())
     # Dosyalar STAGE edilmeli: secret kapısı --git modunda yalnız izlenen
     # içeriği tarar (push edilecek olan budur). Stage'lenmemiş depo "0 dosya
     # tarandı" verir ve bu bilinçli olarak 'temiz' sayılmaz.
     subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                   capture_output=True)
+                   capture_output=True, env=temiz_ortam())
     # input="" ŞART: pre-push sonunda 'while read' ile git'ten ref bekler;
     # stdin miras alınırsa test süresiz asılır.
     p = subprocess.run(["sh", os.path.join(td, "bin", "hooks", "pre-push")],
@@ -163,7 +165,7 @@ class PrePushTest(unittest.TestCase):
                 fh.write("[" + ",".join(
                     f'{{"email":"k{i}@sirket.com.tr"}}' for i in range(20)) + "]")
             subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             p = subprocess.run(
                 ["sh", os.path.join(td, "bin", "hooks", "pre-push")],
                 capture_output=True, text=True, cwd=td, timeout=60, input="")
@@ -209,18 +211,18 @@ class PrePushTest(unittest.TestCase):
                 fh.write("#!/bin/sh\ncat >/dev/null\nexit 0\n")
             os.chmod(yol, 0o755)
             subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             # Ref satırındaki SHA'lar GERÇEK olmalı: geçmiş kapısı artık bu
             # aralığı tarıyor ve uydurma SHA fail-closed bloklanır — o zaman
             # test ref akışını değil, kapının başka davranışını ölçer.
             subprocess.run(["git", "-C", td, "-c", "user.email=t@t",
                             "-c", "user.name=t", "commit", "-q", "-m", "t"],
-                           check=True, capture_output=True)
+                           check=True, capture_output=True, env=temiz_ortam())
             sha = subprocess.run(["git", "-C", td, "rev-parse", "HEAD"],
                                  check=True, capture_output=True,
-                                 text=True).stdout.strip()
+                                 text=True, env=temiz_ortam()).stdout.strip()
             p = subprocess.run(
                 ["sh", os.path.join(td, "bin", "hooks", "pre-push")],
                 capture_output=True, text=True, cwd=td, timeout=60,

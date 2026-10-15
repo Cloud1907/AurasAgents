@@ -27,10 +27,13 @@ Bu testler simülasyon değil: gerçek worktree kurar, gerçek `git push`
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 SCAN_REL = ".agents/skills/security-review/scripts/scan_secrets.py"
 PII_REL = ".agents/skills/security-review/scripts/scan_personal_data.py"
 GECMIS_REL = ".agents/skills/security-review/scripts/scan_gecmis.py"
@@ -61,19 +64,6 @@ sys.exit({kod})
 # Kanonik "EXAMPLE" anahtarları tarayıcı tarafından bilinçli elenir; onlarla
 # kurulan bir istismar testi yeşil görünür ama hiçbir şey ölçmez.
 YEM_TOKEN = "ghp_" + "0123456789abcdefghijABCDEFGHIJ0123"
-
-
-def temiz_ortam():
-    """Ortamdan git yönlendirmesini söker.
-
-    Testin KENDİSİ bir pre-push kancası içinde koşuyor olabilir (validate.py
-    tests/ dizinini kancadan çağırır). O zaman GIT_DIR miras alınır ve
-    kurulum git komutları ölçülen hatayı değil, ortamın hatasını gösterir.
-    """
-    ortam = dict(os.environ)
-    for ad in GIT_YONLENDIRME:
-        ortam.pop(ad, None)
-    return ortam
 
 
 def depo_kur(kok, validate_kod=0, sizinti=None):

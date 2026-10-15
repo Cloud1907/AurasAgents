@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 sys.path.insert(0, HERE)
+from git_ortam import temiz_ortam  # noqa: E402
 # Yüzey sınıflandırması ayrı modülde (bin/yuzey.py): "bu yol ne tür kanıt
 # ister" ile "kanıt yeterli mi" ayrı sorulardır.
 from yuzey import (BUYUK_DOSYA, BUYUK_SATIR, E2E_CMD_RE,  # noqa: E402
@@ -115,7 +116,8 @@ def degisen_satir_sayisi():
     """git ile net değişen satır — olay sayımından daha güvenilir kanıt."""
     try:
         p = subprocess.run(["git", "diff", "--numstat", "HEAD"],
-                           capture_output=True, text=True, cwd=ROOT, timeout=10)
+                           capture_output=True, text=True, cwd=ROOT, timeout=10,
+                           env=temiz_ortam())
         if p.returncode != 0:
             return 0
         toplam = 0

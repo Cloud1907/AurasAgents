@@ -23,6 +23,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 
 
 def _load(name):
@@ -37,7 +39,8 @@ anlik = _load("anlik")
 
 
 def _git(kok, *args):
-    subprocess.run(["git", *args], cwd=kok, capture_output=True, check=False)
+    subprocess.run(["git", *args], cwd=kok, capture_output=True, check=False,
+                   env=temiz_ortam())
 
 
 class AnlikTest(unittest.TestCase):

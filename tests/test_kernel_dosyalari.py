@@ -14,6 +14,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 import kernel_dosyalari as kd  # noqa: E402
 
 
@@ -27,7 +28,7 @@ def _load(name):
 
 def git(kok, *arg):
     subprocess.run(["git", "-C", kok, *arg], check=True,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, env=temiz_ortam())
 
 
 def yaz(kok, rel, icerik):
