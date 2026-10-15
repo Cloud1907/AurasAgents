@@ -11,6 +11,8 @@ import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 CITATIONS = os.path.join(ROOT, ".agents", "skills", "research-with-evidence",
                          "scripts", "check_citations.py")
 TESTFIRST = os.path.join(ROOT, ".agents", "skills", "implement-change",
@@ -85,21 +87,21 @@ class CheckTestFirstTest(unittest.TestCase):
     def test_kaynak_varken_testsiz_diff_uyarir(self):
         with tempfile.TemporaryDirectory() as td:
             subprocess.run(["git", "init", "-b", "main", td], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             for k, v in (("user.email", "t@t.t"), ("user.name", "t")):
                 subprocess.run(["git", "-C", td, "config", k, v], check=True,
-                               capture_output=True)
+                               capture_output=True, env=temiz_ortam())
             with open(os.path.join(td, "app.py"), "w") as fh:
                 fh.write("x = 1\n")
             subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             subprocess.run(["git", "-C", td, "commit", "-m", "ilk"],
-                           check=True, capture_output=True)
+                           check=True, capture_output=True, env=temiz_ortam())
             with open(os.path.join(td, "app.py"), "a") as fh:
                 fh.write("y = 2\n")
             p = subprocess.run([sys.executable, TESTFIRST],
                                capture_output=True, text=True, cwd=td,
-                               timeout=60)
+                               timeout=60, env=temiz_ortam())
             self.assertEqual(p.returncode, 1,
                              "kaynak değişti test değişmedi — uyarmalıydı")
 

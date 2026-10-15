@@ -43,6 +43,9 @@ import dogrula_sema  # noqa: E402
 from dogrula_sema import GOREV_SINIFLARI  # noqa: E402
 
 dogrula_sema.kur(check)
+# Konusu her zaman ROOT: miras depo yönlendirmesi (worktree push'unda GIT_DIR)
+# alt süreçleri başka depoya çeviremez — bkz. bin/git_ortam.py.
+import git_ortam  # noqa: E402
 test_profiles = dogrula_sema.test_profiles
 test_issue_form = dogrula_sema.test_issue_form
 
@@ -262,14 +265,19 @@ def test_memory_tool():
               f"memory_hygiene beklenmedik exit: {proc.returncode}")
         check("HAFIZA BAKIMI" in proc.stdout,
               "memory_hygiene beklenen çıktı biçimini üretmedi")
-    # Bekçinin bekçisi: araçların kendi birim testleri de koşmalı
+    # Bekçinin bekçisi: araçların kendi birim testleri de koşmalı. Süit YEM
+    # depoya yönlendirilmiş ortamda koşar: geçici depoda ortamı temizlemeden
+    # git koşan tek çağrı yemi değiştirir — gerçek depoyu değil (2026-10-15).
     if os.path.isdir(os.path.join(ROOT, "tests")):
-        proc = subprocess.run(
+        proc, sizan = git_ortam.yemde_kos(
             [sys.executable, "-W", "error::ResourceWarning",
-             "-m", "unittest", "discover", "-s", "tests", "-q"],
-            capture_output=True, text=True, cwd=ROOT)
+             "-m", "unittest", "discover", "-s", "tests", "-q"], ROOT)
         check(proc.returncode == 0,
               f"tests/ birim testleri başarısız: {proc.stderr[-300:]}")
+        check(not sizan,
+              f"tests/ miras git ortamını sızdırdı — yem depoda değişen: "
+              f"{', '.join(sizan)}. Depoyu adlandıran bir git çağrısı "
+              f"env=temiz_ortam() almıyor (bin/git_ortam.py)")
 
 
 def test_routing(skill_names, profil_skills=None):
@@ -862,6 +870,8 @@ def test_test_oracle_exit_koduna_bagli():
 
 
 def main():
+    for ad in git_ortam.YEREL_DEGISKENLER:
+        os.environ.pop(ad, None)
     skill_names = test_skills()
     profil_skills = test_profiles(skill_names)
     test_issue_form()

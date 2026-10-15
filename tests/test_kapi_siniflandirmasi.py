@@ -20,10 +20,13 @@ kendi kapılarından geçti.
 import importlib.util
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 
 
 def _load(name):
@@ -152,7 +155,8 @@ class MergeGetirdiTest(unittest.TestCase):
 
     def git(self, *a):
         return subprocess.run(["git", *a], cwd=self.kok,
-                              capture_output=True, text=True)
+                              capture_output=True, text=True,
+                              env=temiz_ortam())
 
     def yaz(self, rel, icerik):
         yol = os.path.join(self.kok, rel)

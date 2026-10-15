@@ -17,8 +17,11 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from git_ortam import temiz_ortam  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "docs", "sistem-hafizasi.html")
+OUT =os.path.join(ROOT, "docs", "sistem-hafizasi.html")
 
 CHIP = {  # skill → (etiket, sınıf)
     "implement-change": ("kod", "g"),
@@ -32,7 +35,8 @@ CHIP = {  # skill → (etiket, sınıf)
 def sh(args):
     try:
         return subprocess.check_output(args, cwd=ROOT, text=True,
-                                       stderr=subprocess.DEVNULL).strip()
+                                       stderr=subprocess.DEVNULL,
+                                       env=temiz_ortam()).strip()
     except Exception:
         return ""
 

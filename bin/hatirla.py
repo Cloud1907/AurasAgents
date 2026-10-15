@@ -21,6 +21,10 @@ import argparse
 import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from git_ortam import temiz_ortam  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TR_LOWER = str.maketrans("IİĞÜŞÖÇ", "iiğüşöç")
@@ -44,7 +48,8 @@ def git_kayitlari(kelimeler, sinir):
     try:
         p = subprocess.run(
             ["git", "log", "--date=short", "--pretty=%ad\t%h\t%s"],
-            capture_output=True, text=True, cwd=ROOT, timeout=10)
+            capture_output=True, text=True, cwd=ROOT, timeout=10,
+            env=temiz_ortam())
     except (OSError, subprocess.TimeoutExpired):
         return []
     if p.returncode != 0:

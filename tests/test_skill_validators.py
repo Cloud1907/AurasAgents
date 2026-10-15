@@ -12,6 +12,8 @@ import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 SCAN = os.path.join(ROOT, ".agents", "skills", "security-review",
                     "scripts", "scan_secrets.py")
 TESTFIRST = os.path.join(ROOT, ".agents", "skills", "implement-change",
@@ -34,7 +36,8 @@ YER_TUTUCU = "buraya-" + "yaz-parolani"
 
 def kos(script, *arg):
     p = subprocess.run([sys.executable, script, *arg],
-                       capture_output=True, text=True, cwd=ROOT, timeout=60)
+                       capture_output=True, text=True, cwd=ROOT, timeout=60,
+                       env=temiz_ortam())
     # stderr de kapı çıktısıdır: kullanım hataları oraya yazılır ve
     # "kapı ne dedi" iddiaları onu görmezse eksik denetlenir.
     return p.returncode, p.stdout + p.stderr
@@ -115,10 +118,10 @@ class ScanSecretsTest(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as td:
             subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             for k, v in (("user.email", "t@t.t"), ("user.name", "t")):
                 subprocess.run(["git", "-C", td, "config", k, v], check=True,
-                               capture_output=True)
+                               capture_output=True, env=temiz_ortam())
             with open(os.path.join(td, ".gitignore"), "w") as fh:
                 fh.write("*.local\n")
             with open(os.path.join(td, "app.env.local"), "w") as fh:
@@ -126,7 +129,7 @@ class ScanSecretsTest(unittest.TestCase):
             with open(os.path.join(td, "izlenen.py"), "w") as fh:
                 fh.write("x = 1\n")
             subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             self.assertEqual(kos(SCAN, td)[0], 1,
                              "--git'siz tarama izlenmeyeni de görmeli")
             self.assertEqual(kos(SCAN, "--git", td)[0], 0,
@@ -135,11 +138,11 @@ class ScanSecretsTest(unittest.TestCase):
     def test_git_modu_izlenen_secreti_hala_yakalar(self):
         with tempfile.TemporaryDirectory() as td:
             subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             with open(os.path.join(td, "cfg.py"), "w") as fh:
                 fh.write(f'KEY = "{ORNEK_ANAHTAR}"\n')
             subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
             kod, cikti = kos(SCAN, "--git", td)
             self.assertEqual(kod, 1)
             self.assertIn("cfg.py", cikti)
@@ -280,10 +283,10 @@ class SilmeTestIstemezTest(unittest.TestCase):
 
     def depo(self, td):
         subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
-                       capture_output=True)
+                       capture_output=True, env=temiz_ortam())
         for k, v in (("user.email", "t@t.t"), ("user.name", "t")):
             subprocess.run(["git", "-C", td, "config", k, v], check=True,
-                           capture_output=True)
+                           capture_output=True, env=temiz_ortam())
         for ad, ic in (("src.py", "def f():\n    return 1\n"),
                        ("tests/test_src.py", "def test_f():\n    assert 1\n"),
                        ("olu.py", "# kimse kullanmiyor\n")):
@@ -292,14 +295,14 @@ class SilmeTestIstemezTest(unittest.TestCase):
             with open(yol, "w") as fh:
                 fh.write(ic)
         subprocess.run(["git", "-C", td, "add", "-A"], check=True,
-                       capture_output=True)
+                       capture_output=True, env=temiz_ortam())
         subprocess.run(["git", "-C", td, "commit", "-qm", "ilk"], check=True,
-                       capture_output=True)
+                       capture_output=True, env=temiz_ortam())
         return td
 
     def kos_td(self, td):
         p = subprocess.run([sys.executable, TESTFIRST], capture_output=True,
-                           text=True, cwd=td, timeout=60)
+                           text=True, cwd=td, timeout=60, env=temiz_ortam())
         return p.returncode, p.stdout + p.stderr
 
     def test_yalniz_silme_test_istemez(self):

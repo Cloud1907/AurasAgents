@@ -18,12 +18,13 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 import kernel_dosyalari as kd  # noqa: E402
 
 
 def git(kok, *arg):
     subprocess.run(["git", "-C", kok, *arg], check=True,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, env=temiz_ortam())
 
 
 def yaz(kok, ad, icerik):
@@ -43,7 +44,8 @@ def depo_kur(kok):
 
 def sha(kok, ref="HEAD"):
     p = subprocess.run(["git", "-C", kok, "rev-parse", ref],
-                       capture_output=True, text=True, check=True)
+                       capture_output=True, text=True, check=True,
+                       env=temiz_ortam())
     return p.stdout.strip()
 
 
@@ -83,7 +85,8 @@ class KaynakTazeligiTest(unittest.TestCase):
         os.makedirs(self.uzak)
         depo_kur(self.uzak)
         subprocess.run(["git", "clone", "-q", self.uzak, self.kaynak],
-                       check=True, capture_output=True, text=True)
+                       check=True, capture_output=True, text=True,
+                       env=temiz_ortam())
         git(self.kaynak, "config", "user.email", "test@auras.local")
         git(self.kaynak, "config", "user.name", "auras test")
         self.addCleanup(self.tmp.cleanup)

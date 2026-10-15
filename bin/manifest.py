@@ -16,6 +16,10 @@ import datetime as dt
 import json
 import os
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from git_ortam import temiz_ortam  # noqa: E402
 
 MANIFEST_REL = os.path.join(".agents", ".kernel-manifest.json")
 MANIFEST_SURUM = 2
@@ -26,7 +30,7 @@ def _kaynak_kimligi(kaynak):
     def git(*args):
         try:
             p = subprocess.run(["git", *args], cwd=kaynak, capture_output=True,
-                               text=True, timeout=10)
+                               text=True, timeout=10, env=temiz_ortam())
             return p.stdout.strip() if p.returncode == 0 else ""
         except (OSError, subprocess.SubprocessError):
             return ""

@@ -9,7 +9,12 @@ senkron kararıyla geldi ve o karar manifest'e hiç dokunmadan iki kez değişti
 Git primitivi (`git`) burada yaşar çünkü bu modül git'le KONUŞAN modüldür;
 `kernel_dosyalari.sinifla` da onu buradan alır (tek kopya, tek davranış).
 """
+import os
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from git_ortam import temiz_ortam  # noqa: E402
 
 FETCH_ZAMAN = 20
 
@@ -18,7 +23,8 @@ def git(kok, *arg, girdi=None, zaman=20):
     """git çıktısı (stdout) ya da None — hata/çökme/timeout hepsi None."""
     try:
         p = subprocess.run(["git", "-C", kok, *arg], capture_output=True,
-                           text=True, input=girdi, timeout=zaman)
+                           text=True, input=girdi, timeout=zaman,
+                           env=temiz_ortam())
         return p.stdout if p.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None

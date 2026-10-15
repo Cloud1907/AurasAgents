@@ -9,6 +9,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
     "hatirla", os.path.join(ROOT, "bin", "hatirla.py"))
@@ -57,7 +59,8 @@ class KaynakTest(unittest.TestCase):
         sorgu artık reponun kendi son commit'inden türetiliyor.
         """
         p = subprocess.run(["git", "log", "-1", "--pretty=%s"],
-                           capture_output=True, text=True, cwd=ROOT)
+                           capture_output=True, text=True, cwd=ROOT,
+                           env=temiz_ortam())
         if p.returncode != 0 or not p.stdout.strip():
             self.skipTest("git geçmişi yok — tarama denenemez")
         kelimeler = [k for k in re.split(r"[^0-9A-Za-zçğıöşüÇĞİÖŞÜ]+", p.stdout)

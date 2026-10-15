@@ -15,6 +15,8 @@ import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "bin"))
+from git_ortam import temiz_ortam  # noqa: E402
 SCRIPTS = os.path.join(ROOT, ".agents", "skills", "security-review", "scripts")
 GECMIS = os.path.join(SCRIPTS, "scan_gecmis.py")
 SIFIR = "0" * 40
@@ -29,7 +31,7 @@ def git(td, *arg):
     return subprocess.run(
         ["git", "-C", td, "-c", "user.email=t@t", "-c", "user.name=t",
          "-c", "commit.gpgsign=false", *arg],
-        check=True, capture_output=True, text=True)
+        check=True, capture_output=True, text=True, env=temiz_ortam())
 
 
 def commit_yap(td, mesaj):
@@ -41,7 +43,7 @@ def commit_yap(td, mesaj):
 def depo_kur(td):
     """Boş depo + temiz taban commit'i; taban SHA'sını döndürür."""
     subprocess.run(["git", "init", "-q", "-b", "main", td], check=True,
-                   capture_output=True)
+                   capture_output=True, env=temiz_ortam())
     with open(os.path.join(td, "temiz.py"), "w") as fh:
         fh.write("x = 1\n")
     return commit_yap(td, "taban")
@@ -60,7 +62,8 @@ def gecmis_sirli_depo(td):
 
 def tara(*arg):
     p = subprocess.run([sys.executable, GECMIS, *arg],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, timeout=120,
+                       env=temiz_ortam())
     # stderr de kapı çıktısıdır: kullanım hataları oraya yazılır.
     return p.returncode, p.stdout + p.stderr
 
